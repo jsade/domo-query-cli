@@ -6,7 +6,7 @@
 </h1>
 
 <div align="center" style="margin-bottom:10px">
-A simple command-line interface for exploring your <a href="https://domo.com/ alt="Domo">Domo</a> data pipelines, datasets, and dataflows.
+A simple command-line interface for exploring your <a href="https://domo.com/" alt="Domo">Domo</a> data pipelines, datasets, and dataflows.
 </div>
 
 ## Features
