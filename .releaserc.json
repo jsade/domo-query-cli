@@ -1,0 +1,48 @@
+{
+    "branches": ["main"],
+    "plugins": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/release-notes-generator",
+        [
+            "@semantic-release/changelog",
+            {
+                "changelogFile": "CHANGELOG.md"
+            }
+        ],
+        [
+            "@semantic-release/npm",
+            {
+                "npmPublish": false
+            }
+        ],
+        [
+            "@semantic-release/github",
+            {
+                "assets": [
+                    {
+                        "label": "macOS Apple Silicon (ARM64)",
+                        "name": "domo-query-cli-${nextRelease.version}-macos-arm64.zip",
+                        "path": "release/domo-query-cli-macos-arm64.zip"
+                    },
+                    {
+                        "label": "Windows 64-bit",
+                        "name": "domo-query-cli-${nextRelease.version}-windows.zip",
+                        "path": "release/domo-query-cli-windows.zip"
+                    },
+                    {
+                        "label": "Linux 64-bit",
+                        "name": "domo-query-cli-${nextRelease.version}-linux.zip",
+                        "path": "release/domo-query-cli-linux.zip"
+                    }
+                ]
+            }
+        ],
+        [
+            "@semantic-release/git",
+            {
+                "assets": ["package.json", "CHANGELOG.md"],
+                "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+            }
+        ]
+    ]
+}

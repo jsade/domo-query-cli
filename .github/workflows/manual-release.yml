@@ -1,0 +1,58 @@
+name: Manual Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            dry-run:
+                description: "Perform a dry run (no actual release)"
+                required: false
+                default: true
+                type: boolean
+
+permissions:
+    contents: write
+    issues: write
+    pull-requests: write
+    id-token: write
+
+jobs:
+    release:
+        name: Manual Release
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+
+            - name: Enable Corepack
+              run: corepack enable
+
+            - name: Install dependencies
+              run: yarn install --immutable
+
+            - name: Run tests
+              run: yarn test
+
+            - name: Build project
+              run: yarn build
+
+            - name: Build distributables
+              run: yarn build:dist
+
+            - name: Run semantic-release (dry run)
+              if: ${{ inputs.dry-run == true }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: yarn release:dry-run
+
+            - name: Run semantic-release (actual release)
+              if: ${{ inputs.dry-run == false }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: yarn release

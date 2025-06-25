@@ -1,0 +1,19 @@
+echo "🧪 Running tests..."
+yarn test
+
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed! Please fix them before committing."
+  exit 1
+fi
+
+echo "✅ Tests passed!"
+
+echo "🎨 Running linter and formatter..."
+yarn lint:fix && yarn format && yarn typecheck
+
+if [ $? -ne 0 ]; then
+  echo "❌ Linting/formatting failed! Please fix the issues."
+  exit 1
+fi
+
+echo "✅ All checks passed!"
