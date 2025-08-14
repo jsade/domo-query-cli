@@ -74,12 +74,13 @@ console.error = function (...args: unknown[]) {
 };
 
 import { selectAndStartShell } from "./shellSelector.ts";
+import { NonInteractiveExecutor } from "./NonInteractiveExecutor.ts";
 
 /**
  * Main application function.
  *
  * @remarks
- * Initializes and starts the interactive Domo shell.
+ * Initializes and starts the interactive Domo shell or executes non-interactive commands.
  * Handles potential errors during execution.
  */
 async function main(): Promise<void> {
@@ -90,20 +91,67 @@ async function main(): Promise<void> {
         process.exit(0);
     }
 
-    log.info("Starting Domo Interactive Shell...");
+    // Check for non-interactive mode
+    const hasCommandFlag = args.includes("--command") || args.includes("-c");
+    const hasHelpFlag = args.includes("--help") || args.includes("-h");
 
-    // Check if the session is interactive
-    if (!isInteractive()) {
-        console.error("This CLI tool requires an interactive terminal.");
-        process.exit(1);
-    }
+    if (hasCommandFlag || hasHelpFlag) {
+        // Non-interactive mode
+        const executor = new NonInteractiveExecutor();
 
-    try {
-        // Start the shell with Tab Completion
-        await selectAndStartShell();
-    } catch (error) {
-        log.error("An error occurred:", error);
-        process.exit(1); // Exit with an error code
+        if (hasHelpFlag && !hasCommandFlag) {
+            executor.showHelp();
+            process.exit(0);
+        }
+
+        try {
+            const parsedArgs = executor.parseArgs(args);
+
+            if (parsedArgs.help) {
+                executor.showHelp();
+                process.exit(0);
+            }
+
+            if (parsedArgs.command) {
+                await executor.execute(
+                    parsedArgs.command,
+                    parsedArgs.commandArgs,
+                    parsedArgs.format,
+                );
+                process.exit(0);
+            } else {
+                console.error(
+                    "Error: --command flag specified but no command provided",
+                );
+                executor.showHelp();
+                process.exit(1);
+            }
+        } catch (error) {
+            console.error(
+                `Error: ${error instanceof Error ? error.message : error}`,
+            );
+            process.exit(1);
+        }
+    } else {
+        // Interactive mode
+        log.info("Starting Domo Interactive Shell...");
+
+        // Check if the session is interactive
+        if (!isInteractive()) {
+            console.error("This CLI tool requires an interactive terminal.");
+            console.error(
+                "For non-interactive use, try: domo-query-cli --help",
+            );
+            process.exit(1);
+        }
+
+        try {
+            // Start the shell with Tab Completion
+            await selectAndStartShell();
+        } catch (error) {
+            log.error("An error occurred:", error);
+            process.exit(1); // Exit with an error code
+        }
     }
 }
 
