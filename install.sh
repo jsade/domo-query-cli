@@ -34,7 +34,7 @@ echo "📦 Installing dependencies..."
 yarn install
 
 echo "🔨 Building the project..."
-yarn build
+yarn build:dist
 
 echo "📁 Creating global installation..."
 
@@ -69,26 +69,31 @@ fi
 # Create config directory
 mkdir -p "$CONFIG_DIR"
 
-# Create a wrapper script for the CLI
-# Check if we need sudo for the installation directory
-if [ -w "$INSTALL_DIR" ]; then
-    cat > "$INSTALL_DIR/domo-query-cli" << EOF
-#!/bin/bash
-# Domo Query CLI wrapper script
-export NODE_PATH="$SCRIPT_DIR/node_modules"
-cd "$SCRIPT_DIR" && node "$SCRIPT_DIR/dist/main.js" "\$@"
-EOF
-    chmod +x "$INSTALL_DIR/domo-query-cli"
+# Determine the binary name based on OS
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    BINARY_NAME="domo-query-cli.exe"
 else
-    echo "⚠️  Need elevated privileges to install to $INSTALL_DIR"
-    echo "Creating wrapper script with sudo..."
-    sudo tee "$INSTALL_DIR/domo-query-cli" > /dev/null << EOF
-#!/bin/bash
-# Domo Query CLI wrapper script
-export NODE_PATH="$SCRIPT_DIR/node_modules"
-cd "$SCRIPT_DIR" && node "$SCRIPT_DIR/dist/main.js" "\$@"
-EOF
-    sudo chmod +x "$INSTALL_DIR/domo-query-cli"
+    BINARY_NAME="domo-query-cli"
+fi
+
+# Check if pre-built binary exists in release directory
+if [ -f "$SCRIPT_DIR/release/$BINARY_NAME" ]; then
+    echo "Installing pre-built binary..."
+    
+    # Copy the binary to the installation directory
+    if [ -w "$INSTALL_DIR" ]; then
+        cp "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
+        chmod +x "$INSTALL_DIR/domo-query-cli"
+    else
+        echo "⚠️  Need elevated privileges to install to $INSTALL_DIR"
+        echo "Installing binary with sudo..."
+        sudo cp "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
+        sudo chmod +x "$INSTALL_DIR/domo-query-cli"
+    fi
+else
+    echo -e "${RED}Error: Pre-built binary not found at $SCRIPT_DIR/release/$BINARY_NAME${NC}"
+    echo "The build:dist command may have failed. Please check the build output."
+    exit 1
 fi
 
 # Copy .env.example to config directory if it doesn't exist

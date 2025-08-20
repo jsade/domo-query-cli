@@ -3,6 +3,7 @@ import { DataflowAuthMethod } from "../api/clients/dataflowClient";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
+import { checkReadOnlyMode } from "../utils/readOnlyGuard";
 import chalk from "chalk";
 
 /**
@@ -18,6 +19,9 @@ export class ExecuteDataflowCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
+            // Check read-only mode before attempting to execute
+            checkReadOnlyMode("execute-dataflow");
+
             const [dataflowId, mode, comment, saveOptionsRaw] =
                 args && args.length > 0
                     ? [...CommandUtils.parseSaveOptions(args), null]
@@ -91,6 +95,8 @@ export class ExecuteDataflowCommand extends BaseCommand {
             }
         } catch (error) {
             log.error("Error executing dataflow:", error);
+            // Re-throw to propagate the error to the CLI handler
+            throw error;
         }
     }
 

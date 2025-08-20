@@ -21,12 +21,14 @@ export class NonInteractiveExecutor {
         commandArgs: string[];
         format?: string;
         help?: boolean;
+        readOnly?: boolean;
     } {
         const result: {
             command?: string;
             commandArgs: string[];
             format?: string;
             help?: boolean;
+            readOnly?: boolean;
         } = {
             commandArgs: [],
         };
@@ -51,6 +53,9 @@ export class NonInteractiveExecutor {
                 }
             } else if (arg === "--help" || arg === "-h") {
                 result.help = true;
+                i++;
+            } else if (arg === "--read-only" || arg === "-r") {
+                result.readOnly = true;
                 i++;
             } else {
                 // Remaining args are command arguments
@@ -211,6 +216,9 @@ export class NonInteractiveExecutor {
         console.log("  --command, -c <command>  Execute a specific command");
         console.log(
             "  --format, -f <format>    Output format (text|json), default: text",
+        );
+        console.log(
+            "  --read-only, -r          Enable read-only mode (disables destructive operations)",
         );
         console.log("  --help, -h               Show this help message");
         console.log("  --version, -v            Show version information");

@@ -21,6 +21,7 @@ import { log } from "./utils/logger.ts";
  * - `NO_PROXY`: Comma-separated list of hosts to bypass proxy.
  * - `NODE_TLS_REJECT_UNAUTHORIZED`: Set to '0' to disable SSL certificate verification (for self-signed certs).
  * - `DOMO_DISABLE_SSL_VERIFICATION`: Set to 'true' to disable SSL certificate verification (alternative to NODE_TLS_REJECT_UNAUTHORIZED).
+ * - `DOMO_READ_ONLY`: Set to 'true' to enable read-only mode (disables all destructive operations).
  */
 export const domoConfig = {
     clientId: "",
@@ -35,6 +36,7 @@ export const domoConfig = {
     httpProxy: "",
     noProxy: "",
     rejectUnauthorized: true,
+    readOnly: false,
     initialized: false,
 };
 
@@ -156,9 +158,46 @@ export function initializeConfig(): void {
         process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     }
 
+    // Load read-only mode configuration
+    if (
+        process.env.DOMO_READ_ONLY === "true" ||
+        process.env.DOMO_READ_ONLY === "1"
+    ) {
+        domoConfig.readOnly = true;
+        log.warn(
+            "READ-ONLY MODE ENABLED - All destructive operations are disabled",
+        );
+    }
+
     // Mark as initialized
     domoConfig.initialized = true;
     log.info(
         `Domo configuration loaded successfully using authentication methods: ${authMethods.join(", ")}`,
     );
+    if (domoConfig.readOnly) {
+        log.info("Running in READ-ONLY mode");
+    }
+}
+
+/**
+ * Checks if the CLI is running in read-only mode
+ * @returns true if read-only mode is enabled
+ */
+export function isReadOnlyMode(): boolean {
+    return domoConfig.readOnly;
+}
+
+/**
+ * Sets the read-only mode state
+ * @param enabled - Whether to enable or disable read-only mode
+ */
+export function setReadOnlyMode(enabled: boolean): void {
+    domoConfig.readOnly = enabled;
+    if (enabled) {
+        log.warn(
+            "READ-ONLY MODE ENABLED - All destructive operations are disabled",
+        );
+    } else {
+        log.info("Read-only mode disabled");
+    }
 }

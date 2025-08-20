@@ -20,22 +20,43 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 
 ## Prerequisites
 
+### For Users (Pre-built Binary)
+1. **Domo Instance**: Access to a Domo instance (e.g., yourcompany.domo.com)
+2. **Credentials**:
+    - API Token
+    - OAuth Client ID and Secret
+
 ### For Development
 1. **Node.js**: Version 18 or higher
 2. **Yarn**: Version 4.x (via Corepack)
 3. **Git**: For cloning the repository
-4. **Domo Instance**: Access to a Domo instance (e.g., yourcompany.domo.com)
-5. **Credentials**:
-    - API Token
-    - OAuth Client ID and Secret
 
-## Development Setup
+## Installation
 
 > [!CAUTION]
 > **Pre-release, very early in development. Iterative changes to be expected.**
 > Use only if you know what you're doing.
 
-### Clone and Install
+### Quick Install (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/jsade/domo-query-cli.git
+cd domo-query-cli
+
+# Run the installation script
+./install.sh
+```
+
+The installation script will:
+1. Install dependencies
+2. Build a standalone executable
+3. Install it to your system PATH
+4. Set up configuration files
+
+### Manual Installation
+
+If you prefer to build from source:
 
 ```bash
 # Clone the repository
@@ -48,32 +69,42 @@ corepack enable
 # Install dependencies
 yarn install
 
+# Build standalone executable
+yarn build:dist
+
+# The executable will be in release/domo-query-cli
+# Copy it to a directory in your PATH
+cp release/domo-query-cli /usr/local/bin/
+
 # Copy environment variables template
-cp .env.example .env
+cp .env.example ~/.domo-cli/.env
 ```
+
+## Development Setup
 
 ### Build from Source
 
 ```bash
-# Build TypeScript
+# Build TypeScript for development
 yarn build
 
 # Run development mode (watch for changes)
 yarn dev
 
-# Run the CLI locally
+# Run the CLI locally without building
 yarn start
 # or
 yarn shell
 ```
 
-### Create Standalone Executables (Optional)
+### Create Standalone Executables
 
 ```bash
-# Build distributable executables for all platforms
+# Build distributable executable for current platform
 yarn build:dist
 
-# Executables will be in the dist/ directory
+# Executable will be in release/domo-query-cli
+# Archive will be in release/domo-query-cli-<platform>.zip
 ```
 
 ### Development Workflow
@@ -148,11 +179,14 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 1. Start the CLI:
 
     ```bash
+    # If installed via install.sh
+    domo-query-cli
+    
+    # Or run directly from release directory
+    ./release/domo-query-cli
+    
+    # Or for development
     yarn start
-    # or
-    yarn shell
-    # or if built as executable
-    ./dist/domo-query-cli
     ```
 
 2. Type `help` to see available commands

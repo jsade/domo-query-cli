@@ -1,7 +1,8 @@
 import chalk from "chalk";
 import * as readline from "readline";
 import { CommandFactory } from "./commands/CommandFactory.ts";
-import { initializeConfig } from "./config.ts";
+import { initializeConfig, isReadOnlyMode } from "./config.ts";
+import { getReadOnlyModeMessage } from "./utils/readOnlyGuard.ts";
 import { log } from "./utils/logger.ts";
 import { version } from "./version.ts";
 
@@ -20,10 +21,14 @@ export default class DomoShellWithTabComplete {
         });
 
         // Create readline interface
+        const prompt = isReadOnlyMode()
+            ? chalk.yellow("domo [read-only]> ")
+            : chalk.green("domo> ");
+
         this.rl = readline.createInterface({
             input: process.stdin,
             output: process.stdout,
-            prompt: chalk.green("domo> "),
+            prompt: prompt,
             completer: this.completer.bind(this),
             historySize: 100,
         });
@@ -177,6 +182,12 @@ export default class DomoShellWithTabComplete {
         console.log(
             chalk.gray("Type 'help' for command list, 'exit' to quit\n"),
         );
+
+        // Show read-only mode message if enabled
+        if (isReadOnlyMode()) {
+            console.log(getReadOnlyModeMessage());
+            console.log("");
+        }
 
         // Set up line event handler
         this.rl.on("line", async input => {

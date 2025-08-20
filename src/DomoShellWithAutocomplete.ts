@@ -2,7 +2,8 @@ import inquirer from "inquirer";
 import AutocompletePrompt from "inquirer-autocomplete-prompt";
 import chalk from "chalk";
 import { CommandFactory } from "./commands/CommandFactory.ts";
-import { initializeConfig } from "./config.ts";
+import { initializeConfig, isReadOnlyMode } from "./config.ts";
+import { getReadOnlyModeMessage } from "./utils/readOnlyGuard.ts";
 import { log } from "./utils/logger.ts";
 
 // Register the autocomplete prompt type
@@ -359,14 +360,24 @@ export default class DomoShellWithAutocomplete {
         );
         console.log("Type 'exit' to quit\n");
 
+        // Show read-only mode message if enabled
+        if (isReadOnlyMode()) {
+            console.log(getReadOnlyModeMessage());
+            console.log("");
+        }
+
         // Main shell loop
         while (this.running) {
             try {
+                const prompt = isReadOnlyMode()
+                    ? chalk.yellow("domo [read-only]>")
+                    : chalk.green("domo>");
+
                 const { command } = await inquirer.prompt([
                     {
                         type: "autocomplete",
                         name: "command",
-                        message: chalk.green("domo>"),
+                        message: prompt,
                         source: async (
                             _answersSoFar: unknown,
                             input: string,

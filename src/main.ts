@@ -75,6 +75,7 @@ console.error = function (...args: unknown[]) {
 
 import { selectAndStartShell } from "./shellSelector.ts";
 import { NonInteractiveExecutor } from "./NonInteractiveExecutor.ts";
+import { setReadOnlyMode, initializeConfig } from "./config.ts";
 
 /**
  * Main application function.
@@ -94,6 +95,7 @@ async function main(): Promise<void> {
     // Check for non-interactive mode
     const hasCommandFlag = args.includes("--command") || args.includes("-c");
     const hasHelpFlag = args.includes("--help") || args.includes("-h");
+    const hasReadOnlyFlag = args.includes("--read-only") || args.includes("-r");
 
     if (hasCommandFlag || hasHelpFlag) {
         // Non-interactive mode
@@ -105,11 +107,24 @@ async function main(): Promise<void> {
         }
 
         try {
+            // Initialize configuration first to load environment variables
+            try {
+                initializeConfig();
+            } catch (error) {
+                // Config errors are not fatal in non-interactive mode for help/version
+                log.debug("Config initialization warning:", error);
+            }
+
             const parsedArgs = executor.parseArgs(args);
 
             if (parsedArgs.help) {
                 executor.showHelp();
                 process.exit(0);
+            }
+
+            // Apply read-only mode if specified via CLI flag (overrides env var)
+            if (parsedArgs.readOnly) {
+                setReadOnlyMode(true);
             }
 
             if (parsedArgs.command) {
@@ -133,6 +148,10 @@ async function main(): Promise<void> {
             process.exit(1);
         }
     } else {
+        // Interactive mode - check for read-only flag
+        if (hasReadOnlyFlag) {
+            setReadOnlyMode(true);
+        }
         // Interactive mode
         log.info("Starting Domo Interactive Shell...");
 
