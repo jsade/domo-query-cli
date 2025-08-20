@@ -115,7 +115,7 @@ domo-query-cli list-datasets
 domo-query-cli list-datasets --limit 10
 domo-query-cli list-datasets "sales"  # Search by name
 
-# Get dataset details (if implemented)
+# Get dataset details
 domo-query-cli get-dataset 12345678-abcd-1234-5678-901234567890
 ```
 

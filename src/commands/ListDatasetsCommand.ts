@@ -31,62 +31,75 @@ export class ListDatasetsCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const [_, saveOptions] = CommandUtils.parseSaveOptions(args || []);
+            const parsedArgs = CommandUtils.parseCommandArgs(args);
             let params: DatasetListParams = { limit: 50, offset: 0 };
             let nameLike: string | undefined;
             let hasExplicitLimit = false;
             let hasExplicitOffset = false;
 
-            if (_.length > 0) {
-                if (!_[0].includes("=")) {
-                    nameLike = _[0];
-                    params.nameLike = nameLike;
-                }
+            // Handle positional argument for search
+            if (parsedArgs.positional.length > 0) {
+                nameLike = parsedArgs.positional[0];
+                params.nameLike = nameLike;
+            }
 
-                for (const arg of _) {
-                    if (arg.includes("=")) {
-                        const [key, value] = arg.split("=");
-                        if (key === "limit" && !isNaN(Number(value))) {
-                            const limitValue = Number(value);
-                            if (limitValue < 1 || limitValue > 50) {
-                                console.log(
-                                    TerminalFormatter.error(
-                                        `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
-                                    ),
-                                );
-                                return; // Exit early
-                            }
-                            params.limit = limitValue;
-                            hasExplicitLimit = true;
-                        } else if (key === "offset" && !isNaN(Number(value))) {
-                            params.offset = Number(value);
-                            hasExplicitOffset = true;
-                        } else if (key === "sort") {
-                            const validSorts = [
-                                "name",
-                                "nameDescending",
-                                "lastTouched",
-                                "lastTouchedAscending",
-                                "lastUpdated",
-                            ];
-                            if (validSorts.includes(value)) {
-                                params.sort = value as DatasetSort;
-                            } else {
-                                console.log(
-                                    `Invalid sort value: "${value}". Valid options are: ${validSorts.join(", ")}`,
-                                );
-                            }
-                        } else if (key === "search" || key === "name") {
-                            params.nameLike = value;
-                        }
-                    }
+            // Process named parameters
+            if (parsedArgs.params.limit !== undefined) {
+                const limitValue = Number(parsedArgs.params.limit);
+                if (limitValue < 1 || limitValue > 50) {
+                    console.log(
+                        TerminalFormatter.error(
+                            `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
+                        ),
+                    );
+                    return; // Exit early
                 }
+                params.limit = limitValue;
+                hasExplicitLimit = true;
+            }
+
+            if (parsedArgs.params.offset !== undefined) {
+                params.offset = Number(parsedArgs.params.offset);
+                hasExplicitOffset = true;
+            }
+
+            if (parsedArgs.params.sort !== undefined) {
+                const validSorts = [
+                    "name",
+                    "nameDescending",
+                    "lastTouched",
+                    "lastTouchedAscending",
+                    "lastUpdated",
+                ];
+                const sortValue = String(parsedArgs.params.sort);
+                if (validSorts.includes(sortValue)) {
+                    params.sort = sortValue as DatasetSort;
+                } else {
+                    console.log(
+                        `Invalid sort value: "${sortValue}". Valid options are: ${validSorts.join(", ")}`,
+                    );
+                }
+            }
+
+            // Handle search/name parameters (override positional if specified)
+            if (parsedArgs.params.search !== undefined) {
+                params.nameLike = String(parsedArgs.params.search);
+                nameLike = params.nameLike;
+            } else if (parsedArgs.params.name !== undefined) {
+                params.nameLike = String(parsedArgs.params.name);
+                nameLike = params.nameLike;
             }
 
             // If no explicit limit/offset, fetch all data
             if (
-                (!hasExplicitLimit && !hasExplicitOffset && _.length === 0) ||
-                (_.length === 1 && nameLike)
+                (!hasExplicitLimit &&
+                    !hasExplicitOffset &&
+                    parsedArgs.positional.length === 0 &&
+                    Object.keys(parsedArgs.params).length === 0) ||
+                (parsedArgs.positional.length === 1 &&
+                    nameLike &&
+                    !hasExplicitLimit &&
+                    !hasExplicitOffset)
             ) {
                 // Fetch all datasets with automatic pagination
                 this.datasets = [];
@@ -170,7 +183,7 @@ export class ListDatasetsCommand extends BaseCommand {
                     this.datasets,
                     `Domo Datasets${nameLike ? ` matching "${nameLike}"` : ""}`,
                     "datasets",
-                    saveOptions,
+                    parsedArgs.saveOptions,
                 );
 
                 console.log(
@@ -203,7 +216,11 @@ export class ListDatasetsCommand extends BaseCommand {
             "\nUsage: list-datasets [search_term] [parameters] [options]",
         );
 
-        console.log(chalk.cyan("\nParameters:"));
+        console.log(
+            chalk.cyan(
+                "\nParameters (both --key value and key=value formats supported):",
+            ),
+        );
         const paramsData = [
             {
                 Parameter: "search_term",
@@ -274,15 +291,19 @@ export class ListDatasetsCommand extends BaseCommand {
                 Description: "List all datasets containing 'sales'",
             },
             {
-                Command: "list-datasets limit=50",
-                Description: "List only first 50 datasets",
+                Command: "list-datasets --limit 10",
+                Description: "List only first 10 datasets",
             },
             {
-                Command: "list-datasets limit=50 offset=50",
+                Command: "list-datasets limit=50",
+                Description: "List only first 50 datasets (old format)",
+            },
+            {
+                Command: "list-datasets --limit 50 --offset 50",
                 Description: "List second page of 50",
             },
             {
-                Command: "list-datasets sort=lastUpdated",
+                Command: "list-datasets --sort lastUpdated",
                 Description: "Sort by last update time",
             },
             {

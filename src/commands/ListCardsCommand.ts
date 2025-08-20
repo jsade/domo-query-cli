@@ -200,11 +200,15 @@ export class ListCardsCommand extends BaseCommand {
                 Description: "List all cards (auto-paginate)",
             },
             {
-                Command: "list-cards limit=50",
-                Description: "List only first 50 cards",
+                Command: "list-cards --limit 10",
+                Description: "List first 10 cards",
             },
             {
-                Command: "list-cards limit=50 offset=50",
+                Command: "list-cards limit=50",
+                Description: "List first 50 cards (old format)",
+            },
+            {
+                Command: "list-cards --limit 50 --offset 50",
                 Description: "List second page of 50",
             },
             {

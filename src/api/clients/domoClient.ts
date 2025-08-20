@@ -226,7 +226,13 @@ export interface DomoDataset {
     }>;
     createdAt: string;
     updatedAt: string;
-    owner?: string;
+    dataCurrentAt?: string;
+    owner?: string | { 
+        id?: string;
+        name?: string;
+        displayName?: string;
+        avatarKey?: string;
+    };
     dataStatus?: string;
     pdpEnabled?: boolean;
     policies?: Array<{
@@ -242,6 +248,12 @@ export interface DomoDataset {
         users?: number[];
         groups?: Array<Record<string, unknown>>;
     }>;
+    certification?: {
+        state?: string;
+        certifiedBy?: string;
+        certifiedAt?: string;
+    };
+    tags?: string[];
 }
 
 /**
@@ -484,6 +496,74 @@ export async function listDatasets(
     }
 
     return datasets;
+}
+
+/**
+ * Function to get a specific dataset by ID
+ * Uses the v3/datasources endpoint for more detailed information
+ * Falls back to v1/datasets if v3 fails
+ */
+export async function getDataset(datasetId: string): Promise<DomoDataset | null> {
+    const cacheManager = getCacheManager();
+
+    // Check cache first
+    const cacheKey = `dataset_${datasetId}`;
+    const cachedDataset = await cacheManager.get<DomoDataset>(cacheKey);
+    if (cachedDataset) {
+        return cachedDataset;
+    }
+
+    const client = createDomoClient();
+
+    try {
+        // Try v3 endpoint first for more details
+        const response = await client.get<any>(
+            `/api/data/v3/datasources/${datasetId}`,
+            { includeAllDetails: "true" }
+        );
+
+        if (response) {
+            // Transform v3 response to DomoDataset interface
+            const dataset: DomoDataset = {
+                id: response.id || datasetId,
+                name: response.name || "",
+                description: response.description || "",
+                rows: response.rowCount || response.rows || 0,
+                columns: response.columnCount || response.columns || 0,
+                createdAt: response.createdAt || response.created || "",
+                updatedAt: response.updatedAt || response.modified || "",
+                dataCurrentAt: response.dataCurrentAt || response.lastDataUpdate || "",
+                owner: response.owner || undefined,
+                pdpEnabled: response.pdpEnabled || false,
+                policies: response.policies || undefined,
+                schema: response.schema || undefined,
+                certification: response.certification || undefined,
+                tags: response.tags || undefined,
+            };
+
+            // Cache the result
+            await cacheManager.set(cacheKey, dataset, 300); // Cache for 5 minutes
+
+            return dataset;
+        }
+    } catch (error) {
+        // If v3 fails, try v1 endpoint
+        log.debug("v3 datasources endpoint failed, trying v1 datasets", error);
+        
+        try {
+            const response = await client.get<DomoDataset>(`/v1/datasets/${datasetId}`);
+            
+            if (response) {
+                // Cache the result
+                await cacheManager.set(cacheKey, response, 300); // Cache for 5 minutes
+                return response;
+            }
+        } catch (v1Error) {
+            log.error("Error fetching dataset:", v1Error);
+        }
+    }
+
+    return null;
 }
 
 /**

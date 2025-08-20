@@ -10,6 +10,28 @@ import {
 } from "../utils/utils";
 
 /**
+ * Parsed command arguments
+ */
+export interface ParsedArgs {
+    /**
+     * Positional arguments (non-flag arguments)
+     */
+    positional: string[];
+    /**
+     * Named parameters (e.g., --limit 10 or limit=10)
+     */
+    params: Record<string, string | number | boolean>;
+    /**
+     * Boolean flags (e.g., --verbose)
+     */
+    flags: Set<string>;
+    /**
+     * Save options if present
+     */
+    saveOptions: SaveOptions | null;
+}
+
+/**
  * Utility class with common functions for commands
  */
 export class CommandUtils {
@@ -83,5 +105,93 @@ export class CommandUtils {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Parse command arguments supporting both --key value and key=value formats
+     * @param args - Command arguments
+     * @returns Parsed arguments object
+     */
+    public static parseCommandArgs(args?: string[]): ParsedArgs {
+        if (!args || args.length === 0) {
+            return {
+                positional: [],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            };
+        }
+
+        const result: ParsedArgs = {
+            positional: [],
+            params: {},
+            flags: new Set(),
+            saveOptions: null,
+        };
+
+        // First, extract save options
+        const [remainingArgs, saveOptions] = this.parseSaveOptions(args);
+        result.saveOptions = saveOptions;
+
+        // Parse remaining arguments
+        let i = 0;
+        while (i < remainingArgs.length) {
+            const arg = remainingArgs[i];
+
+            if (arg.startsWith("--")) {
+                // Handle --key or --key=value format
+                const flagName = arg.slice(2);
+
+                if (flagName.includes("=")) {
+                    // --key=value format
+                    const [key, ...valueParts] = flagName.split("=");
+                    const value = valueParts.join("="); // Handle values with = in them
+                    result.params[key] = this.parseValue(value);
+                } else if (
+                    i + 1 < remainingArgs.length &&
+                    !remainingArgs[i + 1].startsWith("-")
+                ) {
+                    // --key value format (next arg is the value)
+                    result.params[flagName] = this.parseValue(
+                        remainingArgs[i + 1],
+                    );
+                    i++; // Skip the next argument as we've consumed it
+                } else {
+                    // Boolean flag
+                    result.flags.add(flagName);
+                    result.params[flagName] = true;
+                }
+            } else if (arg.includes("=") && !arg.startsWith("-")) {
+                // key=value format (backward compatibility)
+                const [key, ...valueParts] = arg.split("=");
+                const value = valueParts.join("="); // Handle values with = in them
+                result.params[key] = this.parseValue(value);
+            } else {
+                // Positional argument
+                result.positional.push(arg);
+            }
+            i++;
+        }
+
+        return result;
+    }
+
+    /**
+     * Parse a string value to appropriate type
+     * @param value - String value to parse
+     * @returns Parsed value as string, number, or boolean
+     */
+    private static parseValue(value: string): string | number | boolean {
+        // Check for boolean
+        if (value.toLowerCase() === "true") return true;
+        if (value.toLowerCase() === "false") return false;
+
+        // Check for number
+        if (!isNaN(Number(value)) && value !== "") {
+            return Number(value);
+        }
+
+        // Return as string
+        return value;
     }
 }
