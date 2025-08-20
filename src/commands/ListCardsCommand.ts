@@ -2,6 +2,7 @@ import type { CardListParams, DomoCard } from "../api/clients/domoClient";
 import { listCards } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
+import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
@@ -27,6 +28,13 @@ export class ListCardsCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
+            const parsedArgs = CommandUtils.parseCommandArgs(args);
+
+            // Check for JSON output format
+            if (parsedArgs.format?.toLowerCase() === "json") {
+                this.isJsonOutput = true;
+            }
+
             const [remainingArgs, saveOptions] =
                 CommandUtils.parseSaveOptions(args);
             let params: CardListParams = { limit: 35, offset: 0 };
@@ -104,48 +112,99 @@ export class ListCardsCommand extends BaseCommand {
                 this.cards = await listCards(params);
             }
             if (this.cards.length > 0) {
-                console.log(`\n📊 ${this.cards.length} cards`);
-
-                // Prepare data for table - Title first for better readability
-                const tableData = this.cards.map(card => {
-                    const id = card.id || card.cardUrn || "N/A";
-                    const title = card.title || card.cardTitle || "N/A";
-                    const type = card.type || "N/A";
-                    const owner = card.owner || card.ownerName || "N/A";
-                    const lastModified = card.lastModified
-                        ? new Date(card.lastModified).toLocaleDateString()
-                        : card.lastUpdated || "N/A";
-
-                    return {
-                        Title:
-                            title.length > 35
-                                ? title.substring(0, 32) + "..."
-                                : title,
-                        Type: type,
-                        Owner:
-                            owner.length > 18
-                                ? owner.substring(0, 15) + "..."
-                                : owner,
-                        Modified: lastModified,
-                        ID: id,
+                if (this.isJsonOutput) {
+                    // JSON output
+                    const metadata: Record<string, unknown> = {
+                        count: this.cards.length,
                     };
-                });
 
-                console.log(TerminalFormatter.table(tableData));
+                    if (hasExplicitLimit || hasExplicitOffset) {
+                        metadata.pagination = {
+                            offset: params.offset || 0,
+                            limit: params.limit || 35,
+                            hasMore: this.cards.length === (params.limit || 35),
+                        };
+                    }
 
-                await CommandUtils.exportData(
-                    this.cards,
-                    "Domo Cards",
-                    "cards",
-                    saveOptions,
-                );
+                    console.log(
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { cards: this.cards },
+                            metadata,
+                        ),
+                    );
+                } else {
+                    // Default table output
+                    console.log(`\n📊 ${this.cards.length} cards`);
 
-                console.log("\nTip: list-cards limit=n offset=m --save-md");
+                    // Prepare data for table - Title first for better readability
+                    const tableData = this.cards.map(card => {
+                        const id = card.id || card.cardUrn || "N/A";
+                        const title = card.title || card.cardTitle || "N/A";
+                        const type = card.type || "N/A";
+                        const owner = card.owner || card.ownerName || "N/A";
+                        const lastModified = card.lastModified
+                            ? new Date(card.lastModified).toLocaleDateString()
+                            : card.lastUpdated || "N/A";
+
+                        return {
+                            Title:
+                                title.length > 35
+                                    ? title.substring(0, 32) + "..."
+                                    : title,
+                            Type: type,
+                            Owner:
+                                owner.length > 18
+                                    ? owner.substring(0, 15) + "..."
+                                    : owner,
+                            Modified: lastModified,
+                            ID: id,
+                        };
+                    });
+
+                    console.log(TerminalFormatter.table(tableData));
+
+                    await CommandUtils.exportData(
+                        this.cards,
+                        "Domo Cards",
+                        "cards",
+                        saveOptions,
+                    );
+
+                    console.log("\nTip: list-cards limit=n offset=m --save-md");
+                }
             } else {
-                console.log("No accessible cards found.");
+                if (this.isJsonOutput) {
+                    console.log(
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { cards: [] },
+                            { count: 0 },
+                        ),
+                    );
+                } else {
+                    console.log("No accessible cards found.");
+                }
             }
         } catch (error) {
             log.error("Error fetching cards:", error);
+            if (this.isJsonOutput) {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to fetch cards";
+                console.log(JsonOutputFormatter.error(this.name, message));
+            } else {
+                console.error(
+                    TerminalFormatter.error("Failed to fetch cards."),
+                );
+                if (error instanceof Error) {
+                    console.error("Error details:", error.message);
+                }
+                console.error(
+                    "Check your parameters and authentication, then try again.",
+                );
+            }
         }
     }
 
@@ -190,6 +249,11 @@ export class ListCardsCommand extends BaseCommand {
                 Option: "--path=<directory>",
                 Description: "Specify custom export directory",
             },
+            {
+                Option: "--format=json",
+                Description:
+                    "Output results in JSON format for programmatic use",
+            },
         ];
         console.log(TerminalFormatter.table(optionsData));
 
@@ -214,6 +278,10 @@ export class ListCardsCommand extends BaseCommand {
             {
                 Command: "list-cards --save-md",
                 Description: "Fetch all cards and save to markdown",
+            },
+            {
+                Command: "list-cards --format=json",
+                Description: "Output all cards as JSON",
             },
         ];
         console.log(TerminalFormatter.table(examplesData));

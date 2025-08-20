@@ -8,6 +8,7 @@ import type {
 } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
+import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
 
@@ -33,6 +34,11 @@ export class ListDataflowsCommand extends BaseCommand {
     public async execute(args?: string[]): Promise<void> {
         try {
             const parsedArgs = CommandUtils.parseCommandArgs(args);
+
+            // Check for JSON output format
+            if (parsedArgs.format?.toLowerCase() === "json") {
+                this.isJsonOutput = true;
+            }
             let params: DataflowListParams = { limit: 50, offset: 0 };
             let nameLike: string | undefined;
             let hasExplicitLimit = false;
@@ -207,52 +213,123 @@ export class ListDataflowsCommand extends BaseCommand {
             }
 
             if (this.dataflows.length > 0) {
-                console.log(
-                    `\n${this.dataflows.length} dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
-                );
-
-                // Prepare data for table - Name first for better readability
-                const tableData = this.dataflows.map(dataflow => {
-                    const lastRunDate = dataflow.lastRun
-                        ? new Date(dataflow.lastRun).toLocaleDateString()
-                        : dataflow.lastExecution?.beginTime
-                          ? new Date(
-                                dataflow.lastExecution.beginTime,
-                            ).toLocaleDateString()
-                          : "Never";
-                    const status =
-                        dataflow.runState || dataflow.status || "Unknown";
-                    const inputOutput = `${dataflow.inputCount || 0}/${dataflow.outputCount || 0}`;
-
-                    return {
-                        Name:
-                            dataflow.name.length > 35
-                                ? dataflow.name.substring(0, 32) + "..."
-                                : dataflow.name,
-                        Status: status,
-                        "I/O": inputOutput,
-                        "Last Run": lastRunDate,
-                        ID: dataflow.id,
+                if (this.isJsonOutput) {
+                    // JSON output
+                    const metadata: Record<string, unknown> = {
+                        count: this.dataflows.length,
                     };
-                });
 
-                console.log(TerminalFormatter.table(tableData));
+                    if (hasExplicitLimit || hasExplicitOffset) {
+                        metadata.pagination = {
+                            offset: params.offset || 0,
+                            limit: params.limit || 50,
+                            hasMore:
+                                this.dataflows.length === (params.limit || 50),
+                        };
+                    }
 
-                await CommandUtils.exportData(
-                    this.dataflows,
-                    `Domo Dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
-                    "dataflows",
-                    parsedArgs.saveOptions,
-                );
+                    if (params.sort) {
+                        metadata.sort = params.sort;
+                        if (params.order) {
+                            metadata.order = params.order;
+                        }
+                    }
 
-                console.log(
-                    "\nTip: get-dataflow <id> for details • list-dataflows [search] sort=name --save-md",
-                );
+                    if (nameLike) {
+                        metadata.filter = { nameLike };
+                    }
+
+                    if (params.fields) {
+                        metadata.fields = params.fields;
+                    }
+
+                    if (params.tags) {
+                        metadata.tags = params.tags;
+                    }
+
+                    console.log(
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { dataflows: this.dataflows },
+                            metadata,
+                        ),
+                    );
+                } else {
+                    // Default table output
+                    console.log(
+                        `\n${this.dataflows.length} dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
+                    );
+
+                    // Prepare data for table - Name first for better readability
+                    const tableData = this.dataflows.map(dataflow => {
+                        const lastRunDate = dataflow.lastRun
+                            ? new Date(dataflow.lastRun).toLocaleDateString()
+                            : dataflow.lastExecution?.beginTime
+                              ? new Date(
+                                    dataflow.lastExecution.beginTime,
+                                ).toLocaleDateString()
+                              : "Never";
+                        const status =
+                            dataflow.runState || dataflow.status || "Unknown";
+                        const inputOutput = `${dataflow.inputCount || 0}/${dataflow.outputCount || 0}`;
+
+                        return {
+                            Name:
+                                dataflow.name.length > 35
+                                    ? dataflow.name.substring(0, 32) + "..."
+                                    : dataflow.name,
+                            Status: status,
+                            "I/O": inputOutput,
+                            "Last Run": lastRunDate,
+                            ID: dataflow.id,
+                        };
+                    });
+
+                    console.log(TerminalFormatter.table(tableData));
+
+                    await CommandUtils.exportData(
+                        this.dataflows,
+                        `Domo Dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
+                        "dataflows",
+                        parsedArgs.saveOptions,
+                    );
+
+                    console.log(
+                        "\nTip: get-dataflow <id> for details • list-dataflows [search] sort=name --save-md",
+                    );
+                }
             } else {
-                console.log("No accessible dataflows found.");
+                if (this.isJsonOutput) {
+                    console.log(
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { dataflows: [] },
+                            { count: 0 },
+                        ),
+                    );
+                } else {
+                    console.log("No accessible dataflows found.");
+                }
             }
         } catch (error) {
             log.error("Error fetching dataflows:", error);
+            if (this.isJsonOutput) {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to fetch dataflows";
+                console.log(JsonOutputFormatter.error(this.name, message));
+            } else {
+                console.error(
+                    TerminalFormatter.error("Failed to fetch dataflows."),
+                );
+                if (error instanceof Error) {
+                    console.error("Error details:", error.message);
+                }
+                console.error(
+                    "Check your parameters and authentication, then try again.",
+                );
+            }
         }
     }
 
@@ -324,6 +401,11 @@ export class ListDataflowsCommand extends BaseCommand {
                 Option: "--path=<directory>",
                 Description: "Specify custom export directory",
             },
+            {
+                Option: "--format=json",
+                Description:
+                    "Output results in JSON format for programmatic use",
+            },
         ];
         console.log(TerminalFormatter.table(optionsData));
 
@@ -352,6 +434,10 @@ export class ListDataflowsCommand extends BaseCommand {
             {
                 Command: "list-dataflows etl --save-md",
                 Description: "Filter and save to markdown",
+            },
+            {
+                Command: "list-dataflows --format=json",
+                Description: "Output all dataflows as JSON",
             },
         ];
         console.log(TerminalFormatter.table(examplesData));

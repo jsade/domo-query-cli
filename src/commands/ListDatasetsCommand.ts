@@ -6,6 +6,7 @@ import type {
 import { listDatasets } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
+import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
@@ -32,6 +33,11 @@ export class ListDatasetsCommand extends BaseCommand {
     public async execute(args?: string[]): Promise<void> {
         try {
             const parsedArgs = CommandUtils.parseCommandArgs(args);
+
+            // Check for JSON output format
+            if (parsedArgs.format?.toLowerCase() === "json") {
+                this.isJsonOutput = true;
+            }
             let params: DatasetListParams = { limit: 50, offset: 0 };
             let nameLike: string | undefined;
             let hasExplicitLimit = false;
@@ -144,65 +150,123 @@ export class ListDatasetsCommand extends BaseCommand {
             }
 
             if (this.datasets.length > 0) {
-                console.log(
-                    `${this.datasets.length} datasets${nameLike ? ` matching "${nameLike}"` : ""}`,
-                );
+                if (this.isJsonOutput) {
+                    // JSON output
+                    const metadata: Record<string, unknown> = {
+                        count: this.datasets.length,
+                    };
 
-                // Prepare data for terminal-columns - Name first for better readability
-                const tableData = this.datasets.map(dataset => ({
-                    Name:
-                        dataset.name.length > 40
-                            ? dataset.name.substring(0, 37) + "..."
-                            : dataset.name,
-                    Rows: dataset.rows.toLocaleString(),
-                    Cols: dataset.columns.toString(),
-                    Updated: new Date(dataset.updatedAt).toLocaleDateString(),
-                    ID: dataset.id,
-                }));
+                    if (hasExplicitLimit || hasExplicitOffset) {
+                        metadata.pagination = {
+                            offset: params.offset || 0,
+                            limit: params.limit || 50,
+                            hasMore:
+                                this.datasets.length === (params.limit || 50),
+                        };
+                    }
 
-                console.log(TerminalFormatter.table(tableData));
+                    if (params.sort) {
+                        metadata.sort = params.sort;
+                    }
 
-                if (params.sort) {
+                    if (nameLike) {
+                        metadata.filter = { nameLike };
+                    }
+
                     console.log(
-                        `\n${TerminalFormatter.info(`Sorted by: ${params.sort}`)}`,
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { datasets: this.datasets },
+                            metadata,
+                        ),
+                    );
+                } else {
+                    // Default table output
+                    console.log(
+                        `${this.datasets.length} datasets${nameLike ? ` matching "${nameLike}"` : ""}`,
+                    );
+
+                    // Prepare data for terminal-columns - Name first for better readability
+                    const tableData = this.datasets.map(dataset => ({
+                        Name:
+                            dataset.name.length > 40
+                                ? dataset.name.substring(0, 37) + "..."
+                                : dataset.name,
+                        Rows: dataset.rows.toLocaleString(),
+                        Cols: dataset.columns.toString(),
+                        Updated: new Date(
+                            dataset.updatedAt,
+                        ).toLocaleDateString(),
+                        ID: dataset.id,
+                    }));
+
+                    console.log(TerminalFormatter.table(tableData));
+
+                    if (params.sort) {
+                        console.log(
+                            `\n${TerminalFormatter.info(`Sorted by: ${params.sort}`)}`,
+                        );
+                    }
+
+                    // Show pagination info if applicable
+                    if (params.offset && params.offset > 0) {
+                        const pageNum =
+                            Math.floor(params.offset / (params.limit || 50)) +
+                            1;
+                        console.log(
+                            TerminalFormatter.info(
+                                `Page ${pageNum} (offset: ${params.offset})`,
+                            ),
+                        );
+                    }
+
+                    await CommandUtils.exportData(
+                        this.datasets,
+                        `Domo Datasets${nameLike ? ` matching "${nameLike}"` : ""}`,
+                        "datasets",
+                        parsedArgs.saveOptions,
+                    );
+
+                    console.log(
+                        "\nTip: list-datasets [search] limit=n sort=name --save-md",
                     );
                 }
-
-                // Show pagination info if applicable
-                if (params.offset && params.offset > 0) {
-                    const pageNum =
-                        Math.floor(params.offset / (params.limit || 50)) + 1;
+            } else {
+                if (this.isJsonOutput) {
                     console.log(
-                        TerminalFormatter.info(
-                            `Page ${pageNum} (offset: ${params.offset})`,
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { datasets: [] },
+                            { count: 0 },
+                        ),
+                    );
+                } else {
+                    console.log(
+                        TerminalFormatter.warning(
+                            "No accessible datasets found.",
                         ),
                     );
                 }
-
-                await CommandUtils.exportData(
-                    this.datasets,
-                    `Domo Datasets${nameLike ? ` matching "${nameLike}"` : ""}`,
-                    "datasets",
-                    parsedArgs.saveOptions,
-                );
-
-                console.log(
-                    "\nTip: list-datasets [search] limit=n sort=name --save-md",
-                );
-            } else {
-                console.log(
-                    TerminalFormatter.warning("No accessible datasets found."),
-                );
             }
         } catch (error) {
             log.error("Error fetching datasets:", error);
-            console.error(TerminalFormatter.error("Failed to fetch datasets."));
-            if (error instanceof Error) {
-                console.error("Error details:", error.message);
+            if (this.isJsonOutput) {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to fetch datasets";
+                console.log(JsonOutputFormatter.error(this.name, message));
+            } else {
+                console.error(
+                    TerminalFormatter.error("Failed to fetch datasets."),
+                );
+                if (error instanceof Error) {
+                    console.error("Error details:", error.message);
+                }
+                console.error(
+                    "Check your parameters and authentication, then try again.",
+                );
             }
-            console.error(
-                "Check your parameters and authentication, then try again.",
-            );
         }
     }
 
@@ -276,6 +340,11 @@ export class ListDatasetsCommand extends BaseCommand {
                 Option: "--path=<directory>",
                 Description: "Specify custom export directory",
             },
+            {
+                Option: "--format=json",
+                Description:
+                    "Output results in JSON format for programmatic use",
+            },
         ];
 
         console.log(TerminalFormatter.table(optionsData));
@@ -309,6 +378,10 @@ export class ListDatasetsCommand extends BaseCommand {
             {
                 Command: "list-datasets sales --save-md",
                 Description: "Filter and save to markdown",
+            },
+            {
+                Command: "list-datasets --format=json",
+                Description: "Output all datasets as JSON",
             },
         ];
 

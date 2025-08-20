@@ -44,6 +44,7 @@ vi.mock("./CommandUtils", () => ({
     CommandUtils: {
         parseSaveOptions: vi.fn(),
         exportData: vi.fn(),
+        parseCommandArgs: vi.fn(),
     },
 }));
 
@@ -61,6 +62,8 @@ describe("ShowLineageCommand", () => {
     const mockedParseSaveOptions = CommandUtils.CommandUtils
         .parseSaveOptions as Mock;
     const mockedExportData = CommandUtils.CommandUtils.exportData as Mock;
+    const mockedParseCommandArgs = CommandUtils.CommandUtils
+        .parseCommandArgs as Mock;
 
     // Sample data
     const sampleDataflows: DomoDataflow[] = [
@@ -182,6 +185,13 @@ describe("ShowLineageCommand", () => {
 
     describe("execute", () => {
         it("should display usage when no entity ID is provided", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: [],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
+
             await command.execute([]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -193,6 +203,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should handle no dataflows found", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds1"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue([]);
 
             await command.execute(["ds1"]);
@@ -203,6 +219,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should handle entity not found in graph", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["unknown-id"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
             mockLineageBuilder.buildLineageGraph.mockReturnValue({
                 nodes: new Map(),
@@ -217,6 +239,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should display dataset dependencies by default", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds2"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["ds2"]);
@@ -236,6 +264,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should display dataflow connections", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["df1"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["df1"]);
@@ -252,6 +286,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should generate diagram when --diagram option is used", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds2", "--diagram"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["ds2", "--diagram"]);
@@ -267,6 +307,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should respect max depth option", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds2", "--diagram", "--max-depth=5"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["ds2", "--diagram", "--max-depth=5"]);
@@ -276,6 +322,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should export data when save options are provided", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds2", "--save-json"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
             mockedParseSaveOptions.mockReturnValue([
                 [], // remaining args after parsing save options
@@ -319,6 +371,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should handle errors gracefully", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds1"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             const error = new Error("API Error");
             mockedListDataflows.mockRejectedValue(error);
 
@@ -334,6 +392,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should find upstream contributors correctly", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds3", "--diagram"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["ds3", "--diagram"]);
@@ -344,6 +408,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should find downstream contributors for dataflows", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["df1", "--diagram"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["df1", "--diagram"]);
@@ -396,6 +466,13 @@ describe("ShowLineageCommand", () => {
                 graphWithNoInputs,
             );
 
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["df3"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
+
             await command.execute(["df3"]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -439,6 +516,13 @@ describe("ShowLineageCommand", () => {
                 graphWithNoOutputs,
             );
 
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["df4"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
+
             await command.execute(["df4"]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -447,6 +531,12 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should display both dependencies and diagram when both options are used", async () => {
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds2", "--dependencies", "--diagram"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedListDataflows.mockResolvedValue(sampleDataflows);
 
             await command.execute(["ds2", "--dependencies", "--diagram"]);
@@ -522,6 +612,13 @@ describe("ShowLineageCommand", () => {
                     target: edge.to,
                     type: edge.type,
                 })),
+            });
+
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["ds_c1", "--diagram", "--max-depth=10"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
             });
 
             await command.execute(["ds_c1", "--diagram", "--max-depth=10"]);

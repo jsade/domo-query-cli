@@ -3,7 +3,9 @@ import { DataflowAuthMethod } from "../api/clients/dataflowClient";
 import { DomoDataflow } from "../api/clients/domoClient";
 import { DataLineageBuilder } from "../managers/DataLineageBuilder";
 import { log } from "../utils/logger";
+import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
+import { CommandUtils } from "./CommandUtils";
 import { promises as fs } from "fs";
 import * as path from "path";
 import chalk from "chalk";
@@ -36,39 +38,64 @@ export class GenerateLineageReportCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
+            const parsedArgs = CommandUtils.parseCommandArgs(args);
+
+            // Check for JSON output format
+            if (parsedArgs.format?.toLowerCase() === "json") {
+                this.isJsonOutput = true;
+            }
+
             const [entityId, ...options] = args || [];
 
             // Parse options
             const { reportType, outputPath, includeOptions } =
                 this.parseOptions(options);
 
-            console.log("\nDomo Data Lineage Report Generator");
-            console.log("=====================================");
+            if (!this.isJsonOutput) {
+                console.log("\nDomo Data Lineage Report Generator");
+                console.log("=====================================");
+            }
 
             // Always use apiToken auth method for dataflow operations
             const authMethod: DataflowAuthMethod = "apiToken";
 
             // Fetch all dataflows
-            console.log("\nLoading dataflows...");
+            if (!this.isJsonOutput) {
+                console.log("\nLoading dataflows...");
+            }
             const dataflows = await listDataflows({ limit: 1000 }, authMethod);
 
             if (dataflows.length === 0) {
-                console.log(
-                    "No dataflows found. Unable to generate lineage report.",
-                );
+                if (this.isJsonOutput) {
+                    console.log(
+                        JsonOutputFormatter.error(
+                            this.name,
+                            "No dataflows found. Unable to generate lineage report",
+                            "NO_DATAFLOWS",
+                        ),
+                    );
+                } else {
+                    console.log(
+                        "No dataflows found. Unable to generate lineage report.",
+                    );
+                }
                 return;
             }
 
-            console.log(`Found ${dataflows.length} dataflows`);
+            if (!this.isJsonOutput) {
+                console.log(`Found ${dataflows.length} dataflows`);
 
-            // Build the lineage graph
-            console.log("\nBuilding lineage graph...");
+                // Build the lineage graph
+                console.log("\nBuilding lineage graph...");
+            }
             const builder = new DataLineageBuilder();
             const graph = builder.buildLineageGraph(dataflows);
 
-            console.log(
-                `Graph built with ${graph.nodes.size} nodes and ${graph.edges.length} edges`,
-            );
+            if (!this.isJsonOutput) {
+                console.log(
+                    `Graph built with ${graph.nodes.size} nodes and ${graph.edges.length} edges`,
+                );
+            }
 
             // Generate report based on type
             let report: string;
@@ -77,10 +104,22 @@ export class GenerateLineageReportCommand extends BaseCommand {
             switch (reportType) {
                 case "entity":
                     if (!entityId) {
-                        console.log("\nEntity ID required for entity report");
-                        console.log(
-                            "Usage: generate-lineage-report <entity-id> --type=entity",
-                        );
+                        if (this.isJsonOutput) {
+                            console.log(
+                                JsonOutputFormatter.error(
+                                    this.name,
+                                    "Entity ID required for entity report",
+                                    "MISSING_ENTITY_ID",
+                                ),
+                            );
+                        } else {
+                            console.log(
+                                "\nEntity ID required for entity report",
+                            );
+                            console.log(
+                                "Usage: generate-lineage-report <entity-id> --type=entity",
+                            );
+                        }
                         return;
                     }
                     report = await this.generateEntityReport(
@@ -120,21 +159,56 @@ export class GenerateLineageReportCommand extends BaseCommand {
                     break;
             }
 
-            // Write report to file
-            const reportPath = path.join(outputPath, filename);
-            await fs.mkdir(outputPath, { recursive: true });
-            await fs.writeFile(reportPath, report, "utf8");
+            if (this.isJsonOutput) {
+                // For JSON output, return metadata about the generated report
+                const reportMetadata = {
+                    reportType,
+                    filename,
+                    outputPath,
+                    reportSize: report.length,
+                    generatedAt: new Date().toISOString(),
+                    dataflowCount: dataflows.length,
+                    nodeCount: graph.nodes.size,
+                    edgeCount: graph.edges.length,
+                    includeOptions,
+                };
 
-            console.log(`\nReport generated successfully!`);
-            console.log(`Location: ${reportPath}`);
-            console.log(
-                `\nTip: Open this file in Obsidian for best viewing experience`,
-            );
+                console.log(
+                    JsonOutputFormatter.success(
+                        this.name,
+                        { reportMetadata },
+                        {
+                            reportType,
+                            filename,
+                            dataflowCount: dataflows.length,
+                        },
+                    ),
+                );
+            } else {
+                // Write report to file
+                const reportPath = path.join(outputPath, filename);
+                await fs.mkdir(outputPath, { recursive: true });
+                await fs.writeFile(reportPath, report, "utf8");
+
+                console.log(`\nReport generated successfully!`);
+                console.log(`Location: ${reportPath}`);
+                console.log(
+                    `\nTip: Open this file in Obsidian for best viewing experience`,
+                );
+            }
         } catch (error) {
             log.error("Error generating lineage report:", error);
-            console.error(
-                "\nFailed to generate lineage report. Check your authentication and try again.",
-            );
+            if (this.isJsonOutput) {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to generate lineage report";
+                console.log(JsonOutputFormatter.error(this.name, message));
+            } else {
+                console.error(
+                    "\nFailed to generate lineage report. Check your authentication and try again.",
+                );
+            }
         }
     }
 
@@ -169,6 +243,9 @@ export class GenerateLineageReportCommand extends BaseCommand {
         console.log(
             "  --max-depth=<n>        Maximum depth for diagrams (default: 3)",
         );
+        console.log(
+            "  --format=json          Output results in JSON format for programmatic use",
+        );
         console.log(chalk.cyan("\nExamples:"));
         console.log(
             "  generate-lineage-report                         Generate full report",
@@ -178,6 +255,9 @@ export class GenerateLineageReportCommand extends BaseCommand {
         );
         console.log(
             "  generate-lineage-report --type=overview         Generate overview report",
+        );
+        console.log(
+            "  generate-lineage-report --type=full --format=json  Generate metadata as JSON",
         );
         console.log("");
     }

@@ -227,12 +227,14 @@ export interface DomoDataset {
     createdAt: string;
     updatedAt: string;
     dataCurrentAt?: string;
-    owner?: string | { 
-        id?: string;
-        name?: string;
-        displayName?: string;
-        avatarKey?: string;
-    };
+    owner?:
+        | string
+        | {
+              id?: string;
+              name?: string;
+              displayName?: string;
+              avatarKey?: string;
+          };
     dataStatus?: string;
     pdpEnabled?: boolean;
     policies?: Array<{
@@ -500,10 +502,12 @@ export async function listDatasets(
 
 /**
  * Function to get a specific dataset by ID
- * Uses the v3/datasources endpoint for more detailed information
- * Falls back to v1/datasets if v3 fails
+ * Uses the v1/datasets endpoint by default
+ * v3/datasources endpoint code is commented out due to frequent 404 errors
  */
-export async function getDataset(datasetId: string): Promise<DomoDataset | null> {
+export async function getDataset(
+    datasetId: string,
+): Promise<DomoDataset | null> {
     const cacheManager = getCacheManager();
 
     // Check cache first
@@ -515,11 +519,14 @@ export async function getDataset(datasetId: string): Promise<DomoDataset | null>
 
     const client = createDomoClient();
 
+    // v3 endpoint disabled due to frequent 404 errors - using v1 by default
+    // Uncomment the following block to re-enable v3 endpoint attempts
+    /*
     try {
         // Try v3 endpoint first for more details
-        const response = await client.get<any>(
+        const response = await client.get<DomoDataset>(
             `/api/data/v3/datasources/${datasetId}`,
-            { includeAllDetails: "true" }
+            { includeAllDetails: "true" },
         );
 
         if (response) {
@@ -528,11 +535,11 @@ export async function getDataset(datasetId: string): Promise<DomoDataset | null>
                 id: response.id || datasetId,
                 name: response.name || "",
                 description: response.description || "",
-                rows: response.rowCount || response.rows || 0,
-                columns: response.columnCount || response.columns || 0,
-                createdAt: response.createdAt || response.created || "",
-                updatedAt: response.updatedAt || response.modified || "",
-                dataCurrentAt: response.dataCurrentAt || response.lastDataUpdate || "",
+                rows: response.rows || 0,
+                columns: response.columns || 0,
+                createdAt: response.createdAt || "",
+                updatedAt: response.updatedAt || "",
+                dataCurrentAt: response.dataCurrentAt || "",
                 owner: response.owner || undefined,
                 pdpEnabled: response.pdpEnabled || false,
                 policies: response.policies || undefined,
@@ -549,18 +556,22 @@ export async function getDataset(datasetId: string): Promise<DomoDataset | null>
     } catch (error) {
         // If v3 fails, try v1 endpoint
         log.debug("v3 datasources endpoint failed, trying v1 datasets", error);
-        
-        try {
-            const response = await client.get<DomoDataset>(`/v1/datasets/${datasetId}`);
-            
-            if (response) {
-                // Cache the result
-                await cacheManager.set(cacheKey, response, 300); // Cache for 5 minutes
-                return response;
-            }
-        } catch (v1Error) {
-            log.error("Error fetching dataset:", v1Error);
+    }
+    */
+
+    // Use v1 endpoint as primary method
+    try {
+        const response = await client.get<DomoDataset>(
+            `/v1/datasets/${datasetId}`,
+        );
+
+        if (response) {
+            // Cache the result
+            await cacheManager.set(cacheKey, response, 300); // Cache for 5 minutes
+            return response;
         }
+    } catch (error) {
+        log.error("Error fetching dataset:", error);
     }
 
     return null;

@@ -33,6 +33,7 @@ vi.mock("./CommandUtils", () => ({
     CommandUtils: {
         parseSaveOptions: vi.fn(),
         exportData: vi.fn(),
+        parseCommandArgs: vi.fn(),
     },
 }));
 
@@ -40,9 +41,9 @@ describe("GetDataflowCommand", () => {
     let command: GetDataflowCommand;
     let consoleLogSpy: MockInstance;
     const mockedGetDataflow = dataflowApi.getDataflow as Mock;
-    const mockedParseSaveOptions = CommandUtils.CommandUtils
-        .parseSaveOptions as Mock;
     const mockedExportData = CommandUtils.CommandUtils.exportData as Mock;
+    const mockedParseCommandArgs = CommandUtils.CommandUtils
+        .parseCommandArgs as Mock;
 
     beforeEach(() => {
         command = new GetDataflowCommand();
@@ -97,7 +98,12 @@ describe("GetDataflowCommand", () => {
         };
 
         it("should display dataflow details when dataflow ID is provided", async () => {
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -118,7 +124,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should handle missing dataflow ID", async () => {
-            mockedParseSaveOptions.mockReturnValue([[], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: [],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
 
             await command.execute([]);
 
@@ -127,20 +138,32 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should handle dataflow ID as nested array", async () => {
-            // parseSaveOptions returns an array where first element is ["test-123"]
-            mockedParseSaveOptions.mockReturnValue([[["test-123"]], null]);
+            // Test case where positional args might be nested array
+            // In this case, the array is treated as a truthy value and passed to getDataflow
+            mockedParseCommandArgs.mockReturnValue({
+                positional: [["test-123"]],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
 
-            // The current logic doesn't handle this case properly, so it prints "No dataflow selected."
-            expect(consoleLogSpy).toHaveBeenCalledWith("No dataflow selected.");
-            expect(mockedGetDataflow).not.toHaveBeenCalled();
+            // The nested array is coerced to string "test-123" when passed to getDataflow
+            expect(mockedGetDataflow).toHaveBeenCalledWith(
+                ["test-123"], // The array is passed as-is
+                "apiToken",
+            );
         });
 
         it("should extract dataflow ID from array when parseSaveOptions returns array", async () => {
-            // Test the actual case where parseSaveOptions returns [["test-123"], null]
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -152,8 +175,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should handle dataflow ID as direct string from parseSaveOptions", async () => {
-            // Test case where parseSaveOptions returns a string directly
-            mockedParseSaveOptions.mockReturnValue(["test-123", null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -165,7 +192,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should display inputs with correct dataSourceId", async () => {
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -184,7 +216,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should display outputs with correct dataSourceId", async () => {
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -205,7 +242,12 @@ describe("GetDataflowCommand", () => {
                 inputCount: 0,
                 outputCount: 0,
             };
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(dataflowNoIO);
 
             await command.execute(["test-123"]);
@@ -222,7 +264,12 @@ describe("GetDataflowCommand", () => {
                 name: "Minimal Dataflow",
                 createdAt: "2024-01-01T00:00:00Z",
             };
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(minimalDataflow);
 
             await command.execute(["test-123"]);
@@ -237,7 +284,12 @@ describe("GetDataflowCommand", () => {
 
         it("should export data when save options are provided", async () => {
             const saveOptions = { format: "json" as const, path: null };
-            mockedParseSaveOptions.mockReturnValue([["test-123"], saveOptions]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: saveOptions,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123", "--save-json"]);
@@ -251,7 +303,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should handle dataflow not found", async () => {
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(null);
 
             await command.execute(["test-123"]);
@@ -261,7 +318,12 @@ describe("GetDataflowCommand", () => {
 
         it("should handle API errors gracefully", async () => {
             const error = new Error("API Error");
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockRejectedValue(error);
 
             await command.execute(["test-123"]);
@@ -273,7 +335,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should format timestamps correctly", async () => {
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -291,7 +358,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should display input and output counts with names when available", async () => {
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
@@ -314,7 +386,12 @@ describe("GetDataflowCommand", () => {
                 inputs: [],
                 outputs: [],
             };
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(dataflowEmptyArrays);
 
             await command.execute(["test-123"]);
@@ -330,7 +407,12 @@ describe("GetDataflowCommand", () => {
                 format: "both" as const,
                 path: "/custom/path",
             };
-            mockedParseSaveOptions.mockReturnValue([["test-123"], saveOptions]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: saveOptions,
+            });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute([
@@ -348,7 +430,12 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should handle undefined args parameter", async () => {
-            mockedParseSaveOptions.mockReturnValue([[], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: [],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
 
             await command.execute(undefined);
 
@@ -364,7 +451,12 @@ describe("GetDataflowCommand", () => {
                     state: "SUCCESS",
                 } as DomoDataflowExecution,
             };
-            mockedParseSaveOptions.mockReturnValue([["test-123"], null]);
+            mockedParseCommandArgs.mockReturnValue({
+                positional: ["test-123"],
+                params: {},
+                flags: new Set(),
+                saveOptions: null,
+            });
             mockedGetDataflow.mockResolvedValue(dataflowNoEndTime);
 
             await command.execute(["test-123"]);

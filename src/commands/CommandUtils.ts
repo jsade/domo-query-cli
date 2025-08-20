@@ -29,6 +29,10 @@ export interface ParsedArgs {
      * Save options if present
      */
     saveOptions: SaveOptions | null;
+    /**
+     * Output format if specified (e.g., json)
+     */
+    format?: string;
 }
 
 /**
@@ -146,16 +150,27 @@ export class CommandUtils {
                     // --key=value format
                     const [key, ...valueParts] = flagName.split("=");
                     const value = valueParts.join("="); // Handle values with = in them
-                    result.params[key] = this.parseValue(value);
+
+                    // Special handling for format flag
+                    if (key === "format") {
+                        result.format = value;
+                    } else {
+                        result.params[key] = this.parseValue(value);
+                    }
                 } else if (
                     i + 1 < remainingArgs.length &&
                     !remainingArgs[i + 1].startsWith("-")
                 ) {
                     // --key value format (next arg is the value)
-                    result.params[flagName] = this.parseValue(
-                        remainingArgs[i + 1],
-                    );
-                    i++; // Skip the next argument as we've consumed it
+                    if (flagName === "format") {
+                        result.format = remainingArgs[i + 1];
+                        i++; // Skip the next argument as we've consumed it
+                    } else {
+                        result.params[flagName] = this.parseValue(
+                            remainingArgs[i + 1],
+                        );
+                        i++; // Skip the next argument as we've consumed it
+                    }
                 } else {
                     // Boolean flag
                     result.flags.add(flagName);
