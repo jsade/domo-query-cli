@@ -78,9 +78,20 @@ export class NonInteractiveExecutor {
         this.jsonOutput = format === "json";
 
         // Parse the command string
+        // Handle multi-word commands (e.g., "list datasets" -> "list-datasets")
         const parts = commandString.split(" ");
-        const commandName = parts[0];
-        const commandArgs = [...parts.slice(1), ...args];
+        let commandName = parts[0];
+        let commandArgs = [...parts.slice(1), ...args];
+
+        // If the command is "list" and next arg is "datasets", combine them
+        if (
+            commandName === "list" &&
+            parts.length > 1 &&
+            parts[1] === "datasets"
+        ) {
+            commandName = "list-datasets";
+            commandArgs = [...parts.slice(2), ...args];
+        }
 
         // Get the command
         const command = this.commandFactory.getCommand(commandName);
