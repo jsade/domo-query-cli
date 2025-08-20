@@ -501,6 +501,80 @@ export async function listDatasets(
 }
 
 /**
+ * Function to update dataset properties
+ * Uses the v3/datasources endpoint with API token authentication
+ * @param datasetId - The ID of the dataset to update
+ * @param properties - The properties to update (name, description, tags)
+ * @returns The updated dataset or null if error
+ */
+export async function updateDatasetProperties(
+    datasetId: string,
+    properties: {
+        name?: string;
+        description?: string;
+        tags?: string[];
+    },
+): Promise<DomoDataset | null> {
+    // Ensure we have an API token since this endpoint requires it
+    if (!domoConfig.initialized) {
+        initializeConfig();
+    }
+
+    if (!domoConfig.apiToken) {
+        throw new Error(
+            "API token is required for the update-dataset-properties endpoint. Please set DOMO_API_TOKEN environment variable.",
+        );
+    }
+
+    if (!domoConfig.apiHost) {
+        throw new Error(
+            "Domo API host is required for the update-dataset-properties endpoint. Please set DOMO_API_HOST environment variable.",
+        );
+    }
+
+    try {
+        // Create client with API token authentication using the customer's domain
+        const client = createApiTokenClient(
+            domoConfig.apiToken,
+            domoConfig.apiHost,
+        );
+
+        // Build the request body
+        const requestBody: Record<string, unknown> = {};
+        if (properties.name !== undefined) {
+            requestBody.name = properties.name;
+        }
+        if (properties.description !== undefined) {
+            requestBody.description = properties.description;
+        }
+        if (properties.tags !== undefined) {
+            requestBody.tags = properties.tags;
+        }
+
+        log.debug(`Updating dataset ${datasetId} properties:`, requestBody);
+
+        // Make the PUT request to update properties
+        const response = await client.put<DomoDataset>(
+            `/api/data/v3/datasources/${datasetId}/properties`,
+            requestBody,
+        );
+
+        if (response) {
+            // Clear cache for this dataset since it's been updated
+            const cacheManager = getCacheManager();
+            await cacheManager.invalidate(`dataset_${datasetId}`);
+
+            return response;
+        }
+    } catch (error) {
+        log.error("Error updating dataset properties:", error);
+        throw error;
+    }
+
+    return null;
+}
+
+/**
  * Function to get a specific dataset by ID
  * Uses the v1/datasets endpoint by default
  * v3/datasources endpoint code is commented out due to frequent 404 errors

@@ -8,6 +8,7 @@ export * from "./ExitCommand";
 export * from "./ExecuteDataflowCommand";
 export * from "./GetDataflowCommand";
 export * from "./GetDatasetCommand";
+export * from "./UpdateDatasetPropertiesCommand";
 export * from "./GetDataflowExecutionCommand";
 export * from "./HelpCommand";
 export * from "./ListCardsCommand";

@@ -91,6 +91,10 @@ export DOMO_INSTANCE="your-instance"      # e.g., "mycompany"
 export DOMO_READ_ONLY="true"              # Enable read-only mode globally (optional)
 ```
 
+**Note:** Some operations require specific authentication methods:
+- `update-dataset-properties` requires an API token (OAuth alone is not sufficient)
+- The API token must have appropriate permissions to modify datasets
+
 ### Command Line Options
 ```bash  
 # Using API token
@@ -117,6 +121,12 @@ domo-query-cli list-datasets "sales"  # Search by name
 
 # Get dataset details
 domo-query-cli get-dataset 12345678-abcd-1234-5678-901234567890
+
+# Update dataset properties (requires API token)
+domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --name "New Dataset Name"
+domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --description "Updated description" --tags "sales,2024,finance"
+domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --json '{"name":"New Name","tags":["tag1","tag2"]}'
+domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --json-file properties.json --no-confirm
 ```
 
 ### Dataflow Operations
@@ -280,6 +290,7 @@ The following operations are disabled when read-only mode is active:
 - `updateDataflow` - Updating existing dataflows
 - `patchDataflow` - Patching dataflow configurations
 - `deleteDataflow` - Deleting dataflows
+- `update-dataset-properties` - Updating dataset properties (name, description, tags)
 
 All read operations (list, get, show, etc.) remain available.
 
@@ -348,6 +359,46 @@ fi
 domo-query-cli list-datasets "sales" --limit 50 | while read -r line; do
   echo "Found dataset: $line"
 done
+```
+
+### Update Dataset Properties
+```bash
+#!/bin/bash
+# Update dataset properties with validation
+
+DATASET_ID="12345678-abcd-1234-5678-901234567890"
+
+# Update name only
+domo-query-cli update-dataset-properties $DATASET_ID --name "Q4 Sales Data 2024" --no-confirm
+
+# Update multiple properties
+domo-query-cli update-dataset-properties $DATASET_ID \
+  --name "Updated Dataset Name" \
+  --description "This dataset contains sales data for Q4 2024" \
+  --tags "sales,q4-2024,finance,reporting" \
+  --no-confirm
+
+# Update from JSON file
+cat > dataset_props.json <<EOF
+{
+  "name": "Sales Dashboard Data",
+  "description": "Primary data source for executive sales dashboard",
+  "tags": ["sales", "dashboard", "executive", "2024"]
+}
+EOF
+
+domo-query-cli update-dataset-properties $DATASET_ID --json-file dataset_props.json --no-confirm
+
+# Update with inline JSON (useful for scripting)
+domo-query-cli update-dataset-properties $DATASET_ID \
+  --json '{"name":"Automated Update","tags":["automated","script"]}' \
+  --no-confirm
+
+# Get JSON output for automation
+domo-query-cli update-dataset-properties $DATASET_ID \
+  --name "New Name" \
+  --format json \
+  --no-confirm | jq '.data.result'
 ```
 
 ## Troubleshooting
