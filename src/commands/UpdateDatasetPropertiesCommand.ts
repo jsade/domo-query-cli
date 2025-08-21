@@ -6,6 +6,7 @@ import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import chalk from "chalk";
 import fs from "fs/promises";
 import readline from "readline";
+import validator from "validator";
 
 /**
  * Interface for dataset properties update
@@ -36,14 +37,14 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
         if (name.length > 255) {
             return { valid: false, error: "Name cannot exceed 255 characters" };
         }
-        // Sanitize against potential XSS/SQL injection
-        const sanitized = name.replace(/[<>'"]/g, "");
-        if (sanitized !== name) {
+        // Use validator library for XSS protection and sanitization
+        if (validator.contains(name, "<script") || validator.contains(name, "javascript:")) {
             return {
                 valid: false,
-                error: "Name contains invalid characters (<>\'\")",
+                error: "Name contains potentially malicious content",
             };
         }
+        // Allow the name but it will be escaped when used
         return { valid: true };
     }
 
@@ -62,14 +63,14 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                 error: "Description cannot exceed 1000 characters",
             };
         }
-        // Sanitize against potential XSS/SQL injection
-        const sanitized = description.replace(/[<>'"]/g, "");
-        if (sanitized !== description) {
+        // Use validator library for XSS protection and sanitization
+        if (validator.contains(description, "<script") || validator.contains(description, "javascript:")) {
             return {
                 valid: false,
-                error: "Description contains invalid characters (<>\'\")",
+                error: "Description contains potentially malicious content",
             };
         }
+        // Allow the description but it will be escaped when used
         return { valid: true };
     }
 
@@ -87,9 +88,8 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             if (typeof tag !== "string") {
                 return { valid: false, error: "All tags must be strings" };
             }
-            // Allow alphanumeric, spaces, hyphens, underscores
-            const tagPattern = /^[a-zA-Z0-9\s\-_]+$/;
-            if (!tagPattern.test(tag)) {
+            // Use validator to check for alphanumeric with allowed special chars
+            if (!validator.matches(tag, /^[a-zA-Z0-9\s\-_]+$/)) {
                 return {
                     valid: false,
                     error: `Tag "${tag}" contains invalid characters. Only alphanumeric, spaces, hyphens, and underscores are allowed.`,
@@ -99,6 +99,13 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                 return {
                     valid: false,
                     error: `Tag "${tag}" exceeds 50 characters`,
+                };
+            }
+            // Check for potentially malicious content
+            if (validator.contains(tag, "<script") || validator.contains(tag, "javascript:")) {
+                return {
+                    valid: false,
+                    error: `Tag "${tag}" contains potentially malicious content`,
                 };
             }
         }
@@ -293,7 +300,7 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                 return;
             }
 
-            // Validate properties
+            // Validate and sanitize properties
             if (properties.name) {
                 const nameValidation = this.validateName(properties.name);
                 if (!nameValidation.valid) {
@@ -312,6 +319,8 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     }
                     return;
                 }
+                // Sanitize the name before using it
+                properties.name = validator.escape(properties.name);
             }
 
             if (properties.description) {
@@ -334,6 +343,8 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     }
                     return;
                 }
+                // Sanitize the description before using it
+                properties.description = validator.escape(properties.description);
             }
 
             if (properties.tags) {
@@ -354,6 +365,8 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     }
                     return;
                 }
+                // Sanitize each tag before using it
+                properties.tags = properties.tags.map(tag => validator.escape(tag));
             }
 
             // Show confirmation if not in JSON mode

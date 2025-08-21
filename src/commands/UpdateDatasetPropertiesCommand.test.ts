@@ -284,7 +284,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
             ]);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                "Validation error: Name contains invalid characters (<>'\")",
+                "Validation error: Name contains potentially malicious content",
             );
             expect(domoClient.updateDatasetProperties).not.toHaveBeenCalled();
         });
