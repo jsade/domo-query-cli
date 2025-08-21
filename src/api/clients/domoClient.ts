@@ -611,74 +611,134 @@ export type KpiCardPart =
 
 /**
  * Function to get a single Domo card by ID
- * Uses the v1/cards/\{cardUrn\} endpoint from the Domo API Schema
+ * Uses the /api/content/v1/cards endpoint with urns query parameter
  */
 export async function getCard(cardId: string): Promise<DomoCard> {
-    const client = getDomoClient();
+    // Check if we have the required configuration for content API endpoints
+    if (!domoConfig.apiToken) {
+        throw new Error(
+            "API token is required for the get-card endpoint. Please set DOMO_API_TOKEN environment variable.",
+        );
+    }
+
+    if (!domoConfig.apiHost) {
+        throw new Error(
+            "Domo API host is required for the get-card endpoint. Please set DOMO_API_HOST environment variable.",
+        );
+    }
+
+    // Create client with API token authentication using the customer's domain
+    const client = createApiTokenClient(
+        domoConfig.apiToken,
+        domoConfig.apiHost,
+    );
 
     try {
-        // Use the v1/cards/{cardUrn} endpoint
-        const response = await client.get<unknown>(`/v1/cards/${cardId}`);
+        // Use the verified working endpoint with comprehensive parts
+        const parts = [
+            "metadata",
+            "metadataOverrides",
+            "problems",
+            "properties",
+            "certification",
+            "datasources",
+            "dateInfo",
+            "domoapp",
+            "drillPath",
+            "drillPathURNs",
+            "library",
+            "masonData",
+            "owner",
+            "owners",
+            "slicers",
+        ];
 
-        if (response && typeof response === "object") {
-            // Process the response based on the API schema
-            const card = response as Record<string, unknown>;
+        const url = `/api/content/v1/cards?urns=${cardId}&parts=${parts.join(",")}&includeFiltered=true`;
+        const response = await client.get<unknown>(url);
 
-            // Defensive extraction and type guards
+        // The endpoint returns an array with the card object
+        if (Array.isArray(response) && response.length > 0) {
+            const card = response[0] as Record<string, unknown>;
+
+            // Extract card URN and ID
             const cardUrn =
-                typeof card.cardUrn === "string" ? card.cardUrn : cardId;
+                typeof card.urn === "string"
+                    ? card.urn
+                    : typeof card.id === "number"
+                      ? String(card.id)
+                      : cardId;
+
+            // Extract basic fields
             const cardTitle =
-                typeof card.cardTitle === "string" ? card.cardTitle : undefined;
+                typeof card.title === "string" ? card.title : undefined;
             const description =
                 typeof card.description === "string"
                     ? card.description
                     : undefined;
-            const lastModified =
-                typeof card.lastModified === "number"
-                    ? card.lastModified
-                    : undefined;
+            const type = typeof card.type === "string" ? card.type : undefined;
             const ownerId =
                 typeof card.ownerId === "number" ? card.ownerId : undefined;
-            const ownerName =
-                typeof card.ownerName === "string" ? card.ownerName : undefined;
-            const pages = Array.isArray(card.pages) ? card.pages : undefined;
-            const type = typeof card.type === "string" ? card.type : undefined;
-            const datasets = Array.isArray(card.datasets)
-                ? card.datasets
-                : undefined;
 
-            // Handle definition if present
+            // Extract timestamp (badgeUpdated is the last modified time)
+            const lastModified =
+                typeof card.badgeUpdated === "number"
+                    ? card.badgeUpdated
+                    : typeof card.created === "number"
+                      ? card.created
+                      : undefined;
+
+            // Extract owner name from owners array
+            let ownerName: string | undefined = undefined;
+            if (Array.isArray(card.owners) && card.owners.length > 0) {
+                const firstOwner = card.owners[0] as Record<string, unknown>;
+                ownerName =
+                    typeof firstOwner.displayName === "string"
+                        ? firstOwner.displayName
+                        : undefined;
+            }
+
+            // Extract dataset IDs from datasources array
+            let datasets: string[] | undefined = undefined;
+            if (
+                Array.isArray(card.datasources) &&
+                card.datasources.length > 0
+            ) {
+                datasets = card.datasources
+                    .map((ds: unknown) => {
+                        if (typeof ds === "object" && ds !== null) {
+                            const datasource = ds as Record<string, unknown>;
+                            return typeof datasource.dataSourceId === "string"
+                                ? datasource.dataSourceId
+                                : null;
+                        }
+                        return null;
+                    })
+                    .filter((id): id is string => id !== null);
+            }
+
+            // Extract metadata for definition
             let definition: DomoCard["definition"] = undefined;
-            if (card.definition && typeof card.definition === "object") {
-                const def = card.definition as Record<string, unknown>;
+            if (card.metadata && typeof card.metadata === "object") {
+                const meta = card.metadata as Record<string, unknown>;
                 definition = {
-                    calculatedFields: Array.isArray(def.calculatedFields)
-                        ? (def.calculatedFields as Array<{
-                              formula: string;
-                              id: string;
-                              name: string;
-                              saveToDataSet: boolean;
-                          }>)
-                        : undefined,
                     chartType:
-                        typeof def.chartType === "string"
-                            ? def.chartType
+                        typeof meta.chartType === "string"
+                            ? meta.chartType
                             : undefined,
                     chartVersion:
-                        typeof def.chartVersion === "string"
-                            ? def.chartVersion
+                        typeof meta.chartVersion === "string"
+                            ? meta.chartVersion
                             : undefined,
+                    // Primary dataset from first datasource
                     dataSetId:
-                        typeof def.dataSetId === "string"
-                            ? def.dataSetId
+                        datasets && datasets.length > 0
+                            ? datasets[0]
                             : undefined,
-                    description:
-                        typeof def.description === "string"
-                            ? def.description
-                            : undefined,
-                    title:
-                        typeof def.title === "string" ? def.title : undefined,
-                    urn: typeof def.urn === "string" ? def.urn : undefined,
+                    description: description,
+                    title: cardTitle,
+                    urn: cardUrn,
+                    // Note: calculatedFields might not be in this response format
+                    calculatedFields: undefined,
                 };
             }
 
@@ -696,16 +756,21 @@ export async function getCard(cardId: string): Promise<DomoCard> {
                 ownerId,
                 ownerName,
                 owner: ownerName, // For backward compatibility
-                pages,
+                pages: undefined, // Not provided in this endpoint
                 type,
                 datasets,
                 definition,
             };
         }
 
+        // Empty array means card not found
         throw new Error(`Card with ID ${cardId} not found`);
     } catch (error) {
-        if (error instanceof Error && error.message.includes("404")) {
+        if (
+            error instanceof Error &&
+            (error.message.includes("404") ||
+                error.message.includes("not found"))
+        ) {
             throw new Error(`Card with ID ${cardId} not found`);
         }
         throw error;
