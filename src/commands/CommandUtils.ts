@@ -155,7 +155,7 @@ export class CommandUtils {
                     if (key === "format") {
                         result.format = value;
                     } else {
-                        result.params[key] = this.parseValue(value);
+                        result.params[key] = this.parseValue(value, key);
                     }
                 } else if (
                     i + 1 < remainingArgs.length &&
@@ -168,6 +168,7 @@ export class CommandUtils {
                     } else {
                         result.params[flagName] = this.parseValue(
                             remainingArgs[i + 1],
+                            flagName,
                         );
                         i++; // Skip the next argument as we've consumed it
                     }
@@ -180,7 +181,7 @@ export class CommandUtils {
                 // key=value format (backward compatibility)
                 const [key, ...valueParts] = arg.split("=");
                 const value = valueParts.join("="); // Handle values with = in them
-                result.params[key] = this.parseValue(value);
+                result.params[key] = this.parseValue(value, key);
             } else {
                 // Positional argument
                 result.positional.push(arg);
@@ -194,19 +195,41 @@ export class CommandUtils {
     /**
      * Parse a string value to appropriate type
      * @param value - String value to parse
+     * @param key - Optional parameter key for context-aware parsing
      * @returns Parsed value as string, number, or boolean
      */
-    private static parseValue(value: string): string | number | boolean {
+    private static parseValue(
+        value: string,
+        key?: string,
+    ): string | number | boolean {
         // Check for boolean
         if (value.toLowerCase() === "true") return true;
         if (value.toLowerCase() === "false") return false;
 
-        // Check for number
-        if (!isNaN(Number(value)) && value !== "") {
-            return Number(value);
+        // Only convert to number for known numeric parameters
+        // This prevents IDs and other string values from being incorrectly converted
+        const numericParams = [
+            "limit",
+            "offset",
+            "page",
+            "size",
+            "count",
+            "max",
+            "min",
+            "timeout",
+            "retries",
+            "delay",
+            "port",
+        ];
+
+        if (key && numericParams.includes(key.toLowerCase())) {
+            const num = Number(value);
+            if (!isNaN(num) && value !== "") {
+                return num;
+            }
         }
 
-        // Return as string
+        // Return as string by default
         return value;
     }
 }

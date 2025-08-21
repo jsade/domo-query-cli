@@ -38,7 +38,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             return { valid: false, error: "Name cannot exceed 255 characters" };
         }
         // Use validator library for XSS protection and sanitization
-        if (validator.contains(name, "<script") || validator.contains(name, "javascript:")) {
+        if (
+            validator.contains(name, "<script") ||
+            validator.contains(name, "javascript:")
+        ) {
             return {
                 valid: false,
                 error: "Name contains potentially malicious content",
@@ -64,7 +67,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             };
         }
         // Use validator library for XSS protection and sanitization
-        if (validator.contains(description, "<script") || validator.contains(description, "javascript:")) {
+        if (
+            validator.contains(description, "<script") ||
+            validator.contains(description, "javascript:")
+        ) {
             return {
                 valid: false,
                 error: "Description contains potentially malicious content",
@@ -102,7 +108,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                 };
             }
             // Check for potentially malicious content
-            if (validator.contains(tag, "<script") || validator.contains(tag, "javascript:")) {
+            if (
+                validator.contains(tag, "<script") ||
+                validator.contains(tag, "javascript:")
+            ) {
                 return {
                     valid: false,
                     error: `Tag "${tag}" contains potentially malicious content`,
@@ -344,7 +353,9 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     return;
                 }
                 // Sanitize the description before using it
-                properties.description = validator.escape(properties.description);
+                properties.description = validator.escape(
+                    properties.description,
+                );
             }
 
             if (properties.tags) {
@@ -366,7 +377,9 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     return;
                 }
                 // Sanitize each tag before using it
-                properties.tags = properties.tags.map(tag => validator.escape(tag));
+                properties.tags = properties.tags.map(tag =>
+                    validator.escape(tag),
+                );
             }
 
             // Show confirmation if not in JSON mode
