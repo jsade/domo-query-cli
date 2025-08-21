@@ -76,6 +76,7 @@ console.error = function (...args: unknown[]) {
 import { selectAndStartShell } from "./shellSelector.ts";
 import { NonInteractiveExecutor } from "./NonInteractiveExecutor.ts";
 import { setReadOnlyMode, initializeConfig } from "./config.ts";
+import { CommandUtils } from "./commands/CommandUtils.ts";
 
 /**
  * Main application function.
@@ -136,63 +137,7 @@ async function main(): Promise<void> {
                 }
 
                 // Handle multi-word commands like "list datasets" -> "list-datasets"
-                let command = args[0];
-                let commandArgs = args.slice(1);
-
-                // Check if this is a multi-word command
-                if (command === "list" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (
-                        [
-                            "datasets",
-                            "dataflows",
-                            "cards",
-                            "pages",
-                            "dataflow-executions",
-                        ].includes(subCommand)
-                    ) {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                } else if (command === "get" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (
-                        ["dataflow", "dataflow-execution"].includes(subCommand)
-                    ) {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                } else if (command === "show" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (subCommand === "lineage") {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                } else if (command === "execute" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (subCommand === "dataflow") {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                } else if (command === "render" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (subCommand === "card") {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                } else if (command === "cache" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (subCommand === "status") {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                } else if (command === "generate" && commandArgs.length > 0) {
-                    const subCommand = commandArgs[0];
-                    if (subCommand === "lineage-report") {
-                        command = `${command}-${subCommand}`;
-                        commandArgs = commandArgs.slice(1);
-                    }
-                }
+                const [command, commandArgs] = CommandUtils.normalizeCommand(args);
 
                 await executor.execute(command, commandArgs);
                 process.exit(0);

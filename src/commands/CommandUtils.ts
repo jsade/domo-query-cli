@@ -36,9 +36,59 @@ export interface ParsedArgs {
 }
 
 /**
+ * Multi-word command mappings
+ */
+const MULTI_WORD_COMMANDS: Record<string, string[]> = {
+    list: ["datasets", "dataflows", "cards", "pages", "dataflow-executions"],
+    get: ["dataflow", "dataflow-execution", "dataset"],
+    show: ["lineage"],
+    execute: ["dataflow"],
+    render: ["card"],
+    cache: ["status"],
+    generate: ["lineage-report"],
+    update: ["dataset-properties"],
+};
+
+/**
  * Utility class with common functions for commands
  */
 export class CommandUtils {
+    /**
+     * Normalize multi-word commands into hyphenated format
+     * @param args - Command line arguments where first element is the command
+     * @returns Tuple of [normalized command, remaining arguments]
+     * @example
+     * normalizeCommand(["list", "datasets", "--limit", "10"])
+     * // Returns: ["list-datasets", ["--limit", "10"]]
+     */
+    public static normalizeCommand(args: string[]): [string, string[]] {
+        if (args.length === 0) {
+            return ["", []];
+        }
+
+        const baseCommand = args[0];
+        let remainingArgs = args.slice(1);
+
+        // Check if this is a multi-word command
+        if (
+            MULTI_WORD_COMMANDS[baseCommand] &&
+            remainingArgs.length > 0
+        ) {
+            const subCommand = remainingArgs[0];
+            const validSubCommands = MULTI_WORD_COMMANDS[baseCommand];
+
+            if (validSubCommands.includes(subCommand)) {
+                // Combine into hyphenated command
+                const normalizedCommand = `${baseCommand}-${subCommand}`;
+                remainingArgs = remainingArgs.slice(1);
+                return [normalizedCommand, remainingArgs];
+            }
+        }
+
+        // Return original command if no multi-word match
+        return [baseCommand, remainingArgs];
+    }
+
     /**
      * Parse command arguments for save options
      * @param args - Command arguments
