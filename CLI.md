@@ -154,6 +154,10 @@ domo-query-cli execute-dataflow 987654321
 # List cards
 domo-query-cli list-cards
 
+# Get card details
+domo-query-cli get-card abc-123-def-456
+domo-query-cli get card abc-123-def-456  # Alternative multi-word syntax
+
 # List pages
 domo-query-cli list-pages
 
@@ -359,6 +363,26 @@ fi
 domo-query-cli list-datasets "sales" --limit 50 | while read -r line; do
   echo "Found dataset: $line"
 done
+```
+
+### Get Card Details
+```bash
+#!/bin/bash
+# Get detailed information about a card
+
+CARD_ID="abc-123-def-456"
+
+# Get card details in formatted output
+domo-query-cli get-card "$CARD_ID"
+
+# Get card details as JSON for processing
+domo-query-cli get-card "$CARD_ID" --format json | jq '.data.card'
+
+# Save card details to markdown documentation
+domo-query-cli get-card "$CARD_ID" --save-md --path ./docs
+
+# Save to both JSON and Markdown formats
+domo-query-cli get-card "$CARD_ID" --save-both
 ```
 
 ### Update Dataset Properties

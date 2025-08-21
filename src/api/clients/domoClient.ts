@@ -6,6 +6,10 @@ import { DomoApiTokenAuth, DomoAuth, DomoOAuthAuth } from "../../DomoAuth.ts";
 import { log } from "../../utils/logger.ts";
 import { getFetchOptionsWithProxy } from "../utils/proxyUtils.ts";
 import { BaseClient } from "./baseClient.ts";
+import {
+    ApiResponseMerger,
+    DualApiResponse,
+} from "../../utils/apiResponseMerger.ts";
 
 /**
  * Defines a Domo dataflow
@@ -53,11 +57,6 @@ export interface DomoDataflow {
         name: string;
         dataSourceId: string;
     }>;
-    actions?: Array<{
-        name: string;
-        type: string;
-        configuration: Record<string, unknown>;
-    }>;
 
     // Additional fields from search API that were being discarded
     permissionMask?: number;
@@ -79,6 +78,203 @@ export interface DomoDataflow {
     lastIndexed?: string;
     score?: number;
     requestAccess?: boolean;
+
+    // Additional fields from v1 endpoint
+    gui?: unknown; // GUI canvas structure
+    actions?: Array<{
+        type?: string;
+        id?: string;
+        name?: string;
+        dependsOn?: string[];
+        settings?: Record<string, unknown>;
+        gui?: Record<string, unknown>;
+        input?: string;
+        inputs?: string[];
+        dataSource?: Record<string, unknown>;
+        filter?: unknown;
+        expressions?: unknown[];
+        tables?: Array<{
+            id?: string;
+            name?: string;
+        }>;
+        versionChainType?: string;
+        partitionIdColumns?: string[];
+        schemaSource?: string;
+        partitioned?: boolean;
+        columns?: Array<Record<string, unknown>>;
+        notes?: Array<Record<string, unknown>>;
+    }>; // Transformation steps/actions from v1 API
+    engineProperties?: Record<string, string>;
+    triggerSettings?: {
+        triggers?: Array<{
+            title?: string;
+            triggerId?: number;
+            triggerEvents?: Array<{
+                datasetId?: string;
+                triggerOnDataChanged?: boolean;
+                type?: string;
+            }>;
+            triggerConditions?: unknown[];
+        }>;
+        zoneId?: string;
+        locale?: string;
+    };
+    hydrationState?: string;
+    useLegacyTriggerBehavior?: boolean;
+    abandoned?: boolean;
+    neverAbandon?: boolean;
+    settings?: Record<string, unknown>;
+    deleted?: boolean;
+    draft?: boolean;
+    triggeredByInput?: boolean;
+    magic?: boolean;
+    container?: boolean;
+    subsetProcessing?: boolean;
+    onboardFlowVersionDetails?: {
+        id?: number;
+        timeStamp?: number;
+        authorId?: number;
+        description?: string;
+        numInputs?: number;
+        numOutputs?: number;
+        executionCount?: number;
+        executionSuccessCount?: number;
+        versionNumber?: number;
+    };
+}
+
+/**
+ * V1 Dataflow API Response interface
+ * Based on /api/dataprocessing/v1/dataflows/:id endpoint
+ */
+export interface V1DataflowResponse {
+    gui?: {
+        version?: string;
+        canvases?: Record<
+            string,
+            {
+                canvasSettings?: Record<string, unknown>;
+                elements?: Array<{
+                    x?: number;
+                    y?: number;
+                    id?: string;
+                    type?: string;
+                    color?: number | null;
+                    colorSource?: string | null;
+                }>;
+            }
+        >;
+    };
+    actions?: Array<{
+        type?: string;
+        id?: string;
+        name?: string;
+        dependsOn?: string[];
+        settings?: Record<string, unknown>;
+        gui?: {
+            x?: number;
+            y?: number;
+            color?: number | null;
+            colorSource?: string | null;
+            sampleJson?: unknown;
+        };
+        input?: string;
+        inputs?: string[];
+        dataSource?: {
+            guid?: string;
+            type?: string;
+            name?: string;
+            cloudId?: string;
+            description?: string;
+        };
+        filter?: unknown;
+        expressions?: unknown[];
+        tables?: Array<{
+            id?: string;
+            name?: string;
+        }>;
+        versionChainType?: string;
+        partitionIdColumns?: string[];
+        schemaSource?: string;
+        partitioned?: boolean;
+        columns?: Array<{
+            name?: string;
+            rename?: string;
+            type?: string | null;
+            dateFormat?: string | null;
+            settings?: Record<string, unknown>;
+            remove?: boolean;
+        }>;
+        notes?: Array<{
+            x1?: number | null;
+            y1?: number | null;
+            x2?: number | null;
+            y2?: number | null;
+            body?: string;
+        }>;
+    }>;
+    engineProperties?: Record<string, string>;
+    inputs?: Array<{
+        dataSourceId?: string;
+        executeFlowWhenUpdated?: boolean;
+        dataSourceName?: string;
+        onlyLoadNewVersions?: boolean;
+        recentVersionCutoffMs?: number;
+    }>;
+    outputs?: Array<{
+        onboardFlowId?: string | null;
+        dataSourceId?: string;
+        dataSourceName?: string;
+        versionChainType?: string;
+    }>;
+    executionCount?: number;
+    executionSuccessCount?: number;
+    hydrationState?: string;
+    useLegacyTriggerBehavior?: boolean;
+    passwordProtected?: boolean;
+    deleted?: boolean;
+    abandoned?: boolean;
+    neverAbandon?: boolean;
+    settings?: {
+        sqlDialect?: string;
+    };
+    triggerSettings?: {
+        triggers?: Array<{
+            title?: string;
+            triggerEvents?: Array<{
+                datasetId?: string;
+                triggerOnDataChanged?: boolean;
+                type?: string;
+            }>;
+            triggerConditions?: unknown[];
+            triggerId?: number;
+        }>;
+        zoneId?: string;
+        locale?: string;
+    };
+    paused?: boolean;
+    enabled?: boolean;
+    onboardFlowVersion?: {
+        id?: number;
+        timeStamp?: number;
+        authorId?: number;
+        description?: string;
+        numInputs?: number;
+        numOutputs?: number;
+        executionCount?: number;
+        executionSuccessCount?: number;
+        versionNumber?: number;
+    };
+    databaseType?: string;
+    editable?: boolean;
+    draft?: boolean;
+    triggeredByInput?: boolean;
+    numInputs?: number;
+    numOutputs?: number;
+    magic?: boolean;
+    restricted?: boolean;
+    subsetProcessing?: boolean;
+    container?: boolean;
 }
 
 /**
@@ -263,17 +459,56 @@ export interface DomoDataset {
     // v3-exclusive fields (optional, only available when API token is configured)
     displayType?: string;
     dataProviderType?: string;
+    type?: string;
+    status?: string;
+    state?: string;
     streamId?: number;
     accountId?: number;
     cardInfo?: {
         cardCount: number;
         cardViewCount: number;
     };
+    cardCount?: number;
     permissions?: string;
     scheduleActive?: boolean;
     cloudId?: string;
     cloudName?: string;
+    cloudEngine?: string;
     cryoStatus?: string;
+    lastTouched?: number;
+    nextUpdate?: number;
+    validConfiguration?: boolean;
+    validAccount?: boolean;
+    transportType?: string;
+    adc?: boolean;
+    adcExternal?: boolean;
+    adcSource?: string;
+    masked?: boolean;
+    currentUserFullAccess?: boolean;
+    hidden?: boolean;
+    properties?: {
+        formulas?: {
+            formulas?: Record<
+                string,
+                {
+                    templateId?: number;
+                    id?: string;
+                    name?: string;
+                    formula?: string;
+                    status?: string;
+                    dataType?: string;
+                    persistedOnDataSource?: boolean;
+                    isAggregatable?: boolean;
+                    bignumber?: boolean;
+                    columnPositions?: Array<{
+                        columnName: string;
+                        columnPosition: number;
+                    }>;
+                    variable?: boolean;
+                }
+            >;
+        };
+    };
 }
 
 /**
@@ -373,6 +608,109 @@ export type KpiCardPart =
     | "imagePNG"
     | "imagePDF"
     | "all";
+
+/**
+ * Function to get a single Domo card by ID
+ * Uses the v1/cards/\{cardUrn\} endpoint from the Domo API Schema
+ */
+export async function getCard(cardId: string): Promise<DomoCard> {
+    const client = getDomoClient();
+
+    try {
+        // Use the v1/cards/{cardUrn} endpoint
+        const response = await client.get<unknown>(`/v1/cards/${cardId}`);
+
+        if (response && typeof response === "object") {
+            // Process the response based on the API schema
+            const card = response as Record<string, unknown>;
+
+            // Defensive extraction and type guards
+            const cardUrn =
+                typeof card.cardUrn === "string" ? card.cardUrn : cardId;
+            const cardTitle =
+                typeof card.cardTitle === "string" ? card.cardTitle : undefined;
+            const description =
+                typeof card.description === "string"
+                    ? card.description
+                    : undefined;
+            const lastModified =
+                typeof card.lastModified === "number"
+                    ? card.lastModified
+                    : undefined;
+            const ownerId =
+                typeof card.ownerId === "number" ? card.ownerId : undefined;
+            const ownerName =
+                typeof card.ownerName === "string" ? card.ownerName : undefined;
+            const pages = Array.isArray(card.pages) ? card.pages : undefined;
+            const type = typeof card.type === "string" ? card.type : undefined;
+            const datasets = Array.isArray(card.datasets)
+                ? card.datasets
+                : undefined;
+
+            // Handle definition if present
+            let definition: DomoCard["definition"] = undefined;
+            if (card.definition && typeof card.definition === "object") {
+                const def = card.definition as Record<string, unknown>;
+                definition = {
+                    calculatedFields: Array.isArray(def.calculatedFields)
+                        ? (def.calculatedFields as Array<{
+                              formula: string;
+                              id: string;
+                              name: string;
+                              saveToDataSet: boolean;
+                          }>)
+                        : undefined,
+                    chartType:
+                        typeof def.chartType === "string"
+                            ? def.chartType
+                            : undefined,
+                    chartVersion:
+                        typeof def.chartVersion === "string"
+                            ? def.chartVersion
+                            : undefined,
+                    dataSetId:
+                        typeof def.dataSetId === "string"
+                            ? def.dataSetId
+                            : undefined,
+                    description:
+                        typeof def.description === "string"
+                            ? def.description
+                            : undefined,
+                    title:
+                        typeof def.title === "string" ? def.title : undefined,
+                    urn: typeof def.urn === "string" ? def.urn : undefined,
+                };
+            }
+
+            return {
+                id: cardUrn,
+                cardUrn,
+                cardTitle,
+                title: cardTitle, // For backward compatibility
+                description,
+                lastModified,
+                lastUpdated:
+                    lastModified !== undefined
+                        ? new Date(lastModified).toISOString()
+                        : undefined,
+                ownerId,
+                ownerName,
+                owner: ownerName, // For backward compatibility
+                pages,
+                type,
+                datasets,
+                definition,
+            };
+        }
+
+        throw new Error(`Card with ID ${cardId} not found`);
+    } catch (error) {
+        if (error instanceof Error && error.message.includes("404")) {
+            throw new Error(`Card with ID ${cardId} not found`);
+        }
+        throw error;
+    }
+}
 
 /**
  * Function to list Domo cards
@@ -601,36 +939,84 @@ interface V3DatasetResponse {
     description?: string;
     displayType?: string;
     dataProviderType?: string;
+    type?: string;
+    status?: string;
+    state?: string;
     streamId?: number;
     accountId?: number;
     cardInfo?: {
         cardCount: number;
         cardViewCount: number;
     };
+    cardCount?: number;
     permissions?: string;
     scheduleActive?: boolean;
     cloudId?: string;
     cloudName?: string;
+    cloudEngine?: string;
     cryoStatus?: string;
     created?: number;
     lastUpdated?: number;
+    lastTouched?: number;
+    nextUpdate?: number;
     rowCount?: number;
     columnCount?: number;
+    owner?: {
+        id: string;
+        name: string;
+        type: string;
+        group?: boolean;
+    };
+    validConfiguration?: boolean;
+    validAccount?: boolean;
+    transportType?: string;
+    adc?: boolean;
+    adcExternal?: boolean;
+    adcSource?: string;
+    masked?: boolean;
+    currentUserFullAccess?: boolean;
+    hidden?: boolean;
+    tags?: string; // JSON string like "[\"tag1\",\"tag2\"]"
+    properties?: {
+        formulas?: {
+            formulas?: Record<
+                string,
+                {
+                    templateId?: number;
+                    id?: string;
+                    name?: string;
+                    formula?: string;
+                    status?: string;
+                    dataType?: string;
+                    persistedOnDataSource?: boolean;
+                    isAggregatable?: boolean;
+                    bignumber?: boolean;
+                    columnPositions?: Array<{
+                        columnName: string;
+                        columnPosition: number;
+                    }>;
+                    variable?: boolean;
+                }
+            >;
+        };
+    };
 }
 
 /**
  * Function to get a specific dataset by ID
- * Uses the v1/datasets endpoint by default
- * v3/datasources endpoint code is commented out due to frequent 404 errors
+ * Returns v1, v3, and merged data for complete visibility
  */
 export async function getDataset(
     datasetId: string,
-): Promise<DomoDataset | null> {
+): Promise<DualApiResponse<DomoDataset, V3DatasetResponse>> {
     const cacheManager = getCacheManager();
 
     // Check cache first
-    const cacheKey = `dataset_${datasetId}`;
-    const cachedDataset = await cacheManager.get<DomoDataset>(cacheKey);
+    const cacheKey = `dataset_dual_${datasetId}`;
+    const cachedDataset =
+        await cacheManager.get<DualApiResponse<DomoDataset, V3DatasetResponse>>(
+            cacheKey,
+        );
     if (cachedDataset) {
         return cachedDataset;
     }
@@ -652,22 +1038,31 @@ export async function getDataset(
         }
     } catch (error) {
         log.error("Error fetching dataset from v1:", error);
-        return null;
+        // Return empty response if v1 fails
+        return ApiResponseMerger.mergeResponses<DomoDataset, V3DatasetResponse>(
+            null,
+            null,
+        );
     }
 
     if (!v1Dataset) {
-        return null;
+        return ApiResponseMerger.mergeResponses<DomoDataset, V3DatasetResponse>(
+            null,
+            null,
+        );
     }
 
     // Optionally enhance with v3 data if API token and customer domain are available
     const v3Client = getV3Client();
+    let v3Response: V3DatasetResponse | null = null;
+
     if (v3Client) {
         try {
             log.debug(
-                `Attempting to enhance dataset ${datasetId} with v3 metadata using customer domain`,
+                `Attempting to fetch dataset ${datasetId} from v3 endpoint using customer domain`,
             );
 
-            const v3Response = await v3Client.get<V3DatasetResponse>(
+            v3Response = await v3Client.get<V3DatasetResponse>(
                 `/api/data/v3/datasources/${datasetId}?includeAllDetails=true`,
             );
 
@@ -675,55 +1070,98 @@ export async function getDataset(
                 log.debug(
                     `Successfully fetched v3 metadata for dataset ${datasetId}`,
                 );
-
-                // Enhance v1 dataset with v3-exclusive fields
-                const enhancedDataset: DomoDataset = {
-                    ...v1Dataset,
-                    // v3 provides additional metadata not available in v1
-                    displayType: v3Response.displayType,
-                    dataProviderType: v3Response.dataProviderType,
-                    streamId: v3Response.streamId,
-                    accountId: v3Response.accountId,
-                    cardInfo: v3Response.cardInfo,
-                    permissions: v3Response.permissions,
-                    scheduleActive: v3Response.scheduleActive,
-                    cloudId: v3Response.cloudId,
-                    cloudName: v3Response.cloudName,
-                    cryoStatus: v3Response.cryoStatus,
-                    // Convert v3 timestamps to ISO strings if needed
-                    createdAt: v3Response.created
-                        ? new Date(v3Response.created).toISOString()
-                        : v1Dataset.createdAt,
-                    updatedAt: v3Response.lastUpdated
-                        ? new Date(v3Response.lastUpdated).toISOString()
-                        : v1Dataset.updatedAt,
-                    // Keep v1 schema and policies as v3 doesn't provide them
-                    schema: v1Dataset.schema,
-                    policies: v1Dataset.policies,
-                    pdpEnabled: v1Dataset.pdpEnabled,
-                };
-
-                // Cache the enhanced result
-                await cacheManager.set(cacheKey, enhancedDataset, 300); // Cache for 5 minutes
-                return enhancedDataset;
             }
         } catch (error) {
             // Log but don't fail - v3 is optional enhancement only
             const errorMessage =
                 error instanceof Error ? error.message : String(error);
             log.debug(
-                `v3 enhancement failed for dataset ${datasetId}: ${errorMessage}`,
+                `v3 fetch failed for dataset ${datasetId}: ${errorMessage}`,
             );
         }
     } else {
         log.debug(
-            "V3 enhancement skipped - API token or customer domain not configured",
+            "V3 fetch skipped - API token or customer domain not configured",
         );
     }
 
-    // Cache and return v1 dataset if v3 enhancement wasn't available
-    await cacheManager.set(cacheKey, v1Dataset, 300); // Cache for 5 minutes
-    return v1Dataset;
+    // Create the dual response with v1, v3, and merged data
+    const dualResponse = ApiResponseMerger.mergeResponses(
+        v1Dataset,
+        v3Response,
+    );
+
+    // If we have merged data, enhance it with proper field mappings
+    if (dualResponse.merged && v3Response) {
+        // Enhance merged dataset with all v3 fields
+        dualResponse.merged = {
+            ...dualResponse.merged,
+            // v3 provides additional metadata not available in v1
+            displayType: v3Response.displayType,
+            dataProviderType: v3Response.dataProviderType,
+            type: v3Response.type,
+            status: v3Response.status,
+            state: v3Response.state,
+            streamId: v3Response.streamId,
+            accountId: v3Response.accountId,
+            cardInfo: v3Response.cardInfo,
+            cardCount: v3Response.cardCount,
+            permissions: v3Response.permissions,
+            scheduleActive: v3Response.scheduleActive,
+            cloudId: v3Response.cloudId,
+            cloudName: v3Response.cloudName,
+            cloudEngine: v3Response.cloudEngine,
+            cryoStatus: v3Response.cryoStatus,
+            lastTouched: v3Response.lastTouched,
+            nextUpdate: v3Response.nextUpdate,
+            validConfiguration: v3Response.validConfiguration,
+            validAccount: v3Response.validAccount,
+            transportType: v3Response.transportType,
+            adc: v3Response.adc,
+            adcExternal: v3Response.adcExternal,
+            adcSource: v3Response.adcSource,
+            masked: v3Response.masked,
+            currentUserFullAccess: v3Response.currentUserFullAccess,
+            hidden: v3Response.hidden,
+            properties: v3Response.properties,
+            // Handle tags - v3 returns as JSON string
+            tags: v3Response.tags
+                ? (() => {
+                      try {
+                          return JSON.parse(v3Response.tags);
+                      } catch {
+                          return [v3Response.tags]; // If not JSON, treat as single tag
+                      }
+                  })()
+                : v1Dataset.tags,
+            // Convert v3 timestamps to ISO strings if needed
+            createdAt: v3Response.created
+                ? new Date(v3Response.created).toISOString()
+                : v1Dataset.createdAt,
+            updatedAt: v3Response.lastUpdated
+                ? new Date(v3Response.lastUpdated).toISOString()
+                : v1Dataset.updatedAt,
+            // Keep v1 schema and policies as v3 doesn't provide them
+            schema: v1Dataset.schema,
+            policies: v1Dataset.policies,
+            pdpEnabled: v1Dataset.pdpEnabled,
+        };
+    }
+
+    // Cache the dual response
+    await cacheManager.set(cacheKey, dualResponse, 300); // Cache for 5 minutes
+    return dualResponse;
+}
+
+/**
+ * Legacy function to get a dataset (returns only merged data for backward compatibility)
+ * @deprecated Use getDataset() for full response data
+ */
+export async function getDatasetLegacy(
+    datasetId: string,
+): Promise<DomoDataset | null> {
+    const dualResponse = await getDataset(datasetId);
+    return ApiResponseMerger.getBestData(dualResponse) as DomoDataset | null;
 }
 
 /**

@@ -2,6 +2,7 @@ import { DataflowClient } from "../api/clients/dataflowClient.ts";
 import {
     DomoDataflow,
     DomoDataflowExecution,
+    V1DataflowResponse,
 } from "../api/clients/domoClient.ts";
 import { CacheManager, getCacheManager } from "../core/cache/CacheManager.ts";
 import {
@@ -9,6 +10,12 @@ import {
     SearchRequest,
     SearchResponse,
 } from "./SearchManager.ts";
+import {
+    ApiResponseMerger,
+    DualApiResponse,
+} from "../utils/apiResponseMerger.ts";
+import { log } from "../utils/logger.ts";
+import { getV3Client } from "../api/clients/clientManager.ts";
 
 /**
  * DataFlowManager class for interacting with Domo dataflows
@@ -181,29 +188,158 @@ export class DataFlowManager {
     }
 
     /**
-     * Get a specific dataflow by ID
+     * Get a specific dataflow by ID with dual API response (v1 and v2)
      * @param dataflowId - The ID of the dataflow to retrieve
-     * @returns The dataflow object
+     * @returns Dual API response with v1, v2, and merged data
      */
-    async getDataflow(dataflowId: string): Promise<DomoDataflow> {
-        // Check cache first
-        const cachedDataflow = await this.cacheManager.getDataflow(dataflowId);
-        if (cachedDataflow) {
-            return cachedDataflow;
+    async getDataflowDual(
+        dataflowId: string,
+    ): Promise<DualApiResponse<DomoDataflow, V1DataflowResponse>> {
+        // Check cache first for dual response
+        const cacheKey = `dataflow_dual_${dataflowId}`;
+        const cachedDualDataflow =
+            await this.cacheManager.get<
+                DualApiResponse<DomoDataflow, V1DataflowResponse>
+            >(cacheKey);
+        if (cachedDualDataflow) {
+            return cachedDualDataflow;
         }
 
         await this.client.ensureAuthenticated();
 
+        // First, fetch v2 data (current implementation)
+        let v2Dataflow: DomoDataflow | null = null;
+        try {
+            const url = `/api/dataprocessing/v2/dataflows/${dataflowId}`;
+            const response =
+                await this.client.get<Record<string, unknown>>(url);
+            v2Dataflow = this.transformDataflowResponse(response);
+        } catch (error) {
+            log.error(
+                `Failed to fetch dataflow ${dataflowId} from v2 endpoint:`,
+                error,
+            );
+        }
+
+        // Try to fetch v1 data if using API token with customer domain
+        let v1Response: V1DataflowResponse | null = null;
+        const v3Client = getV3Client(); // This client uses API token and customer domain
+        if (v3Client) {
+            try {
+                log.debug(
+                    `Attempting to fetch dataflow ${dataflowId} from v1 endpoint using customer domain`,
+                );
+                // v1 endpoint also requires customer domain and API token like v3
+                v1Response = await v3Client.get<V1DataflowResponse>(
+                    `/api/dataprocessing/v1/dataflows/${dataflowId}`,
+                );
+                if (v1Response) {
+                    log.debug(
+                        `Successfully fetched v1 data for dataflow ${dataflowId}`,
+                    );
+                }
+            } catch (error) {
+                // Log but don't fail - v1 is optional enhancement only
+                const errorMessage =
+                    error instanceof Error ? error.message : String(error);
+                log.debug(
+                    `v1 fetch failed for dataflow ${dataflowId}: ${errorMessage}`,
+                );
+            }
+        }
+
+        // Merge responses
+        const dualResponse = ApiResponseMerger.mergeResponses<
+            DomoDataflow,
+            V1DataflowResponse
+        >(v2Dataflow, v1Response);
+
+        // If we have v1 data, merge additional fields into the main dataflow object
+        if (dualResponse.merged && v1Response) {
+            // Map v1-specific fields to DomoDataflow fields
+            const merged = dualResponse.merged as DomoDataflow;
+
+            // Map onboardFlowVersion details if available
+            if (v1Response.onboardFlowVersion) {
+                merged.onboardFlowVersionDetails =
+                    v1Response.onboardFlowVersion;
+            }
+
+            // Map trigger settings
+            if (v1Response.triggerSettings) {
+                merged.triggerSettings = v1Response.triggerSettings;
+            }
+
+            // Map engine properties
+            if (v1Response.engineProperties) {
+                merged.engineProperties = v1Response.engineProperties;
+            }
+
+            // Map additional boolean flags
+            if (v1Response.hydrationState !== undefined)
+                merged.hydrationState = v1Response.hydrationState;
+            if (v1Response.abandoned !== undefined)
+                merged.abandoned = v1Response.abandoned;
+            if (v1Response.neverAbandon !== undefined)
+                merged.neverAbandon = v1Response.neverAbandon;
+            if (v1Response.deleted !== undefined)
+                merged.deleted = v1Response.deleted;
+            if (v1Response.draft !== undefined) merged.draft = v1Response.draft;
+            if (v1Response.triggeredByInput !== undefined)
+                merged.triggeredByInput = v1Response.triggeredByInput;
+            if (v1Response.magic !== undefined) merged.magic = v1Response.magic;
+            if (v1Response.container !== undefined)
+                merged.container = v1Response.container;
+            if (v1Response.subsetProcessing !== undefined)
+                merged.subsetProcessing = v1Response.subsetProcessing;
+
+            // Map settings
+            if (v1Response.settings) {
+                merged.settings = v1Response.settings;
+            }
+
+            // Map GUI structure (for visual representation)
+            if (v1Response.gui) {
+                merged.gui = v1Response.gui;
+            }
+
+            // Map transformation actions (the actual dataflow logic)
+            if (v1Response.actions) {
+                merged.actions = v1Response.actions;
+            }
+        }
+
+        // Cache the dual response
+        await this.cacheManager.set(cacheKey, dualResponse, 300); // Cache for 5 minutes
+
+        return dualResponse;
+    }
+
+    /**
+     * Get a specific dataflow by ID (backward compatible method)
+     * @param dataflowId - The ID of the dataflow to retrieve
+     * @returns The dataflow object
+     */
+    async getDataflow(dataflowId: string): Promise<DomoDataflow> {
+        // Try to get dual response and return the best data
+        const dualResponse = await this.getDataflowDual(dataflowId);
+        const dataflow = ApiResponseMerger.getBestData(
+            dualResponse,
+        ) as DomoDataflow;
+
+        if (dataflow) {
+            // Cache the dataflow for backward compatibility
+            await this.cacheManager.setDataflow(dataflow);
+            return dataflow;
+        }
+
+        // Fallback to original v2-only implementation if dual fetch fails
+        await this.client.ensureAuthenticated();
         const url = `/api/dataprocessing/v2/dataflows/${dataflowId}`;
         const response = await this.client.get<Record<string, unknown>>(url);
-
-        // Transform to match our DomoDataflow interface
-        const dataflow = this.transformDataflowResponse(response);
-
-        // Cache the dataflow
-        await this.cacheManager.setDataflow(dataflow);
-
-        return dataflow;
+        const v2Dataflow = this.transformDataflowResponse(response);
+        await this.cacheManager.setDataflow(v2Dataflow);
+        return v2Dataflow;
     }
 
     /**
@@ -514,9 +650,25 @@ export class DataFlowManager {
             this.cacheManager.generateKey("dataflow", { id: dataflowId }),
         );
         await this.cacheManager.invalidatePattern(/^dataflow-search/);
+        // Also invalidate dual response cache
+        await this.cacheManager.invalidate(`dataflow_dual_${dataflowId}`);
 
         // Cache the updated dataflow
         await this.cacheManager.setDataflow(updatedDataflow);
+
+        // Also cache as dual response for consistency
+        const dualResponse = ApiResponseMerger.mergeResponses<
+            DomoDataflow,
+            V1DataflowResponse
+        >(
+            updatedDataflow,
+            null, // We don't have v1 data after update, but that's okay
+        );
+        await this.cacheManager.set(
+            `dataflow_dual_${dataflowId}`,
+            dualResponse,
+            300,
+        );
 
         return updatedDataflow;
     }
@@ -641,6 +793,8 @@ export class DataFlowManager {
         await this.cacheManager.invalidate(
             this.cacheManager.generateKey("dataflow", { id: dataFlowId }),
         );
+        // Also invalidate dual response cache
+        await this.cacheManager.invalidate(`dataflow_dual_${dataFlowId}`);
 
         return {
             id: typeof response.id === "number" ? response.id : 0,

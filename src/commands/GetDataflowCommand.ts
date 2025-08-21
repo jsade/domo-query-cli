@@ -1,5 +1,6 @@
-import { getDataflow } from "../api/clients/dataflowApi";
+import { getDataflow, getDataflowDual } from "../api/clients/dataflowApi";
 import { DataflowAuthMethod } from "../api/clients/dataflowClient";
+import { ApiResponseMerger } from "../utils/apiResponseMerger";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
@@ -49,17 +50,49 @@ export class GetDataflowCommand extends BaseCommand {
             // Always use apiToken auth method for dataflow operations
             const authMethod: DataflowAuthMethod = "apiToken";
 
-            const dataflow = await getDataflow(dataflowId, authMethod);
+            // For JSON output, get dual response with v1 and v2 data
+            if (this.isJsonOutput) {
+                const dualResponse = await getDataflowDual(
+                    dataflowId,
+                    authMethod,
+                );
+                const formattedResponse =
+                    ApiResponseMerger.formatForOutput(dualResponse);
 
-            if (dataflow) {
-                if (this.isJsonOutput) {
+                if (
+                    formattedResponse.v1 ||
+                    formattedResponse.v2 ||
+                    formattedResponse.merged
+                ) {
                     console.log(
                         JsonOutputFormatter.success(
                             this.name,
-                            { dataflow: dataflow },
-                            { entityType: "dataflow" },
+                            { dataflow: formattedResponse },
+                            {
+                                entityType: "dataflow",
+                                note: "Response includes v1 (transformation details), v2 (current API), and merged data when available with API token and DOMO_API_HOST",
+                            },
                         ),
                     );
+                } else {
+                    console.log(
+                        JsonOutputFormatter.error(
+                            this.name,
+                            "Dataflow not found",
+                            "DATAFLOW_NOT_FOUND",
+                        ),
+                    );
+                }
+                return;
+            }
+
+            // For console output, use merged data
+            const dataflow = await getDataflow(dataflowId, authMethod);
+
+            if (dataflow) {
+                if (false) {
+                    // This condition will never be true now
+                    // Keep for structure consistency
                 } else {
                     console.log(chalk.cyan("\nDataflow Details:"));
                     console.log("----------------");
@@ -95,6 +128,78 @@ export class GetDataflowCommand extends BaseCommand {
                     console.log(
                         `Execution Count: ${dataflow.executionCount || 0}`,
                     );
+
+                    // Display additional v1 fields if available
+                    if (
+                        dataflow.triggerSettings?.triggers &&
+                        dataflow.triggerSettings.triggers.length > 0
+                    ) {
+                        console.log(chalk.cyan("\nTriggers:"));
+                        console.log("---------");
+                        dataflow.triggerSettings.triggers.forEach(trigger => {
+                            console.log(
+                                `  - ${trigger.title || "Unnamed trigger"}`,
+                            );
+                            if (trigger.triggerEvents) {
+                                trigger.triggerEvents.forEach(event => {
+                                    console.log(
+                                        `    Event: ${event.type} on dataset ${event.datasetId}`,
+                                    );
+                                });
+                            }
+                        });
+                    }
+
+                    if (dataflow.engineProperties) {
+                        console.log(chalk.cyan("\nEngine Properties:"));
+                        console.log("------------------");
+                        Object.entries(dataflow.engineProperties).forEach(
+                            ([key, value]) => {
+                                console.log(`  ${key}: ${value}`);
+                            },
+                        );
+                    }
+
+                    if (dataflow.settings?.sqlDialect) {
+                        console.log(
+                            `SQL Dialect: ${dataflow.settings.sqlDialect}`,
+                        );
+                    }
+
+                    if (dataflow.hydrationState) {
+                        console.log(
+                            `Hydration State: ${dataflow.hydrationState}`,
+                        );
+                    }
+
+                    if (dataflow.magic !== undefined) {
+                        console.log(`Magic ETL: ${dataflow.magic}`);
+                    }
+
+                    if (dataflow.subsetProcessing !== undefined) {
+                        console.log(
+                            `Subset Processing: ${dataflow.subsetProcessing}`,
+                        );
+                    }
+
+                    if (dataflow.onboardFlowVersionDetails) {
+                        const version = dataflow.onboardFlowVersionDetails;
+                        console.log(chalk.cyan("\nVersion Details:"));
+                        console.log("----------------");
+                        console.log(
+                            `  Version Number: ${version.versionNumber || "N/A"}`,
+                        );
+                        if (version.description) {
+                            console.log(
+                                `  Description: ${version.description}`,
+                            );
+                        }
+                        if (version.timeStamp) {
+                            console.log(
+                                `  Timestamp: ${new Date(version.timeStamp).toLocaleString()}`,
+                            );
+                        }
+                    }
 
                     // Display inputs if available
                     if (dataflow.inputs && dataflow.inputs.length > 0) {
@@ -196,6 +301,18 @@ export class GetDataflowCommand extends BaseCommand {
         );
         console.log("  - Detailed list of inputs with their IDs and names");
         console.log("  - Detailed list of outputs with their IDs and names");
+        console.log(
+            chalk.cyan("\nWith API Token and DOMO_API_HOST configured:"),
+        );
+        console.log("  - Trigger configurations and schedules");
+        console.log("  - Engine properties and SQL dialect");
+        console.log("  - Version history with descriptions");
+        console.log(
+            "  - Transformation steps and dataflow logic (in JSON output)",
+        );
+        console.log(
+            "  - GUI canvas structure for visual representation (in JSON output)",
+        );
         console.log(chalk.cyan("\nExamples:"));
         console.log(
             "  get-dataflow                   Prompt for dataflow selection",

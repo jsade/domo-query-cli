@@ -3,6 +3,10 @@ import { log } from "../../utils/logger.ts";
 import { validateDataflowSearchResponse } from "../../validators/dataflowSearchValidator.ts";
 import { checkReadOnlyMode } from "../../utils/readOnlyGuard.ts";
 import { createDataflowClient, DataflowAuthMethod } from "./dataflowClient.ts";
+import {
+    ApiResponseMerger,
+    DualApiResponse,
+} from "../../utils/apiResponseMerger.ts";
 import type {
     CreateDataflowParams,
     DataflowExecutionListParams,
@@ -13,6 +17,7 @@ import type {
     ExecuteDataflowParams,
     PatchDataflowParams,
     UpdateDataflowParams,
+    V1DataflowResponse,
 } from "./domoClient.ts";
 
 /**
@@ -171,7 +176,42 @@ export async function listDataflows(
 }
 
 /**
+ * Retrieves detailed information about a specific dataflow with dual API response.
+ *
+ * @param dataflowId - The unique identifier of the dataflow.
+ * @param authMethod - Optional specific authentication method to use.
+ * @returns A promise that resolves to a DualApiResponse containing v1, v2, and merged data.
+ * @throws If the API request fails or the dataflow is not found.
+ */
+export async function getDataflowDual(
+    dataflowId: string,
+    authMethod?: DataflowAuthMethod,
+): Promise<DualApiResponse<DomoDataflow, V1DataflowResponse>> {
+    if (!dataflowId) {
+        throw new Error("Dataflow ID is required");
+    }
+
+    log.info(
+        `Fetching details for dataflow ${dataflowId} from dual endpoints...`,
+    );
+
+    try {
+        const dataFlowManager = getDataFlowManager(authMethod);
+        const dualResponse = await dataFlowManager.getDataflowDual(dataflowId);
+
+        log.info(
+            `Successfully fetched dual response for dataflow ${dataflowId}`,
+        );
+        return dualResponse;
+    } catch (error) {
+        log.error(`Error fetching dataflow ${dataflowId}:`, error);
+        throw error;
+    }
+}
+
+/**
  * Retrieves detailed information about a specific dataflow.
+ * This is the backward-compatible version that returns merged data.
  *
  * @param dataflowId - The unique identifier of the dataflow.
  * @param authMethod - Optional specific authentication method to use.
@@ -189,8 +229,15 @@ export async function getDataflow(
     log.info(`Fetching details for dataflow ${dataflowId}...`);
 
     try {
-        const dataFlowManager = getDataFlowManager(authMethod);
-        const dataflow = await dataFlowManager.getDataflow(dataflowId);
+        // Get dual response and return the best data
+        const dualResponse = await getDataflowDual(dataflowId, authMethod);
+        const dataflow = ApiResponseMerger.getBestData(
+            dualResponse,
+        ) as DomoDataflow;
+
+        if (!dataflow) {
+            throw new Error(`Dataflow ${dataflowId} not found`);
+        }
 
         log.info(`Successfully fetched details for dataflow ${dataflowId}`);
         return dataflow;

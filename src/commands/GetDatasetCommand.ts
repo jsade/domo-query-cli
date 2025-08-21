@@ -1,4 +1,5 @@
-import { getDataset } from "../api/clients/domoClient";
+import { getDataset, DomoDataset } from "../api/clients/domoClient";
+import { ApiResponseMerger } from "../utils/apiResponseMerger";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
@@ -45,14 +46,22 @@ export class GetDatasetCommand extends BaseCommand {
                 return;
             }
 
-            const dataset = await getDataset(datasetId);
+            const datasetResponse = await getDataset(datasetId);
+
+            // Get the best available data for display
+            const dataset = ApiResponseMerger.getBestData(
+                datasetResponse,
+            ) as DomoDataset | null;
 
             if (dataset) {
                 if (this.isJsonOutput) {
+                    // For JSON output, return complete v1, v3, and merged data
+                    const formattedOutput =
+                        ApiResponseMerger.formatForOutput(datasetResponse);
                     console.log(
                         JsonOutputFormatter.success(
                             this.name,
-                            { dataset: dataset },
+                            { dataset: formattedOutput },
                             { entityType: "dataset" },
                         ),
                     );
