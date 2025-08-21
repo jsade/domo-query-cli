@@ -150,7 +150,6 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
         }
     }
 
-
     /**
      * Executes the update-dataset-properties command
      * @param args - Command arguments
@@ -364,7 +363,12 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             }
 
             // Show confirmation if not skipped
-            if (!CommandUtils.shouldSkipConfirmation(parsedArgs, this.isJsonOutput)) {
+            if (
+                !CommandUtils.shouldSkipConfirmation(
+                    parsedArgs,
+                    this.isJsonOutput,
+                )
+            ) {
                 console.log(chalk.cyan("\nProperties to update:"));
                 if (properties.name) {
                     console.log(`  Name: ${properties.name}`);
