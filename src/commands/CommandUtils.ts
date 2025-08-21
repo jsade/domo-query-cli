@@ -8,6 +8,7 @@ import {
     exportToJson,
     exportToMarkdown,
 } from "../utils/utils";
+import readline from "readline";
 
 /**
  * Parsed command arguments
@@ -70,10 +71,7 @@ export class CommandUtils {
         let remainingArgs = args.slice(1);
 
         // Check if this is a multi-word command
-        if (
-            MULTI_WORD_COMMANDS[baseCommand] &&
-            remainingArgs.length > 0
-        ) {
+        if (MULTI_WORD_COMMANDS[baseCommand] && remainingArgs.length > 0) {
             const subCommand = remainingArgs[0];
             const validSubCommands = MULTI_WORD_COMMANDS[baseCommand];
 
@@ -281,5 +279,59 @@ export class CommandUtils {
 
         // Return as string by default
         return value;
+    }
+
+    /**
+     * Prompt user for input
+     * @param prompt - The prompt message to display
+     * @returns Promise resolving to user input
+     */
+    public static async promptUser(prompt: string): Promise<string> {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+
+        return new Promise(resolve => {
+            rl.question(prompt, answer => {
+                rl.close();
+                resolve(answer);
+            });
+        });
+    }
+
+    /**
+     * Prompt user for confirmation (yes/no)
+     * @param message - The confirmation message to display
+     * @param defaultValue - Default value if user presses enter (default: false)
+     * @returns Promise resolving to true if user confirms, false otherwise
+     */
+    public static async promptConfirmation(
+        message: string,
+        defaultValue = false,
+    ): Promise<boolean> {
+        const defaultHint = defaultValue ? "(Y/n)" : "(y/N)";
+        const prompt = `${message} ${defaultHint}: `;
+        const response = await this.promptUser(prompt);
+
+        if (response.trim() === "") {
+            return defaultValue;
+        }
+
+        const normalizedResponse = response.toLowerCase().trim();
+        return normalizedResponse === "y" || normalizedResponse === "yes";
+    }
+
+    /**
+     * Check if confirmation should be skipped
+     * @param parsedArgs - Parsed command arguments
+     * @param isJsonOutput - Whether output is in JSON format
+     * @returns True if confirmation should be skipped
+     */
+    public static shouldSkipConfirmation(
+        parsedArgs: ParsedArgs,
+        isJsonOutput: boolean,
+    ): boolean {
+        return isJsonOutput || parsedArgs.flags.has("no-confirm");
     }
 }

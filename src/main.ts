@@ -137,7 +137,8 @@ async function main(): Promise<void> {
                 }
 
                 // Handle multi-word commands like "list datasets" -> "list-datasets"
-                const [command, commandArgs] = CommandUtils.normalizeCommand(args);
+                const [command, commandArgs] =
+                    CommandUtils.normalizeCommand(args);
 
                 await executor.execute(command, commandArgs);
                 process.exit(0);

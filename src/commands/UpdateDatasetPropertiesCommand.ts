@@ -5,7 +5,6 @@ import { CommandUtils } from "./CommandUtils";
 import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import chalk from "chalk";
 import fs from "fs/promises";
-import readline from "readline";
 import validator from "validator";
 
 /**
@@ -151,24 +150,6 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
         }
     }
 
-    /**
-     * Prompts user for input
-     * @param prompt - The prompt message
-     * @returns User input
-     */
-    private async promptUser(prompt: string): Promise<string> {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-        });
-
-        return new Promise(resolve => {
-            rl.question(prompt, answer => {
-                rl.close();
-                resolve(answer);
-            });
-        });
-    }
 
     /**
      * Executes the update-dataset-properties command
@@ -268,21 +249,21 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     ),
                 );
 
-                const nameInput = await this.promptUser(
+                const nameInput = await CommandUtils.promptUser(
                     "New name (or press Enter to skip): ",
                 );
                 if (nameInput.trim()) {
                     properties.name = nameInput.trim();
                 }
 
-                const descInput = await this.promptUser(
+                const descInput = await CommandUtils.promptUser(
                     "New description (or press Enter to skip): ",
                 );
                 if (descInput.trim()) {
                     properties.description = descInput.trim();
                 }
 
-                const tagsInput = await this.promptUser(
+                const tagsInput = await CommandUtils.promptUser(
                     "New tags (comma-separated, or press Enter to skip): ",
                 );
                 if (tagsInput.trim()) {
@@ -382,8 +363,8 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                 );
             }
 
-            // Show confirmation if not in JSON mode
-            if (!this.isJsonOutput && !parsedArgs.flags.has("no-confirm")) {
+            // Show confirmation if not skipped
+            if (!CommandUtils.shouldSkipConfirmation(parsedArgs, this.isJsonOutput)) {
                 console.log(chalk.cyan("\nProperties to update:"));
                 if (properties.name) {
                     console.log(`  Name: ${properties.name}`);
@@ -395,13 +376,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     console.log(`  Tags: ${properties.tags.join(", ")}`);
                 }
 
-                const confirm = await this.promptUser(
-                    "\nDo you want to proceed with the update? (y/n): ",
+                const confirmed = await CommandUtils.promptConfirmation(
+                    "\nDo you want to proceed with the update?",
                 );
-                if (
-                    confirm.toLowerCase() !== "y" &&
-                    confirm.toLowerCase() !== "yes"
-                ) {
+                if (!confirmed) {
                     console.log("Update cancelled.");
                     return;
                 }
