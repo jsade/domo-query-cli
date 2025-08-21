@@ -1,6 +1,7 @@
 import fetch, { HeadersInit, RequestInit } from "node-fetch";
 import { domoConfig, initializeConfig } from "../../config.ts";
 import { getCacheManager } from "../../core/cache/CacheManager.ts";
+import { getDomoClient, getV3Client } from "./clientManager.ts";
 import { DomoApiTokenAuth, DomoAuth, DomoOAuthAuth } from "../../DomoAuth.ts";
 import { log } from "../../utils/logger.ts";
 import { getFetchOptionsWithProxy } from "../utils/proxyUtils.ts";
@@ -234,6 +235,8 @@ export interface DomoDataset {
               name?: string;
               displayName?: string;
               avatarKey?: string;
+              type?: string;
+              group?: boolean;
           };
     dataStatus?: string;
     pdpEnabled?: boolean;
@@ -256,6 +259,21 @@ export interface DomoDataset {
         certifiedAt?: string;
     };
     tags?: string[];
+
+    // v3-exclusive fields (optional, only available when API token is configured)
+    displayType?: string;
+    dataProviderType?: string;
+    streamId?: number;
+    accountId?: number;
+    cardInfo?: {
+        cardCount: number;
+        cardViewCount: number;
+    };
+    permissions?: string;
+    scheduleActive?: boolean;
+    cloudId?: string;
+    cloudName?: string;
+    cryoStatus?: string;
 }
 
 /**
@@ -363,7 +381,7 @@ export type KpiCardPart =
 export async function listCards(
     params: CardListParams = {},
 ): Promise<DomoCard[]> {
-    const client = createDomoClient();
+    const client = getDomoClient();
     const apiParams: Record<string, string | number> = {};
 
     // Set defaults per API schema if not specified
@@ -444,7 +462,7 @@ export async function listCards(
  * Function to list Domo pages
  */
 export async function listPages(): Promise<DomoPage[]> {
-    const client = createDomoClient();
+    const client = getDomoClient();
     const response = await client.get<unknown>("/api/content/v1/pages");
     return Array.isArray(response) ? response : [];
 }
@@ -464,7 +482,7 @@ export async function listDatasets(
         return cachedDatasets;
     }
 
-    const client = createDomoClient();
+    const client = getDomoClient();
     const apiParams: Record<string, string | number> = {};
 
     // Set defaults per API schema if not specified
@@ -575,6 +593,32 @@ export async function updateDatasetProperties(
 }
 
 /**
+ * V3 API response structure for dataset endpoint
+ */
+interface V3DatasetResponse {
+    id?: string;
+    name?: string;
+    description?: string;
+    displayType?: string;
+    dataProviderType?: string;
+    streamId?: number;
+    accountId?: number;
+    cardInfo?: {
+        cardCount: number;
+        cardViewCount: number;
+    };
+    permissions?: string;
+    scheduleActive?: boolean;
+    cloudId?: string;
+    cloudName?: string;
+    cryoStatus?: string;
+    created?: number;
+    lastUpdated?: number;
+    rowCount?: number;
+    columnCount?: number;
+}
+
+/**
  * Function to get a specific dataset by ID
  * Uses the v1/datasets endpoint by default
  * v3/datasources endpoint code is commented out due to frequent 404 errors
@@ -591,64 +635,95 @@ export async function getDataset(
         return cachedDataset;
     }
 
-    const client = createDomoClient();
+    // First, get v1 data (always needed for schema and policies)
+    const client = getDomoClient(); // Uses OAuth by default
+    let v1Dataset: DomoDataset | null = null;
 
-    // v3 endpoint disabled due to frequent 404 errors - using v1 by default
-    // Uncomment the following block to re-enable v3 endpoint attempts
-    /*
-    try {
-        // Try v3 endpoint first for more details
-        const response = await client.get<DomoDataset>(
-            `/api/data/v3/datasources/${datasetId}`,
-            { includeAllDetails: "true" },
-        );
-
-        if (response) {
-            // Transform v3 response to DomoDataset interface
-            const dataset: DomoDataset = {
-                id: response.id || datasetId,
-                name: response.name || "",
-                description: response.description || "",
-                rows: response.rows || 0,
-                columns: response.columns || 0,
-                createdAt: response.createdAt || "",
-                updatedAt: response.updatedAt || "",
-                dataCurrentAt: response.dataCurrentAt || "",
-                owner: response.owner || undefined,
-                pdpEnabled: response.pdpEnabled || false,
-                policies: response.policies || undefined,
-                schema: response.schema || undefined,
-                certification: response.certification || undefined,
-                tags: response.tags || undefined,
-            };
-
-            // Cache the result
-            await cacheManager.set(cacheKey, dataset, 300); // Cache for 5 minutes
-
-            return dataset;
-        }
-    } catch (error) {
-        // If v3 fails, try v1 endpoint
-        log.debug("v3 datasources endpoint failed, trying v1 datasets", error);
-    }
-    */
-
-    // Use v1 endpoint as primary method
     try {
         const response = await client.get<DomoDataset>(
             `/v1/datasets/${datasetId}`,
         );
 
         if (response) {
-            // Cache the result
-            await cacheManager.set(cacheKey, response, 300); // Cache for 5 minutes
-            return response;
+            v1Dataset = response;
+            log.debug(
+                `Successfully fetched dataset ${datasetId} from v1 endpoint`,
+            );
         }
     } catch (error) {
-        log.error("Error fetching dataset:", error);
+        log.error("Error fetching dataset from v1:", error);
+        return null;
     }
 
-    return null;
+    if (!v1Dataset) {
+        return null;
+    }
+
+    // Optionally enhance with v3 data if API token and customer domain are available
+    const v3Client = getV3Client();
+    if (v3Client) {
+        try {
+            log.debug(
+                `Attempting to enhance dataset ${datasetId} with v3 metadata using customer domain`,
+            );
+
+            const v3Response = await v3Client.get<V3DatasetResponse>(
+                `/api/data/v3/datasources/${datasetId}?includeAllDetails=true`,
+            );
+
+            if (v3Response) {
+                log.debug(
+                    `Successfully fetched v3 metadata for dataset ${datasetId}`,
+                );
+
+                // Enhance v1 dataset with v3-exclusive fields
+                const enhancedDataset: DomoDataset = {
+                    ...v1Dataset,
+                    // v3 provides additional metadata not available in v1
+                    displayType: v3Response.displayType,
+                    dataProviderType: v3Response.dataProviderType,
+                    streamId: v3Response.streamId,
+                    accountId: v3Response.accountId,
+                    cardInfo: v3Response.cardInfo,
+                    permissions: v3Response.permissions,
+                    scheduleActive: v3Response.scheduleActive,
+                    cloudId: v3Response.cloudId,
+                    cloudName: v3Response.cloudName,
+                    cryoStatus: v3Response.cryoStatus,
+                    // Convert v3 timestamps to ISO strings if needed
+                    createdAt: v3Response.created
+                        ? new Date(v3Response.created).toISOString()
+                        : v1Dataset.createdAt,
+                    updatedAt: v3Response.lastUpdated
+                        ? new Date(v3Response.lastUpdated).toISOString()
+                        : v1Dataset.updatedAt,
+                    // Keep v1 schema and policies as v3 doesn't provide them
+                    schema: v1Dataset.schema,
+                    policies: v1Dataset.policies,
+                    pdpEnabled: v1Dataset.pdpEnabled,
+                };
+
+                // Cache the enhanced result
+                await cacheManager.set(cacheKey, enhancedDataset, 300); // Cache for 5 minutes
+                return enhancedDataset;
+            }
+        } catch (error) {
+            // Log but don't fail - v3 is optional enhancement only
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
+            log.debug(
+                `v3 enhancement failed for dataset ${datasetId}: ${errorMessage}`,
+            );
+        }
+    } else {
+        log.debug(
+            "V3 enhancement skipped - API token or customer domain not configured",
+        );
+    }
+
+    // Cache and return v1 dataset if v3 enhancement wasn't available
+    await cacheManager.set(cacheKey, v1Dataset, 300); // Cache for 5 minutes
+    return v1Dataset;
 }
 
 /**

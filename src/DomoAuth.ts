@@ -274,6 +274,8 @@ export class DomoUsernamePasswordAuth extends DomoAuth {
  */
 export class DomoOAuthAuth extends DomoAuth {
     private accessToken: string;
+    private tokenExpiryTime: Date | null = null;
+    private readonly TOKEN_BUFFER_MS = 5 * 60 * 1000; // 5 minute buffer
 
     /**
      * Constructor
@@ -286,13 +288,34 @@ export class DomoOAuthAuth extends DomoAuth {
     }
 
     /**
+     * Check if the current token is still valid
+     */
+    private isTokenValid(): boolean {
+        if (!this.accessToken || !this.tokenExpiryTime) {
+            return false;
+        }
+
+        // Check if token expires in more than 5 minutes
+        const now = Date.now();
+        const expiryTime = this.tokenExpiryTime.getTime();
+        return expiryTime - now > this.TOKEN_BUFFER_MS;
+    }
+
+    /**
      * Ensures authentication by getting or refreshing the OAuth token
      * @returns Authentication status
      */
     async ensureAuthenticated(): Promise<boolean> {
         try {
-            log.debug("DomoOAuthAuth: Ensuring OAuth authentication");
+            // Skip if we already have a valid token
+            if (this.authenticated && this.isTokenValid()) {
+                log.debug("DomoOAuthAuth: Using existing valid OAuth token");
+                return true;
+            }
+
+            log.debug("DomoOAuthAuth: Acquiring OAuth token");
             // Use the OAuth token manager to get a valid token
+            // The token manager already handles caching and expiry internally
             this.accessToken = await getOAuthToken();
 
             if (!this.accessToken) {
@@ -302,6 +325,11 @@ export class DomoOAuthAuth extends DomoAuth {
                 this.authenticated = false;
                 return false;
             }
+
+            // Set expiry time (OAuth tokens typically expire in 3600 seconds)
+            // Note: The OAuthTokenManager handles this internally, but we track it here too
+            // to avoid unnecessary calls to the token manager
+            this.tokenExpiryTime = new Date(Date.now() + 3600 * 1000);
 
             const maskedToken = maskSensitiveValue(this.accessToken, 10);
             log.debug(

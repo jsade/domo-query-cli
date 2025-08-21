@@ -154,12 +154,16 @@ LOG_PATH=./logs
 
 1. Log into Domo → Admin → Security → Access Tokens
 2. Create new token with appropriate permissions
+3. Required for: dataflow execution, dataset property updates
 
 **OAuth Credentials**:
 
 1. Go to Admin → Security → Client Management
 2. Create new client application
 3. Copy Client ID and Secret
+4. Sufficient for: read operations, listing resources
+
+**Note**: Some operations require specific authentication methods. API tokens provide broader permissions than OAuth for write operations.
 
 ### Proxy Configuration
 
@@ -176,7 +180,7 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 
 ## Quick Start
 
-1. Start the CLI:
+1. **Start the interactive CLI:**
 
     ```bash
     # If installed via install.sh
@@ -189,45 +193,84 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
     yarn start
     ```
 
-2. Type `help` to see available commands
+2. **Type `help` to see all available commands**
 
-3. Begin exploring your data!
+3. **Begin exploring your data!**
+
+For non-interactive usage (scripts, automation, CI/CD), see [CLI.md](./CLI.md) for comprehensive documentation.
 
 ## Command Reference
 
-### Data Exploration Commands
+> 📚 **For comprehensive command documentation and non-interactive usage, see [CLI.md](./CLI.md)**
 
-| Command                             | Description                                                | Options/Details                                                                                                                               |
-| ----------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list-datasets [options]`           | List all datasets with details (size, last updated, owner) | `--filter=<search>` - Filter by name<br>`--save-json` - Export to JSON<br>`--save-md` - Export to Markdown                                    |
-| `list-dataflows [search] [options]` | List or search dataflows                                   | Supports fuzzy matching<br>Same export options as above                                                                                       |
-| `list-cards [options]`              | List all accessible Domo cards                             | Same export options as above                                                                                                                  |
-| `get-dataflow <id>`                 | Get detailed information about a specific dataflow         | Shows:<br>• Input/output datasets<br>• Transformation details<br>• Recent execution history                                                   |
-| `show-lineage <id> [options]`       | Visualize data lineage for a dataset or dataflow           | `--diagram` - Generate focused Mermaid diagram<br>`--max-depth=<n>` - Limit diagram depth (default: 5)<br>`--save-md` - Export lineage report |
+### Core Commands
 
-### Dataflow Operations
+| Command | Description |
+| ------- | ----------- |
+| `list-datasets [search]` | List all datasets with filtering and search |
+| `get-dataset <id>` | Get detailed dataset information |
+| `update-dataset-properties <id>` | Update dataset name, description, tags (requires API token) |
+| `list-dataflows [search]` | List or search dataflows |
+| `get-dataflow <id>` | Get dataflow details and execution history |
+| `execute-dataflow <id>` | Trigger a dataflow to run |
+| `show-lineage <id>` | Visualize data lineage with Mermaid diagrams |
+| `list-cards` | List all accessible Domo cards |
+| `cache-status` | View or clear cache |
+| `help` | Show all available commands |
 
-| Command                                             | Description                    | Details                                                                                                               |
-| --------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `list-dataflow-executions <id>`                     | View execution history         | Shows:<br>• Status (success/failed/running)<br>• Duration and performance metrics<br>• Error messages for failed runs |
-| `get-dataflow-execution <dataflowId> <executionId>` | Detailed execution information | Includes step-by-step progress                                                                                        |
-| `execute-dataflow <id>`                             | Trigger a dataflow to run      | Requires API token                                                                                                    |
 
-### Reporting Commands
 
-| Command                             | Description                          | Options                                                                                                                                                                                                                                                                             |
-| ----------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `generate-lineage-report [options]` | Generate comprehensive documentation | `--type=<type>` - Report type:<br>&nbsp;&nbsp;• `full` - Complete lineage analysis<br>&nbsp;&nbsp;• `overview` - Health summary<br>&nbsp;&nbsp;• `orphans` - Unused datasets<br>`--include-diagrams` - Add Mermaid visualizations<br>`--save-path=<path>` - Custom output directory |
-| `render-card <cardId> [options]`    | Export KPI card as image and data    | Saves both PNG visualization and JSON data                                                                                                                                                                                                                                          |
+## Common Examples
 
-### System Commands
+### Interactive Mode
+```bash
+# Start the interactive shell
+domo-query-cli
 
-| Command        | Description                                   | Options                           |
-| -------------- | --------------------------------------------- | --------------------------------- |
-| `cache-status` | View or manage cache                          | `--clear` - Clear all cached data |
-| `help`         | Show all available commands with descriptions |                                   |
-| `clear`        | Clear terminal screen                         |                                   |
-| `exit`         | Exit the application                          |                                   |
+# Inside the shell:
+> list-datasets sales        # Search for sales datasets
+> get-dataset abc-123-def    # Get specific dataset details
+> execute-dataflow 12345     # Run a dataflow
+> show-lineage abc-123 --diagram  # Visualize data lineage
+> help                       # See all commands
+```
+
+### Non-Interactive Mode (Scripts & Automation)
+```bash
+# List datasets with pagination
+domo-query-cli list-datasets --limit 10 --offset 20
+
+# Update dataset properties
+domo-query-cli update-dataset-properties abc-123 \
+  --name "Q4 Sales Data" \
+  --tags "sales,q4,2024" \
+  --no-confirm
+
+# Execute dataflow with authentication
+domo-query-cli --token YOUR_API_TOKEN execute-dataflow 12345
+
+# Run in read-only mode (prevents destructive operations)
+domo-query-cli --read-only list-dataflows
+
+# Get JSON output for processing
+domo-query-cli list-datasets --format json | jq '.data[]'
+```
+
+### Monitoring Dataflows
+```bash
+#!/bin/bash
+# Monitor dataflow execution status
+
+FLOW_ID="12345"
+if domo-query-cli execute-dataflow "$FLOW_ID"; then
+  echo "Dataflow started successfully"
+  # Check execution status
+  domo-query-cli list-dataflow-executions "$FLOW_ID" --limit 1
+else
+  echo "Failed to start dataflow"
+  exit 1
+fi
+```
 
 ## Troubleshooting
 
