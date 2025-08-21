@@ -1822,6 +1822,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/validator@npm:^13.15.2":
+  version: 13.15.2
+  resolution: "@types/validator@npm:13.15.2"
+  checksum: 10c0/2c7ce5b745e2c856d0ecd193469cf0edd5081b17208dfab4f03dd5801b8893dcf4cbcfcb662c2b6a42032940effd33e16a56a7eba9e2776b1804111118e320dc
+  languageName: node
+  linkType: hard
+
 "@typescript-eslint/eslint-plugin@npm:8.34.0, @typescript-eslint/eslint-plugin@npm:^8.31.0":
   version: 8.34.0
   resolution: "@typescript-eslint/eslint-plugin@npm:8.34.0"
@@ -3239,6 +3246,7 @@ __metadata:
     "@types/inquirer-autocomplete-prompt": "npm:^2"
     "@types/node": "npm:^22.15.2"
     "@types/node-fetch": "npm:2"
+    "@types/validator": "npm:^13.15.2"
     "@typescript-eslint/eslint-plugin": "npm:^8.31.0"
     "@typescript-eslint/parser": "npm:^8.31.0"
     "@vitest/coverage-v8": "npm:3.1.2"
@@ -3272,6 +3280,7 @@ __metadata:
     tsx: "npm:^4.19.3"
     typescript: "npm:^5.8.3"
     typescript-eslint: "npm:^8.31.0"
+    validator: "npm:^13.15.15"
     vite: "npm:^6.3.4"
     vite-node: "npm:^3.1.3"
     vitest: "npm:^3.1.2"
@@ -8837,6 +8846,13 @@ __metadata:
   version: 6.0.1
   resolution: "validate-npm-package-name@npm:6.0.1"
   checksum: 10c0/4d5455523e0a0c9a9ae3f306d4e6205c43be71dac85882db1c357ebbaf685390ea94985511824cfe41c04ca302dd85eb1f0292ab6941234b5ddca38d11865f9a
+  languageName: node
+  linkType: hard
+
+"validator@npm:^13.15.15":
+  version: 13.15.15
+  resolution: "validator@npm:13.15.15"
+  checksum: 10c0/f5349d1fbb9cc36f9f6c5dab1880764ddad1d0d2b084e2a71e5964f7de1635d20e406611559df9a3db24828ce775cbee5e3b6dd52f0d555a61939ed7ea5990bd
   languageName: node
   linkType: hard
 

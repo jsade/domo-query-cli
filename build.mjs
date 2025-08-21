@@ -33,26 +33,72 @@ copyFileSync(".env.example", "dist/.env.example");
 // Ensure pkg is available
 console.log("Ensuring pkg is available...");
 
-// Package for different platforms
-console.log("\nCreating executables...");
-const platforms = [
-    { target: "node18-macos-arm64", output: "domo-query-cli" },
-    { target: "node18-win-x64", output: "domo-query-cli.exe" },
-    { target: "node18-linux-x64", output: "domo-query-cli" },
-];
+// Detect current platform and architecture
+function getCurrentPlatform() {
+    const platform = process.platform;
+    const arch = process.arch;
 
-for (const platform of platforms) {
-    console.log(`Building for ${platform.target}...`);
-    try {
-        execSync(
-            `npx pkg dist/main.js -t ${platform.target} -o release/${platform.output} --compress GZip`,
-            {
-                stdio: "inherit",
-            },
-        );
-    } catch (error) {
-        console.error(`Failed to build for ${platform.target}:`, error.message);
+    if (platform === "darwin") {
+        if (arch === "arm64") {
+            return {
+                target: "node18-macos-arm64",
+                output: "domo-query-cli",
+                name: "macos-arm64",
+            };
+        } else {
+            return {
+                target: "node18-macos-x64",
+                output: "domo-query-cli",
+                name: "macos-x64",
+            };
+        }
+    } else if (platform === "win32") {
+        return {
+            target: "node18-win-x64",
+            output: "domo-query-cli.exe",
+            name: "windows",
+        };
+    } else if (platform === "linux") {
+        if (arch === "arm64") {
+            return {
+                target: "node18-linux-arm64",
+                output: "domo-query-cli",
+                name: "linux-arm64",
+            };
+        } else {
+            return {
+                target: "node18-linux-x64",
+                output: "domo-query-cli",
+                name: "linux",
+            };
+        }
+    } else {
+        console.error(`Unsupported platform: ${platform} ${arch}`);
+        process.exit(1);
     }
+}
+
+// Package for current platform only
+console.log("\nCreating executable for current platform...");
+const currentPlatform = getCurrentPlatform();
+console.log(
+    `Building for ${currentPlatform.target} (${process.platform} ${process.arch})...`,
+);
+
+try {
+    execSync(
+        `npx pkg dist/main.js -t ${currentPlatform.target} -o release/${currentPlatform.output} --compress GZip`,
+        {
+            stdio: "inherit",
+        },
+    );
+    console.log(`✓ Built ${currentPlatform.output}`);
+} catch (error) {
+    console.error(
+        `Failed to build for ${currentPlatform.target}:`,
+        error.message,
+    );
+    process.exit(1);
 }
 
 // Copy README.md to release directory
@@ -67,120 +113,102 @@ if (existsSync("README.md")) {
 // Copy .env.example to release
 copyFileSync(".env.example", "release/.env.example");
 
-// Create distribution archives
-console.log("\nCreating distribution archives...");
-const archivePlatforms = [
-    {
-        name: "macos-arm64",
-        files: ["domo-query-cli", ".env.example", "README.md"],
-        binaryName: "domo-query-cli",
-    },
-    {
-        name: "windows",
-        files: ["domo-query-cli.exe", ".env.example", "README.md"],
-        binaryName: "domo-query-cli.exe",
-    },
-    {
-        name: "linux",
-        files: ["domo-query-cli", ".env.example", "README.md"],
-        binaryName: "domo-query-cli",
-    },
-];
+// Create distribution archive for current platform
+console.log("\nCreating distribution archive...");
+const archive = {
+    name: currentPlatform.name,
+    files: [currentPlatform.output, ".env.example", "README.md"],
+    binaryName: currentPlatform.output,
+};
 
 // Check if we're in CI environment and zip is available
 const isCI = process.env.CI === "true";
 
 process.chdir("release");
-for (const archive of archivePlatforms) {
-    const fileName = `domo-query-cli-${archive.name}.zip`;
-    console.log(`Creating ${fileName}...`);
+const fileName = `domo-query-cli-${archive.name}.zip`;
+console.log(`Creating ${fileName}...`);
 
-    // Check if all required files exist
-    const missingFiles = archive.files.filter(file => !existsSync(file));
-    if (missingFiles.length > 0) {
-        console.warn(
-            `Skipping ${fileName} - missing files: ${missingFiles.join(", ")}`,
-        );
-        continue;
+// Check if all required files exist
+const missingFiles = archive.files.filter(file => !existsSync(file));
+if (missingFiles.length > 0) {
+    console.error(
+        `Cannot create archive - missing files: ${missingFiles.join(", ")}`,
+    );
+    process.exit(1);
+}
+
+try {
+    // Create a temporary directory for this archive
+    const tempDir = `temp-${archive.name}`;
+    mkdirSync(tempDir, { recursive: true });
+
+    // Copy files to temp directory with renamed binary
+    for (const file of archive.files) {
+        if (file.startsWith("domo-query-cli")) {
+            // This is the binary, rename it
+            copyFileSync(file, `${tempDir}/${archive.binaryName}`);
+        } else {
+            // Copy other files as-is
+            copyFileSync(file, `${tempDir}/${file}`);
+        }
     }
 
-    try {
-        // Create a temporary directory for this archive
-        const tempDir = `temp-${archive.name}`;
-        mkdirSync(tempDir, { recursive: true });
+    if (process.platform === "win32" && !isCI) {
+        execSync(
+            `powershell Compress-Archive -Path ${tempDir}/* -DestinationPath ${fileName} -Force`,
+            { stdio: "inherit" },
+        );
+    } else {
+        // Use zip command (available on most Unix systems and CI environments)
+        execSync(`cd ${tempDir} && zip -q ../${fileName} *`, {
+            stdio: "inherit",
+            shell: true,
+        });
+    }
 
-        // Copy files to temp directory with renamed binary
-        for (const file of archive.files) {
-            if (file.startsWith("domo-query-cli")) {
-                // This is the binary, rename it
-                copyFileSync(file, `${tempDir}/${archive.binaryName}`);
-            } else {
-                // Copy other files as-is
-                copyFileSync(file, `${tempDir}/${file}`);
+    // Clean up temp directory
+    rmSync(tempDir, { recursive: true, force: true });
+
+    console.log(`✓ Created ${fileName}`);
+} catch (error) {
+    console.error(`Failed to create archive ${fileName}:`, error.message);
+    // In CI, try using Node.js based archiving as fallback
+    if (isCI) {
+        console.log("Attempting Node.js based archiving...");
+        try {
+            // Create a temporary directory for this archive
+            const tempDir = `temp-${archive.name}`;
+            mkdirSync(tempDir, { recursive: true });
+
+            // Copy files to temp directory with renamed binary
+            for (const file of archive.files) {
+                if (file.startsWith("domo-query-cli")) {
+                    // This is the binary, rename it
+                    copyFileSync(file, `${tempDir}/${archive.binaryName}`);
+                } else {
+                    // Copy other files as-is
+                    copyFileSync(file, `${tempDir}/${file}`);
+                }
             }
-        }
 
-        if (process.platform === "win32" && !isCI) {
-            execSync(
-                `powershell Compress-Archive -Path ${tempDir}/* -DestinationPath ${fileName} -Force`,
-                { stdio: "inherit" },
-            );
-        } else {
-            // Use zip command (available on most Unix systems and CI environments)
-            execSync(`cd ${tempDir} && zip -q ../${fileName} *`, {
+            execSync(`cd ${tempDir} && npx archiver-cli * -o ../${fileName}`, {
                 stdio: "inherit",
                 shell: true,
             });
-        }
 
-        // Clean up temp directory
-        rmSync(tempDir, { recursive: true, force: true });
+            // Clean up temp directory
+            rmSync(tempDir, { recursive: true, force: true });
 
-        console.log(`✓ Created ${fileName}`);
-    } catch (error) {
-        console.error(`Failed to create archive ${fileName}:`, error.message);
-        // In CI, try using Node.js based archiving as fallback
-        if (isCI) {
-            console.log("Attempting Node.js based archiving...");
-            try {
-                // Create a temporary directory for this archive
-                const tempDir = `temp-${archive.name}`;
-                mkdirSync(tempDir, { recursive: true });
-
-                // Copy files to temp directory with renamed binary
-                for (const file of archive.files) {
-                    if (file.startsWith("domo-query-cli")) {
-                        // This is the binary, rename it
-                        copyFileSync(file, `${tempDir}/${archive.binaryName}`);
-                    } else {
-                        // Copy other files as-is
-                        copyFileSync(file, `${tempDir}/${file}`);
-                    }
-                }
-
-                execSync(
-                    `cd ${tempDir} && npx archiver-cli * -o ../${fileName}`,
-                    {
-                        stdio: "inherit",
-                        shell: true,
-                    },
-                );
-
-                // Clean up temp directory
-                rmSync(tempDir, { recursive: true, force: true });
-
-                console.log(`✓ Created ${fileName} using archiver-cli`);
-            } catch (fallbackError) {
-                console.error(`Fallback also failed:`, fallbackError.message);
-            }
+            console.log(`✓ Created ${fileName} using archiver-cli`);
+        } catch (fallbackError) {
+            console.error(`Fallback also failed:`, fallbackError.message);
         }
     }
 }
 process.chdir("..");
 
 console.log(
-    "\n✅ Build complete! Check the release/ directory for executables and archives.",
+    `\n✅ Build complete! Built for ${currentPlatform.name} (${process.platform} ${process.arch})`,
 );
-console.log(
-    "\nTo share via Slack, use the .zip files in the release/ directory.",
-);
+console.log(`\nExecutable: release/${currentPlatform.output}`);
+console.log(`Archive: release/${fileName}`);

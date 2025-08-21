@@ -226,7 +226,15 @@ export interface DomoDataset {
     }>;
     createdAt: string;
     updatedAt: string;
-    owner?: string;
+    dataCurrentAt?: string;
+    owner?:
+        | string
+        | {
+              id?: string;
+              name?: string;
+              displayName?: string;
+              avatarKey?: string;
+          };
     dataStatus?: string;
     pdpEnabled?: boolean;
     policies?: Array<{
@@ -242,6 +250,12 @@ export interface DomoDataset {
         users?: number[];
         groups?: Array<Record<string, unknown>>;
     }>;
+    certification?: {
+        state?: string;
+        certifiedBy?: string;
+        certifiedAt?: string;
+    };
+    tags?: string[];
 }
 
 /**
@@ -484,6 +498,157 @@ export async function listDatasets(
     }
 
     return datasets;
+}
+
+/**
+ * Function to update dataset properties
+ * Uses the v3/datasources endpoint with API token authentication
+ * @param datasetId - The ID of the dataset to update
+ * @param properties - The properties to update (name, description, tags)
+ * @returns The updated dataset or null if error
+ */
+export async function updateDatasetProperties(
+    datasetId: string,
+    properties: {
+        name?: string;
+        description?: string;
+        tags?: string[];
+    },
+): Promise<DomoDataset | null> {
+    // Ensure we have an API token since this endpoint requires it
+    if (!domoConfig.initialized) {
+        initializeConfig();
+    }
+
+    if (!domoConfig.apiToken) {
+        throw new Error(
+            "API token is required for the update-dataset-properties endpoint. Please set DOMO_API_TOKEN environment variable.",
+        );
+    }
+
+    if (!domoConfig.apiHost) {
+        throw new Error(
+            "Domo API host is required for the update-dataset-properties endpoint. Please set DOMO_API_HOST environment variable.",
+        );
+    }
+
+    try {
+        // Create client with API token authentication using the customer's domain
+        const client = createApiTokenClient(
+            domoConfig.apiToken,
+            domoConfig.apiHost,
+        );
+
+        // Build the request body
+        const requestBody: Record<string, unknown> = {};
+        if (properties.name !== undefined) {
+            requestBody.name = properties.name;
+        }
+        if (properties.description !== undefined) {
+            requestBody.description = properties.description;
+        }
+        if (properties.tags !== undefined) {
+            requestBody.tags = properties.tags;
+        }
+
+        log.debug(`Updating dataset ${datasetId} properties:`, requestBody);
+
+        // Make the PUT request to update properties
+        const response = await client.put<DomoDataset>(
+            `/api/data/v3/datasources/${datasetId}/properties`,
+            requestBody,
+        );
+
+        if (response) {
+            // Clear cache for this dataset since it's been updated
+            const cacheManager = getCacheManager();
+            await cacheManager.invalidate(`dataset_${datasetId}`);
+
+            return response;
+        }
+    } catch (error) {
+        log.error("Error updating dataset properties:", error);
+        throw error;
+    }
+
+    return null;
+}
+
+/**
+ * Function to get a specific dataset by ID
+ * Uses the v1/datasets endpoint by default
+ * v3/datasources endpoint code is commented out due to frequent 404 errors
+ */
+export async function getDataset(
+    datasetId: string,
+): Promise<DomoDataset | null> {
+    const cacheManager = getCacheManager();
+
+    // Check cache first
+    const cacheKey = `dataset_${datasetId}`;
+    const cachedDataset = await cacheManager.get<DomoDataset>(cacheKey);
+    if (cachedDataset) {
+        return cachedDataset;
+    }
+
+    const client = createDomoClient();
+
+    // v3 endpoint disabled due to frequent 404 errors - using v1 by default
+    // Uncomment the following block to re-enable v3 endpoint attempts
+    /*
+    try {
+        // Try v3 endpoint first for more details
+        const response = await client.get<DomoDataset>(
+            `/api/data/v3/datasources/${datasetId}`,
+            { includeAllDetails: "true" },
+        );
+
+        if (response) {
+            // Transform v3 response to DomoDataset interface
+            const dataset: DomoDataset = {
+                id: response.id || datasetId,
+                name: response.name || "",
+                description: response.description || "",
+                rows: response.rows || 0,
+                columns: response.columns || 0,
+                createdAt: response.createdAt || "",
+                updatedAt: response.updatedAt || "",
+                dataCurrentAt: response.dataCurrentAt || "",
+                owner: response.owner || undefined,
+                pdpEnabled: response.pdpEnabled || false,
+                policies: response.policies || undefined,
+                schema: response.schema || undefined,
+                certification: response.certification || undefined,
+                tags: response.tags || undefined,
+            };
+
+            // Cache the result
+            await cacheManager.set(cacheKey, dataset, 300); // Cache for 5 minutes
+
+            return dataset;
+        }
+    } catch (error) {
+        // If v3 fails, try v1 endpoint
+        log.debug("v3 datasources endpoint failed, trying v1 datasets", error);
+    }
+    */
+
+    // Use v1 endpoint as primary method
+    try {
+        const response = await client.get<DomoDataset>(
+            `/v1/datasets/${datasetId}`,
+        );
+
+        if (response) {
+            // Cache the result
+            await cacheManager.set(cacheKey, response, 300); // Cache for 5 minutes
+            return response;
+        }
+    } catch (error) {
+        log.error("Error fetching dataset:", error);
+    }
+
+    return null;
 }
 
 /**

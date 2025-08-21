@@ -1,12 +1,3 @@
-import { readFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-
-// Get package.json version
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const packageJson = JSON.parse(
-    readFileSync(resolve(__dirname, "../package.json"), "utf-8"),
-);
-
-export const version = packageJson.version;
+// Version will be injected during build
+// For development, we'll use a default version
+export const version = process.env.APP_VERSION || "1.0.0";

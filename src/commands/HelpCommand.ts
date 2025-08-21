@@ -2,6 +2,7 @@ import chalk from "chalk";
 import type { Command } from "../types/shellTypes";
 import { TerminalFormatter } from "../utils/terminalFormatter";
 import { BaseCommand } from "./BaseCommand";
+import { isReadOnlyMode } from "../config";
 
 /**
  * Displays help information for available commands
@@ -107,6 +108,24 @@ export class HelpCommand extends BaseCommand {
                 colWidths: [26, 60],
             }),
         );
+
+        // Show read-only mode information if active
+        if (isReadOnlyMode()) {
+            console.log(`\n${chalk.yellow.bold("Read-Only Mode")}`);
+            console.log(
+                chalk.yellow(
+                    "  🔒 Read-only mode is currently active. All destructive operations are disabled.\n" +
+                        "  To disable: Unset DOMO_READ_ONLY environment variable or restart without --read-only flag.",
+                ),
+            );
+        } else {
+            console.log(`\n${chalk.dim("Read-Only Mode")}`);
+            console.log(
+                chalk.dim(
+                    "  Enable with DOMO_READ_ONLY=true environment variable or --read-only CLI flag",
+                ),
+            );
+        }
 
         console.log(
             "\nTips: help <command> for details • Tab completion available",

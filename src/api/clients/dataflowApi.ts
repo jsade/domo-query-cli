@@ -1,6 +1,7 @@
 import { DataFlowManager } from "../../managers/DataFlowManager.ts";
 import { log } from "../../utils/logger.ts";
 import { validateDataflowSearchResponse } from "../../validators/dataflowSearchValidator.ts";
+import { checkReadOnlyMode } from "../../utils/readOnlyGuard.ts";
 import { createDataflowClient, DataflowAuthMethod } from "./dataflowClient.ts";
 import type {
     CreateDataflowParams,
@@ -211,6 +212,9 @@ export async function createDataflow(
     params: CreateDataflowParams,
     authMethod?: DataflowAuthMethod,
 ): Promise<DomoDataflow> {
+    // Check read-only mode before attempting to create
+    checkReadOnlyMode("createDataflow");
+
     if (!params.name) {
         throw new Error("Dataflow name is required");
     }
@@ -242,6 +246,9 @@ export async function updateDataflow(
     params: UpdateDataflowParams,
     authMethod?: DataflowAuthMethod,
 ): Promise<DomoDataflow> {
+    // Check read-only mode before attempting to update
+    checkReadOnlyMode("updateDataflow");
+
     if (!params.dataflowId) {
         throw new Error("Dataflow ID is required");
     }
@@ -281,6 +288,9 @@ export async function patchDataflow(
     params: PatchDataflowParams,
     authMethod?: DataflowAuthMethod,
 ): Promise<DomoDataflow> {
+    // Check read-only mode before attempting to patch
+    checkReadOnlyMode("patchDataflow");
+
     if (!params.dataflowId) {
         throw new Error("Dataflow ID is required");
     }
@@ -330,6 +340,9 @@ export async function deleteDataflow(
     dataflowId: string,
     authMethod?: DataflowAuthMethod,
 ): Promise<DeleteDataflowResponse> {
+    // Check read-only mode before attempting to delete
+    checkReadOnlyMode("deleteDataflow");
+
     if (!dataflowId) {
         throw new Error("Dataflow ID is required");
     }
@@ -463,6 +476,9 @@ export async function executeDataflow(
     params: ExecuteDataflowParams = {},
     authMethod?: DataflowAuthMethod,
 ): Promise<DomoDataflowExecution> {
+    // Check read-only mode before attempting to execute
+    checkReadOnlyMode("executeDataflow");
+
     if (!dataflowId) {
         throw new Error("Dataflow ID is required");
     }

@@ -20,80 +20,115 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 
 ## Prerequisites
 
-1. **Operating System**: macOS, Windows, or Linux (64-bit)
-2. **Domo Instance**: Access to a Domo instance (e.g., yourcompany.domo.com)
-3. **Credentials**:
+### For Users (Pre-built Binary)
+1. **Domo Instance**: Access to a Domo instance (e.g., yourcompany.domo.com)
+2. **Credentials**:
     - API Token
     - OAuth Client ID and Secret
+
+### For Development
+1. **Node.js**: Version 18 or higher
+2. **Yarn**: Version 4.x (via Corepack)
+3. **Git**: For cloning the repository
 
 ## Installation
 
 > [!CAUTION]
 > **Pre-release, very early in development. Iterative changes to be expected.**
 > Use only if you know what you're doing.
->
 
-Download the latest release from the [releases page](https://github.com/jsade/domo-query-cli/releases) for your platform.
-
-### macOS
-
-1. Download and extract the zip file
-2. Open Terminal and navigate to the extracted folder
-3. Run the installation commands:
+### Quick Install (Recommended)
 
 ```bash
-# Make the file executable
-chmod +x domo-query-cli
+# Clone the repository
+git clone https://github.com/jsade/domo-query-cli.git
+cd domo-query-cli
 
-# Remove quarantine attribute (prevents "unverified developer" warnings)
-xattr -d com.apple.quarantine domo-query-cli
-
-# Create app directory and install
-mkdir -p ~/.domo-query-cli
-mv domo-query-cli ~/.domo-query-cli/
-cp .env.example ~/.domo-query-cli/.env
-
-# Create a symlink in your PATH
-sudo ln -s ~/.domo-query-cli/domo-query-cli /usr/local/bin/domo-query-cli
-
-# Verify installation
-domo-query-cli --version
+# Run the installation script
+./install.sh
 ```
 
-### Windows & Linux
+The installation script will:
+1. Install dependencies
+2. Build a standalone executable
+3. Install it to your system PATH
+4. Set up configuration files
 
-<details>
-<summary>Click to view installation instructions</summary>
+### Manual Installation
 
-#### Windows
-
-1. Download and extract the Windows zip file
-2. Create folder `C:\tools\domo-query-cli`
-3. Copy extracted files to this folder
-4. Add folder to system PATH:
-    - Press Win + X → System → Advanced system settings
-    - Environment Variables → System variables → Path → Edit → New
-    - Add `C:\tools\domo-query-cli`
-5. Rename `.env.example` to `.env`
-6. Verify: `domo-query-cli --version`
-
-#### Linux
+If you prefer to build from source:
 
 ```bash
-# Make executable and install
-chmod +x domo-query-cli
-mkdir -p ~/.domo-query-cli
-mv domo-query-cli ~/.domo-query-cli/
-cp .env.example ~/.domo-query-cli/.env
-sudo ln -s ~/.domo-query-cli/domo-query-cli /usr/local/bin/domo-query-cli
-domo-query-cli --version
+# Clone the repository
+git clone https://github.com/jsade/domo-query-cli.git
+cd domo-query-cli
+
+# Enable Corepack for Yarn 4
+corepack enable
+
+# Install dependencies
+yarn install
+
+# Build standalone executable
+yarn build:dist
+
+# The executable will be in release/domo-query-cli
+# Copy it to a directory in your PATH
+cp release/domo-query-cli /usr/local/bin/
+
+# Copy environment variables template
+cp .env.example ~/.domo-cli/.env
 ```
 
-</details>
+## Development Setup
+
+### Build from Source
+
+```bash
+# Build TypeScript for development
+yarn build
+
+# Run development mode (watch for changes)
+yarn dev
+
+# Run the CLI locally without building
+yarn start
+# or
+yarn shell
+```
+
+### Create Standalone Executables
+
+```bash
+# Build distributable executable for current platform
+yarn build:dist
+
+# Executable will be in release/domo-query-cli
+# Archive will be in release/domo-query-cli-<platform>.zip
+```
+
+### Development Workflow
+
+```bash
+# Run tests
+yarn test
+yarn test:watch      # Watch mode
+yarn test:coverage   # With coverage
+
+# Code quality
+yarn check           # Run all checks (format, lint, types)
+yarn format          # Format code
+yarn lint            # Lint code
+yarn lint:fix        # Fix linting issues
+yarn typecheck       # TypeScript type checking
+
+# Generate API types from OpenAPI specs
+yarn generate:types
+```
 
 ## Configuration
 
-Edit `~/.domo-query-cli/.env` (or installation directory on Windows):
+Edit the `.env` file in the project root:
 
 ```bash
 # Your Domo instance
@@ -144,7 +179,14 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 1. Start the CLI:
 
     ```bash
+    # If installed via install.sh
     domo-query-cli
+    
+    # Or run directly from release directory
+    ./release/domo-query-cli
+    
+    # Or for development
+    yarn start
     ```
 
 2. Type `help` to see available commands
