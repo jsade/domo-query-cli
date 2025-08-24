@@ -172,6 +172,11 @@ domo-query-cli list-datasets "sales"  # Search by name
 # Get dataset details
 domo-query-cli get-dataset 12345678-abcd-1234-5678-901234567890
 
+# Get dataset lineage (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890
+domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890 --traverse-up=true --traverse-down=true
+domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890 --entities=DATA_SOURCE,DATAFLOW
+
 # Update dataset properties (requires API token)
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --name "New Dataset Name"
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --description "Updated description" --tags "sales,2024,finance"
@@ -229,6 +234,11 @@ domo-query-cli show-lineage dataset-id
 domo-query-cli get-dataflow-lineage dataflow-id
 domo-query-cli get-dataflow-lineage dataflow-id --traverse-up=true --traverse-down=true
 domo-query-cli get-dataflow-lineage dataflow-id --entities=DATA_SOURCE,DATAFLOW,CARD
+
+# Get dataset lineage from API (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-lineage dataset-id
+domo-query-cli get-dataset-lineage dataset-id --traverse-up=true --traverse-down=true
+domo-query-cli get-dataset-lineage dataset-id --format=json --save
 
 # Generate lineage report
 domo-query-cli generate-lineage-report dataset-id
@@ -440,6 +450,35 @@ echo "Lineage saved to lineage_${FLOW_ID}.json"
 domo-query-cli list-datasets "sales" --limit 50 | while read -r line; do
   echo "Found dataset: $line"
 done
+```
+
+### Get Dataset Lineage
+```bash
+#!/bin/bash
+# Get dataset lineage information (requires API token and DOMO_API_HOST)
+
+DATASET_ID="12345678-abcd-1234-5678-901234567890"
+
+# Get basic lineage
+domo-query-cli get-dataset-lineage "$DATASET_ID"
+
+# Get complete lineage (both upstream and downstream)
+domo-query-cli get-dataset-lineage "$DATASET_ID" \
+  --traverse-up=true \
+  --traverse-down=true
+
+# Get lineage and save to JSON
+domo-query-cli get-dataset-lineage "$DATASET_ID" \
+  --traverse-up=true \
+  --traverse-down=true \
+  --format=json > "dataset_lineage_${DATASET_ID}.json"
+
+# Filter by specific entity types
+domo-query-cli get-dataset-lineage "$DATASET_ID" \
+  --entities=DATA_SOURCE,DATAFLOW \
+  --traverse-up=true
+
+echo "Dataset lineage retrieved for ID: $DATASET_ID"
 ```
 
 ### Get Card Details

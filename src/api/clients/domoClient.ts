@@ -1265,6 +1265,67 @@ export async function getDatasetLegacy(
 }
 
 /**
+ * Get lineage information for a dataset
+ * @param datasetId - The ID of the dataset to get lineage for
+ * @param params - Query parameters for the lineage request
+ * @returns The lineage response from the API
+ */
+export async function getDatasetLineage(
+    datasetId: string,
+    params?: DataflowLineageQueryParams,
+): Promise<DataflowLineageResponse | null> {
+    try {
+        // This endpoint requires API token and customer domain
+        const v3Client = getV3Client();
+        if (!v3Client) {
+            log.warn(
+                "Dataset lineage requires API token and DOMO_API_HOST configuration",
+            );
+            return null;
+        }
+
+        // Build query parameters
+        const queryParams: Record<string, string> = {};
+        if (params?.traverseUp !== undefined) {
+            queryParams.traverseUp = params.traverseUp.toString();
+        }
+        if (params?.traverseDown !== undefined) {
+            queryParams.traverseDown = params.traverseDown.toString();
+        }
+        if (params?.requestEntities) {
+            queryParams.requestEntities = params.requestEntities;
+        }
+
+        const url = `/api/data/v1/lineage/DATA_SOURCE/${datasetId}`;
+
+        log.debug(
+            `Fetching lineage for dataset ${datasetId} with params:`,
+            queryParams,
+        );
+
+        const response = await v3Client.get<DataflowLineageResponse>(
+            url,
+            queryParams,
+        );
+
+        if (!response) {
+            log.warn("No lineage response received from API");
+            return null;
+        }
+
+        log.debug(
+            `Successfully fetched lineage for dataset ${datasetId}`,
+            response,
+        );
+
+        return response;
+    } catch (error) {
+        log.error("Error fetching dataset lineage:", error);
+        throw error;
+    }
+}
+
+/**
  * Function to render a KPI card
  */
 export async function renderKpiCard(
