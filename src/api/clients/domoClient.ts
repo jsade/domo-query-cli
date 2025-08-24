@@ -401,6 +401,41 @@ export interface DeleteDataflowResponse {
 }
 
 /**
+ * Parameters for querying dataflow lineage
+ */
+export interface DataflowLineageQueryParams {
+    traverseUp?: boolean;
+    traverseDown?: boolean;
+    requestEntities?: string;
+}
+
+/**
+ * Represents a lineage entity (parent or child) in the lineage response
+ */
+export interface LineageEntity {
+    type: string;
+    id: string;
+    complete: boolean;
+    children: LineageEntity[];
+    parents: LineageEntity[];
+}
+
+/**
+ * Response from the dataflow lineage API endpoint
+ */
+export interface DataflowLineageResponse {
+    [key: string]: {
+        type: string;
+        id: string;
+        descendantCounts: Record<string, number>;
+        ancestorCounts: Record<string, number>;
+        complete: boolean;
+        children: LineageEntity[];
+        parents: LineageEntity[];
+    };
+}
+
+/**
  * Defines a Domo dataset
  * Based on Domo API Schema v1/datasets
  */

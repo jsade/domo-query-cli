@@ -11,6 +11,8 @@ import type {
     CreateDataflowParams,
     DataflowExecutionListParams,
     DataflowListParams,
+    DataflowLineageQueryParams,
+    DataflowLineageResponse,
     DeleteDataflowResponse,
     DomoDataflow,
     DomoDataflowExecution,
@@ -19,6 +21,7 @@ import type {
     UpdateDataflowParams,
     V1DataflowResponse,
 } from "./domoClient.ts";
+import { getV3Client } from "./clientManager.ts";
 
 /**
  * Get the DataFlowManager instance for managing dataflows with specific authentication method
@@ -544,6 +547,57 @@ export async function executeDataflow(
         return execution;
     } catch (error) {
         log.error(`Error executing dataflow ${dataflowId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Get lineage information for a dataflow
+ * @param dataflowId - The ID of the dataflow
+ * @param params - Query parameters for lineage traversal
+ * @returns The lineage response from the API
+ */
+export async function getDataflowLineage(
+    dataflowId: string,
+    params?: DataflowLineageQueryParams,
+): Promise<DataflowLineageResponse | null> {
+    try {
+        // This endpoint requires API token and customer domain
+        const v3Client = getV3Client();
+        if (!v3Client) {
+            log.warn(
+                "Dataflow lineage requires API token and DOMO_API_HOST configuration",
+            );
+            return null;
+        }
+
+        // Build query parameters
+        const queryParams: Record<string, string> = {};
+        if (params?.traverseUp !== undefined) {
+            queryParams.traverseUp = params.traverseUp.toString();
+        }
+        if (params?.traverseDown !== undefined) {
+            queryParams.traverseDown = params.traverseDown.toString();
+        }
+        if (params?.requestEntities) {
+            queryParams.requestEntities = params.requestEntities;
+        }
+
+        const url = `/api/data/v1/lineage/DATAFLOW/${dataflowId}`;
+
+        log.debug(
+            `Fetching lineage for dataflow ${dataflowId} with params:`,
+            queryParams,
+        );
+
+        const response = await v3Client.get<DataflowLineageResponse>(
+            url,
+            queryParams,
+        );
+
+        return response;
+    } catch (error) {
+        log.error(`Error fetching dataflow lineage for ${dataflowId}:`, error);
         throw error;
     }
 }

@@ -1,4 +1,52 @@
+---
+created: 2025-08-20 18:04:14
+updated: 2025-08-21 21:03:47
+title: Domo Query CLI - Non-Interactive Command Guide
+---
+
 # Domo Query CLI - Non-Interactive Command Guide
+
+- [Overview](#overview)
+- [Basic Usage](#basic-usage)
+- [Command Syntax Options](#command-syntax-options)
+    - [Direct Command Syntax (Recommended)](#direct-command-syntax-recommended)
+    - [Flag-Based Syntax](#flag-based-syntax)
+    - [Multi-Word Commands](#multi-word-commands)
+- [Automatic Non-Interactive Detection](#automatic-non-interactive-detection)
+    - [Help and Documentation](#help-and-documentation)
+- [Authentication](#authentication)
+    - [Environment Variables](#environment-variables)
+    - [Command Line Options](#command-line-options)
+- [Common Commands](#common-commands)
+    - [Dataset Operations](#dataset-operations)
+    - [Dataflow Operations](#dataflow-operations)
+    - [Card Operations](#card-operations)
+    - [Lineage and Reporting](#lineage-and-reporting)
+- [Output Formats](#output-formats)
+    - [JSON Output](#json-output)
+    - [Standard Output (formatted for terminal)](#standard-output-formatted-for-terminal)
+- [Filtering and Pagination](#filtering-and-pagination)
+- [Advanced Usage](#advanced-usage)
+    - [Piping and Redirection](#piping-and-redirection)
+    - [Scripting Examples](#scripting-examples)
+    - [Batch Operations](#batch-operations)
+- [Error Handling](#error-handling)
+- [Read-Only Mode](#read-only-mode)
+    - [Enabling Read-Only Mode](#enabling-read-only-mode)
+    - [Operations Blocked in Read-Only Mode](#operations-blocked-in-read-only-mode)
+- [Configuration File](#configuration-file)
+- [Tips and Best Practices](#tips-and-best-practices)
+- [Examples](#examples)
+    - [Dataflow Monitoring](#dataflow-monitoring)
+    - [Execute Dataflow](#execute-dataflow)
+    - [Get Dataflow Lineage](#get-dataflow-lineage)
+    - [List Datasets with Pattern](#list-datasets-with-pattern)
+    - [Get Card Details](#get-card-details)
+    - [Update Dataset Properties](#update-dataset-properties)
+- [Troubleshooting](#troubleshooting)
+    - [Authentication Issues](#authentication-issues)
+    - [Connection Issues](#connection-issues)
+    - [Performance](#performance)
 
 ## Overview
 
@@ -88,12 +136,14 @@ Set your credentials as environment variables to avoid passing them with each co
 export DOMO_API_TOKEN="your-api-token"
 export DOMO_API_SECRET="your-api-secret"  # if using OAuth
 export DOMO_INSTANCE="your-instance"      # e.g., "mycompany"
+export DOMO_API_HOST="your-instance.domo.com"  # Required for v1/v3 API endpoints
 export DOMO_READ_ONLY="true"              # Enable read-only mode globally (optional)
 ```
 
 **Note:** Some operations require specific authentication methods:
 - `update-dataset-properties` requires an API token (OAuth alone is not sufficient)
-- The API token must have appropriate permissions to modify datasets
+- `get-dataflow-lineage` requires an API token and DOMO_API_HOST configuration
+- The API token must have appropriate permissions for the requested operations
 
 ### Command Line Options
 ```bash  
@@ -146,6 +196,10 @@ domo-query-cli get-dataflow-execution 987654321 execution-id
 
 # Execute a dataflow
 domo-query-cli execute-dataflow 987654321
+
+# Get dataflow lineage from API (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataflow-lineage 987654321
+domo-query-cli get-dataflow-lineage 987654321 --traverse-up=true --traverse-down=true
 ```
 
 ### Card Operations
@@ -168,8 +222,13 @@ domo-query-cli render-card abc-123-def-456
 ### Lineage and Reporting
 
 ```bash
-# Show data lineage
+# Show data lineage (builds lineage from local dataflow data)
 domo-query-cli show-lineage dataset-id
+
+# Get dataflow lineage from API (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataflow-lineage dataflow-id
+domo-query-cli get-dataflow-lineage dataflow-id --traverse-up=true --traverse-down=true
+domo-query-cli get-dataflow-lineage dataflow-id --entities=DATA_SOURCE,DATAFLOW,CARD
 
 # Generate lineage report
 domo-query-cli generate-lineage-report dataset-id
@@ -353,6 +412,24 @@ else
   echo "Failed to start dataflow execution"
   exit 1
 fi
+```
+
+### Get Dataflow Lineage
+```bash
+#!/bin/bash
+# Get complete lineage for a dataflow
+
+FLOW_ID=$1
+# Requires API token and DOMO_API_HOST
+export DOMO_API_HOST="mycompany.domo.com"
+
+# Get complete lineage traversing both directions
+domo-query-cli get-dataflow-lineage "$FLOW_ID" \
+  --traverse-up=true \
+  --traverse-down=true \
+  --format=json > "lineage_${FLOW_ID}.json"
+
+echo "Lineage saved to lineage_${FLOW_ID}.json"
 ```
 
 ### List Datasets with Pattern

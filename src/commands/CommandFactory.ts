@@ -10,6 +10,7 @@ import { GetCardCommand } from "./GetCardCommand";
 import { UpdateDatasetPropertiesCommand } from "./UpdateDatasetPropertiesCommand";
 import { ListDataflowsCommand } from "./ListDataflowsCommand";
 import { GetDataflowCommand } from "./GetDataflowCommand";
+import { GetDataflowLineageCommand } from "./GetDataflowLineageCommand";
 import { ListDataflowExecutionsCommand } from "./ListDataflowExecutionsCommand";
 import { GetDataflowExecutionCommand } from "./GetDataflowExecutionCommand";
 import { ExecuteDataflowCommand } from "./ExecuteDataflowCommand";
@@ -74,6 +75,12 @@ export class CommandFactory {
 
         const getDataflowCommand = new GetDataflowCommand();
         this.commands.set(getDataflowCommand.name, getDataflowCommand);
+
+        const getDataflowLineageCommand = new GetDataflowLineageCommand();
+        this.commands.set(
+            getDataflowLineageCommand.name,
+            getDataflowLineageCommand,
+        );
 
         const listDataflowExecutionsCommand =
             new ListDataflowExecutionsCommand();
