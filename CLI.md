@@ -1,6 +1,6 @@
 ---
 created: 2025-08-20 18:04:14
-updated: 2025-08-21 21:03:47
+updated: 2025-08-24 21:23:00
 title: Domo Query CLI - Non-Interactive Command Guide
 ---
 
@@ -22,10 +22,16 @@ title: Domo Query CLI - Non-Interactive Command Guide
     - [Dataflow Operations](#dataflow-operations)
     - [Card Operations](#card-operations)
     - [Lineage and Reporting](#lineage-and-reporting)
+    - [Database Operations](#database-operations)
 - [Output Formats](#output-formats)
     - [JSON Output](#json-output)
     - [Standard Output (formatted for terminal)](#standard-output-formatted-for-terminal)
 - [Filtering and Pagination](#filtering-and-pagination)
+- [Persistent Database](#persistent-database)
+    - [Overview](#database-overview)
+    - [Database Commands](#database-commands)
+    - [Offline Mode](#offline-mode)
+    - [Database Storage](#database-storage)
 - [Advanced Usage](#advanced-usage)
     - [Piping and Redirection](#piping-and-redirection)
     - [Scripting Examples](#scripting-examples)
@@ -247,6 +253,41 @@ domo-query-cli generate-lineage-report dataset-id
 domo-query-cli cache-status
 ```
 
+### Database Operations
+
+```bash
+# Check database status
+domo-query-cli db-status
+domo-query-cli db-status --format=json
+
+# Sync database with Domo API
+domo-query-cli db-sync                    # Sync all entities
+domo-query-cli db-sync --datasets         # Sync only datasets
+domo-query-cli db-sync --dataflows        # Sync only dataflows
+domo-query-cli db-sync --cards            # Sync only cards
+domo-query-cli db-sync --all              # Explicitly sync all
+
+# Clear database
+domo-query-cli db-clear                   # Clear all (with confirmation)
+domo-query-cli db-clear --force           # Clear all without confirmation
+domo-query-cli db-clear datasets          # Clear specific collection
+domo-query-cli db-clear dataflows cards   # Clear multiple collections
+
+# Export database
+domo-query-cli db-export                  # Export to timestamped file
+domo-query-cli db-export backup.json      # Export to specific file
+domo-query-cli db-export --format=json    # Export with JSON output
+
+# Import database
+domo-query-cli db-import backup.json      # Import from file
+domo-query-cli db-import /path/to/export.json
+
+# Use database with existing commands
+domo-query-cli get-dataset 123456         # Uses cache if available
+domo-query-cli get-dataset 123456 --sync  # Force refresh from API
+domo-query-cli get-dataset 123456 --offline # Only use local database
+```
+
 ## Output Formats
 
 ### JSON Output
@@ -274,6 +315,156 @@ domo-query-cli list-datasets "sales"
 # Sort results
 domo-query-cli list-datasets --sort name
 ```
+
+## Persistent Database
+
+### Database Overview
+
+The Domo Query CLI includes a built-in persistent JSON database that stores fetched data locally for improved performance and offline access. This feature provides:
+
+- **Fast local lookups**: Dramatically faster repeated queries
+- **Offline capability**: Work without network access for read operations
+- **Reduced API calls**: Minimize rate limiting issues
+- **Data persistence**: All data survives shell restarts
+- **Automatic backups**: Before destructive operations
+
+### Database Commands
+
+The CLI provides several commands for managing the local database:
+
+#### db-status
+Display database statistics and information about stored collections.
+
+```bash
+domo-query-cli db-status
+domo-query-cli db-status --format=json
+```
+
+Shows:
+- Database version and metadata
+- Collection statistics (entities count, size)
+- Last sync timestamps
+- Total database size
+
+#### db-sync
+Synchronize the local database with the Domo API.
+
+```bash
+# Sync all entity types
+domo-query-cli db-sync
+domo-query-cli db-sync --all
+
+# Sync specific entity types
+domo-query-cli db-sync --datasets
+domo-query-cli db-sync --dataflows
+domo-query-cli db-sync --cards
+
+# Combine multiple types
+domo-query-cli db-sync --datasets --cards
+
+# JSON output
+domo-query-cli db-sync --all --format=json
+```
+
+#### db-clear
+Clear database contents with safety confirmations.
+
+```bash
+# Clear all collections (prompts for confirmation)
+domo-query-cli db-clear
+
+# Clear without confirmation
+domo-query-cli db-clear --force
+
+# Clear specific collections
+domo-query-cli db-clear datasets
+domo-query-cli db-clear dataflows cards
+
+# JSON output
+domo-query-cli db-clear --all --force --format=json
+```
+
+#### db-export
+Export the entire database to a JSON file for backup or sharing.
+
+```bash
+# Export with automatic timestamp
+domo-query-cli db-export
+
+# Export to specific file
+domo-query-cli db-export my-backup.json
+domo-query-cli db-export /path/to/backup.json
+
+# JSON output format
+domo-query-cli db-export backup.json --format=json
+```
+
+#### db-import
+Import a database from a previously exported JSON file.
+
+```bash
+# Import from file
+domo-query-cli db-import backup.json
+domo-query-cli db-import /path/to/export.json
+
+# JSON output format
+domo-query-cli db-import data.json --format=json
+```
+
+Note: Import merges with existing data. Use `db-clear` first to replace all data.
+
+### Offline Mode
+
+Commands that support database integration can work in offline mode using only local data:
+
+```bash
+# Get dataset from local database only
+domo-query-cli get-dataset 123456 --offline
+
+# This will fail if the dataset is not in the local database
+# Use db-sync first to populate the database
+```
+
+### Database Storage
+
+The database is stored in your home directory by default:
+
+- **Default location**: `~/.domo-cli/db/`
+- **Custom location**: Set `DOMO_DB_PATH` environment variable
+- **Structure**:
+  - `datasets.json` - Dataset entities
+  - `dataflows.json` - Dataflow entities
+  - `cards.json` - Card entities
+  - `metadata.json` - Database version and sync times
+  - `backups/` - Automatic backups before modifications
+
+Each instance (domain) gets its own subdirectory for multi-instance support.
+
+### Integration with Existing Commands
+
+Many commands automatically use the database for improved performance:
+
+```bash
+# First fetch saves to database
+domo-query-cli get-dataset 123456
+
+# Subsequent fetches use cached data (if recent)
+domo-query-cli get-dataset 123456  # Uses cache, shows notice
+
+# Force refresh from API
+domo-query-cli get-dataset 123456 --sync
+
+# Use only local database
+domo-query-cli get-dataset 123456 --offline
+```
+
+### Best Practices
+
+1. **Initial Setup**: Run `db-sync` to populate the database with your Domo data
+2. **Regular Syncs**: Schedule periodic `db-sync` commands to keep data fresh
+3. **Backup Important Data**: Use `db-export` before major operations
+4. **Offline Work**: Use `--offline` flag when working without network access
+5. **Performance**: Use local database for repeated queries and analysis
 
 ## Advanced Usage
 
@@ -539,6 +730,95 @@ domo-query-cli update-dataset-properties $DATASET_ID \
   --name "New Name" \
   --format json \
   --no-confirm | jq '.data.result'
+```
+
+### Database Management
+```bash
+#!/bin/bash
+# Complete database workflow example
+
+# Initial setup - populate database
+echo "Syncing all data from Domo..."
+domo-query-cli db-sync --all
+
+# Check database status
+domo-query-cli db-status
+
+# Export database before major changes
+BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).json"
+domo-query-cli db-export "$BACKUP_FILE"
+echo "Database backed up to: $BACKUP_FILE"
+
+# Work offline with cached data
+domo-query-cli get-dataset 123456 --offline
+domo-query-cli list-datasets --offline
+
+# Selective sync for specific data types
+domo-query-cli db-sync --datasets  # Only sync datasets
+
+# Clear old data and reimport
+domo-query-cli db-clear --force
+domo-query-cli db-import "$BACKUP_FILE"
+```
+
+### Offline Analysis
+```bash
+#!/bin/bash
+# Perform analysis using only local database
+
+# Ensure database is populated
+domo-query-cli db-sync --datasets --cards
+
+# Work entirely offline
+export OFFLINE_MODE=true
+
+# Get all datasets from local database
+domo-query-cli list-datasets --offline --format json > all_datasets.json
+
+# Analyze dataset information locally
+cat all_datasets.json | jq '[.data.datasets[] | {
+  id: .id,
+  name: .name,
+  rows: .rows,
+  columns: .columns
+}] | sort_by(.rows) | reverse | .[0:10]' > top_10_largest.json
+
+echo "Top 10 largest datasets saved to top_10_largest.json"
+
+# Generate reports from cached data
+for dataset_id in $(cat all_datasets.json | jq -r '.data.datasets[].id' | head -5); do
+  echo "Processing dataset: $dataset_id"
+  domo-query-cli get-dataset "$dataset_id" --offline --format json > "dataset_${dataset_id}.json"
+done
+```
+
+### Database Maintenance Script
+```bash
+#!/bin/bash
+# Automated database maintenance
+
+LOG_FILE="db_maintenance_$(date +%Y%m%d).log"
+
+echo "Starting database maintenance - $(date)" >> "$LOG_FILE"
+
+# Check current status
+echo "Current database status:" >> "$LOG_FILE"
+domo-query-cli db-status --format json | jq '.data.summary' >> "$LOG_FILE"
+
+# Export current database
+EXPORT_FILE="auto_backup_$(date +%Y%m%d).json"
+domo-query-cli db-export "$EXPORT_FILE"
+echo "Database exported to: $EXPORT_FILE" >> "$LOG_FILE"
+
+# Sync fresh data
+echo "Syncing fresh data..." >> "$LOG_FILE"
+domo-query-cli db-sync --all --format json | jq '.data.syncResults' >> "$LOG_FILE"
+
+# Clean up old backups (keep last 7)
+find . -name "auto_backup_*.json" -mtime +7 -delete
+echo "Old backups cleaned" >> "$LOG_FILE"
+
+echo "Maintenance completed - $(date)" >> "$LOG_FILE"
 ```
 
 ## Troubleshooting

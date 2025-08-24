@@ -4,6 +4,11 @@ import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
 import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
+import { getDatabase } from "../core/database/JsonDatabase";
+import {
+    DatasetRepository,
+    DatasetEntity,
+} from "../core/database/repositories/DatasetRepository";
 import chalk from "chalk";
 
 /**
@@ -31,6 +36,10 @@ export class GetDatasetCommand extends BaseCommand {
             const datasetId = parsedArgs.positional[0];
             const saveOptions = parsedArgs.saveOptions;
 
+            // Check for database options
+            const forceSync = args?.includes("--sync");
+            const offlineMode = args?.includes("--offline");
+
             if (!datasetId) {
                 if (this.isJsonOutput) {
                     console.log(
@@ -46,23 +55,110 @@ export class GetDatasetCommand extends BaseCommand {
                 return;
             }
 
-            const datasetResponse = await getDataset(datasetId);
+            let datasetResponse = null;
+            let dataset: DomoDataset | null = null;
+            let source = "api";
 
-            // Get the best available data for display
-            const dataset = ApiResponseMerger.getBestData(
-                datasetResponse,
-            ) as DomoDataset | null;
+            // Try to use database first if not forcing sync
+            if (!forceSync) {
+                try {
+                    const db = await getDatabase();
+                    const datasetRepo = new DatasetRepository(db);
+
+                    // Check if dataset exists in database
+                    dataset = await datasetRepo.get(datasetId);
+
+                    if (dataset) {
+                        source = "database";
+                        if (!this.isJsonOutput && !offlineMode) {
+                            console.log(
+                                chalk.gray(
+                                    "(Using cached data. Use --sync to refresh from API)",
+                                ),
+                            );
+                        }
+                    } else if (!offlineMode) {
+                        // Dataset not in database and not offline mode, fetch from API
+                        datasetResponse = await getDataset(datasetId);
+
+                        // Save to database for future use
+                        const apiDataset = ApiResponseMerger.getBestData(
+                            datasetResponse,
+                        ) as DomoDataset;
+                        if (apiDataset) {
+                            await datasetRepo.save(apiDataset as DatasetEntity);
+                        }
+                    } else {
+                        // Offline mode and dataset not in database
+                        if (this.isJsonOutput) {
+                            console.log(
+                                JsonOutputFormatter.error(
+                                    this.name,
+                                    "Dataset not found in local database (offline mode)",
+                                    "NOT_FOUND_OFFLINE",
+                                ),
+                            );
+                        } else {
+                            console.log(
+                                chalk.yellow(
+                                    "Dataset not found in local database (offline mode)",
+                                ),
+                            );
+                        }
+                        return;
+                    }
+                } catch (dbError) {
+                    // Database error, fall back to API if not offline
+                    if (!offlineMode) {
+                        log.debug(
+                            "Database error, falling back to API:",
+                            dbError,
+                        );
+                        datasetResponse = await getDataset(datasetId);
+                    } else {
+                        throw dbError;
+                    }
+                }
+            } else {
+                // Force sync from API
+                datasetResponse = await getDataset(datasetId);
+
+                // Update database
+                try {
+                    const db = await getDatabase();
+                    const datasetRepo = new DatasetRepository(db);
+                    const apiDataset = ApiResponseMerger.getBestData(
+                        datasetResponse,
+                    ) as DomoDataset;
+                    if (apiDataset) {
+                        await datasetRepo.save(apiDataset as DatasetEntity);
+                        if (!this.isJsonOutput) {
+                            console.log(chalk.gray("(Updated local database)"));
+                        }
+                    }
+                } catch (dbError) {
+                    log.debug("Failed to update database:", dbError);
+                }
+            }
+
+            // If we don't have dataset from database, get it from API response
+            if (!dataset && datasetResponse) {
+                dataset = ApiResponseMerger.getBestData(
+                    datasetResponse,
+                ) as DomoDataset | null;
+            }
 
             if (dataset) {
                 if (this.isJsonOutput) {
-                    // For JSON output, return complete v1, v3, and merged data
-                    const formattedOutput =
-                        ApiResponseMerger.formatForOutput(datasetResponse);
+                    // For JSON output, return complete v1, v3, and merged data if available
+                    const formattedOutput = datasetResponse
+                        ? ApiResponseMerger.formatForOutput(datasetResponse)
+                        : { merged: dataset, source };
                     console.log(
                         JsonOutputFormatter.success(
                             this.name,
                             { dataset: formattedOutput },
-                            { entityType: "dataset" },
+                            { entityType: "dataset", source },
                         ),
                     );
                 } else {

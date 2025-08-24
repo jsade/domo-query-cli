@@ -18,6 +18,11 @@ import { RenderCardCommand } from "./RenderCardCommand";
 import { ShowLineageCommand } from "./ShowLineageCommand";
 import { CacheStatusCommand } from "./CacheStatusCommand";
 import { GenerateLineageReportCommand } from "./GenerateLineageReportCommand";
+import { DbStatusCommand } from "./DbStatusCommand";
+import { DbSyncCommand } from "./DbSyncCommand";
+import { DbClearCommand } from "./DbClearCommand";
+import { DbExportCommand } from "./DbExportCommand";
+import { DbImportCommand } from "./DbImportCommand";
 
 /**
  * Factory class for creating and managing command instances
@@ -118,6 +123,22 @@ export class CommandFactory {
             generateLineageReportCommand.name,
             generateLineageReportCommand,
         );
+
+        // Register database commands
+        const dbStatusCommand = new DbStatusCommand();
+        this.commands.set(dbStatusCommand.name, dbStatusCommand);
+
+        const dbSyncCommand = new DbSyncCommand();
+        this.commands.set(dbSyncCommand.name, dbSyncCommand);
+
+        const dbClearCommand = new DbClearCommand();
+        this.commands.set(dbClearCommand.name, dbClearCommand);
+
+        const dbExportCommand = new DbExportCommand();
+        this.commands.set(dbExportCommand.name, dbExportCommand);
+
+        const dbImportCommand = new DbImportCommand();
+        this.commands.set(dbImportCommand.name, dbImportCommand);
 
         // Help command needs access to all commands and must be registered last
         const helpCommand = new HelpCommand(this.commands);
