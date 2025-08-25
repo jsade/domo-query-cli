@@ -1,4 +1,5 @@
 import * as fs from "fs/promises";
+import * as fsSync from "fs";
 import * as path from "path";
 import { homedir } from "os";
 import { existsSync } from "fs";
@@ -41,6 +42,9 @@ export class JsonDatabase {
     private collections: Map<string, Collection<DatabaseEntity>> = new Map();
     private metadata: DatabaseMetadata;
     private readonly dbVersion = "1.0.0";
+    private initialized = false;
+    private backupsEnabled = true;
+    private readonly isPkg: boolean;
 
     constructor(instanceName?: string) {
         const basePath =
@@ -55,32 +59,255 @@ export class JsonDatabase {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
+
+        // Detect if running as pkg-compiled executable
+        // @ts-expect-error - process.pkg is set by pkg when running in compiled executable
+        this.isPkg = process.pkg !== undefined;
+
+        // Disable backups in pkg-compiled executables on macOS
+        if (this.isPkg && process.platform === "darwin") {
+            this.backupsEnabled = false;
+            console.log(
+                "Note: Automatic backups disabled in packaged executable",
+            );
+        }
     }
 
     /**
      * Initialize the database, creating directories if needed
      */
-    async initialize(): Promise<void> {
-        // Create directories if they don't exist
-        await fs.mkdir(this.dbPath, { recursive: true });
-        await fs.mkdir(this.backupPath, { recursive: true });
+    async initialize(retryCount = 0): Promise<void> {
+        const maxRetries = 3;
 
-        // Load or create metadata
-        const metadataPath = path.join(this.dbPath, "metadata.json");
-        if (existsSync(metadataPath)) {
-            try {
-                const content = await fs.readFile(metadataPath, "utf-8");
-                this.metadata = JSON.parse(content);
-            } catch (error) {
-                console.error("Failed to load metadata, creating new:", error);
+        try {
+            // Create directories if they don't exist
+            await fs.mkdir(this.dbPath, { recursive: true });
+            await fs.mkdir(this.backupPath, { recursive: true });
+
+            // Verify directories were created
+            if (!existsSync(this.dbPath)) {
+                throw new Error(
+                    `Failed to create database directory: ${this.dbPath}`,
+                );
+            }
+
+            // Try to recover from corrupted state before cleanup
+            await this.recoverFromCorruptedFiles();
+
+            // Clean up any orphaned temp files from previous runs
+            await this.cleanupTempFiles();
+
+            // Load or create metadata
+            const metadataPath = path.join(this.dbPath, "metadata.json");
+            if (existsSync(metadataPath)) {
+                try {
+                    const content = await fs.readFile(metadataPath, "utf-8");
+                    // Check if file is empty
+                    if (content.trim() === "") {
+                        throw new Error("Metadata file is empty");
+                    }
+                    this.metadata = JSON.parse(content);
+                } catch (error) {
+                    console.error(
+                        "Failed to load metadata, attempting recovery:",
+                        error,
+                    );
+                    // Try to recover from .tmp file
+                    const recovered = await this.recoverFile(metadataPath);
+                    if (recovered) {
+                        try {
+                            const content = await fs.readFile(
+                                metadataPath,
+                                "utf-8",
+                            );
+                            this.metadata = JSON.parse(content);
+                        } catch {
+                            await this.saveMetadata();
+                        }
+                    } else {
+                        await this.saveMetadata();
+                    }
+                }
+            } else {
                 await this.saveMetadata();
             }
-        } else {
-            await this.saveMetadata();
+
+            // Load existing collections
+            await this.loadCollections();
+
+            this.initialized = true;
+        } catch (error) {
+            if (retryCount < maxRetries) {
+                console.warn(
+                    `Database initialization attempt ${retryCount + 1} failed, retrying...`,
+                );
+                await new Promise(resolve =>
+                    setTimeout(resolve, 100 * (retryCount + 1)),
+                );
+                return this.initialize(retryCount + 1);
+            }
+            throw new Error(
+                `Failed to initialize database after ${maxRetries} attempts. ` +
+                    `Error: ${error instanceof Error ? error.message : "Unknown error"}. ` +
+                    `Please check permissions for ${this.dbPath}`,
+            );
+        }
+    }
+
+    /**
+     * Ensure database is initialized before operations
+     */
+    private async ensureInitialized(): Promise<void> {
+        if (!this.initialized) {
+            throw new Error(
+                "Database not initialized. Call initialize() first.",
+            );
+        }
+    }
+
+    /**
+     * Recover from corrupted files by restoring from .tmp files
+     */
+    private async recoverFromCorruptedFiles(): Promise<void> {
+        try {
+            const files = await fs.readdir(this.dbPath);
+
+            for (const file of files) {
+                if (file.endsWith(".json") && !file.endsWith(".tmp.json")) {
+                    const filePath = path.join(this.dbPath, file);
+                    const tmpPath = `${filePath}.tmp`;
+
+                    // Check if main file is empty or corrupted
+                    if (existsSync(filePath)) {
+                        try {
+                            const content = await fs.readFile(
+                                filePath,
+                                "utf-8",
+                            );
+                            if (content.trim() === "") {
+                                // File is empty, try to recover from .tmp
+                                if (existsSync(tmpPath)) {
+                                    console.log(
+                                        `Recovering ${file} from temporary file...`,
+                                    );
+                                    await this.recoverFile(filePath);
+                                }
+                            }
+                        } catch {
+                            // File is corrupted, try to recover
+                            if (existsSync(tmpPath)) {
+                                console.log(
+                                    `Recovering corrupted ${file} from temporary file...`,
+                                );
+                                await this.recoverFile(filePath);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn("Could not check for corrupted files:", error);
+        }
+    }
+
+    /**
+     * Recover a file from its .tmp backup
+     */
+    private async recoverFile(filePath: string): Promise<boolean> {
+        const tmpPath = `${filePath}.tmp`;
+
+        if (!existsSync(tmpPath)) {
+            return false;
         }
 
-        // Load existing collections
-        await this.loadCollections();
+        try {
+            const tmpContent = await fs.readFile(tmpPath, "utf-8");
+
+            // Validate the tmp file has valid JSON
+            try {
+                JSON.parse(tmpContent);
+            } catch {
+                console.warn(`Temporary file ${tmpPath} contains invalid JSON`);
+                return false;
+            }
+
+            // For pkg, use synchronous write
+            if (this.isPkg) {
+                try {
+                    fsSync.writeFileSync(filePath, tmpContent, "utf-8");
+                    console.log(
+                        `Successfully recovered ${path.basename(filePath)}`,
+                    );
+                    // Try to remove the tmp file (may fail but that's ok)
+                    try {
+                        fsSync.unlinkSync(tmpPath);
+                    } catch {
+                        // Ignore cleanup errors
+                    }
+                    return true;
+                } catch (error) {
+                    console.error(`Failed to recover ${filePath}:`, error);
+                    return false;
+                }
+            } else {
+                // For non-pkg, use async operations
+                await fs.writeFile(filePath, tmpContent, "utf-8");
+                console.log(
+                    `Successfully recovered ${path.basename(filePath)}`,
+                );
+                try {
+                    await fs.unlink(tmpPath);
+                } catch {
+                    // Ignore cleanup errors
+                }
+                return true;
+            }
+        } catch (error) {
+            console.error(`Failed to recover from ${tmpPath}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Clean up orphaned temp files
+     */
+    private async cleanupTempFiles(): Promise<void> {
+        try {
+            const files = await fs.readdir(this.dbPath);
+            const tempFiles = files.filter(f => f.endsWith(".tmp"));
+
+            for (const tempFile of tempFiles) {
+                const tempPath = path.join(this.dbPath, tempFile);
+                try {
+                    await fs.unlink(tempPath);
+                    console.log(`Cleaned up orphaned temp file: ${tempFile}`);
+                } catch (error) {
+                    // Ignore errors when cleaning up individual files
+                    console.warn(`Could not clean up ${tempFile}:`, error);
+                }
+            }
+
+            // Also check backup directory
+            try {
+                const backupFiles = await fs.readdir(this.backupPath);
+                const backupTempFiles = backupFiles.filter(f =>
+                    f.endsWith(".tmp"),
+                );
+                for (const tempFile of backupTempFiles) {
+                    const tempPath = path.join(this.backupPath, tempFile);
+                    try {
+                        await fs.unlink(tempPath);
+                    } catch {
+                        // Ignore errors
+                    }
+                }
+            } catch {
+                // Backup directory might not exist yet
+            }
+        } catch (error) {
+            // Ignore errors during cleanup
+            console.warn("Could not clean up temp files:", error);
+        }
     }
 
     /**
@@ -147,44 +374,162 @@ export class JsonDatabase {
     }
 
     /**
-     * Write JSON file atomically with fallback for permission issues
+     * Write JSON file with special handling for pkg-compiled environments
      */
     private async writeJsonFile(
         filePath: string,
         data: unknown,
     ): Promise<void> {
-        const tempPath = `${filePath}.tmp`;
         const content = JSON.stringify(data, null, 2);
 
-        try {
-            // Try atomic write: write to temp file then rename
-            await fs.writeFile(tempPath, content, "utf-8");
-            await fs.rename(tempPath, filePath);
-        } catch (error: unknown) {
-            // Handle permission errors that occur in packaged executables
-            const errorCode = (error as { code?: string })?.code;
-            if (errorCode === "EPERM" || errorCode === "EACCES") {
-                // Fallback: direct write if atomic rename fails
+        // Special handling for pkg-compiled executables
+        if (this.isPkg) {
+            try {
+                // For pkg, use synchronous direct write
+                // This works better with pkg's file system restrictions
+                fsSync.writeFileSync(filePath, content, "utf-8");
+                return; // Success!
+            } catch {
+                // If even direct sync write fails, try to create parent directory
                 try {
-                    await fs.writeFile(filePath, content, "utf-8");
-                    // Try to clean up temp file if it exists
-                    try {
-                        await fs.unlink(tempPath);
-                    } catch {
-                        // Ignore cleanup errors
+                    const dir = path.dirname(filePath);
+                    if (!existsSync(dir)) {
+                        fsSync.mkdirSync(dir, { recursive: true });
                     }
-                } catch {
-                    // If direct write also fails, throw a more informative error
-                    throw new Error(
-                        `Failed to write database file at ${filePath}. ` +
-                            `Please ensure the directory exists and is writable. ` +
-                            `Original error: ${(error as Error).message}`,
-                    );
+                    // Retry the write
+                    fsSync.writeFileSync(filePath, content, "utf-8");
+                    return; // Success!
+                } catch (retryError) {
+                    // For macOS signed executables, try normal async write before giving up
+                    // This can work when the executable is properly signed with entitlements
+                    if (process.platform === "darwin") {
+                        try {
+                            await fs.writeFile(filePath, content, "utf-8");
+                            return; // Success with async write!
+                        } catch {
+                            // Continue to fallback strategies
+                        }
+                    }
+
+                    // As a last resort for pkg, write to temp and inform user
+                    const tempPath = `${filePath}.tmp`;
+                    try {
+                        fsSync.writeFileSync(tempPath, content, "utf-8");
+                        console.warn(
+                            `Note: Data saved to ${path.basename(tempPath)}. ` +
+                                `The packaged executable has limited file permissions.`,
+                        );
+                        return;
+                    } catch {
+                        // Provide more helpful error message
+                        const errorMsg =
+                            retryError instanceof Error
+                                ? retryError.message
+                                : String(retryError);
+                        throw new Error(
+                            `Failed to write database file at ${filePath}. ` +
+                                `Error: ${errorMsg}. ` +
+                                `Try running: sudo chmod -R 755 ${path.dirname(filePath)} ` +
+                                `or use the source with: yarn tsx src/main.ts`,
+                        );
+                    }
                 }
-            } else {
-                // Re-throw non-permission errors
-                throw error;
             }
+        }
+
+        // Normal atomic write strategy for non-pkg environments
+        const tempPath = `${filePath}.tmp`;
+
+        // Try atomic write with rename
+        try {
+            await fs.writeFile(tempPath, content, "utf-8");
+            try {
+                await fs.rename(tempPath, filePath);
+                return; // Success!
+            } catch (renameError: unknown) {
+                const errorCode = (renameError as { code?: string })?.code;
+                // If rename fails with permission error, continue to fallback strategies
+                if (
+                    errorCode !== "EPERM" &&
+                    errorCode !== "EACCES" &&
+                    errorCode !== "EXDEV"
+                ) {
+                    throw renameError; // Re-throw if not a permission issue
+                }
+                // Otherwise, continue with fallback strategies
+            }
+        } catch (error: unknown) {
+            // If writeFile itself failed, handle it at the end
+            const errorCode = (error as { code?: string })?.code;
+            if (
+                errorCode !== "EPERM" &&
+                errorCode !== "EACCES" &&
+                errorCode !== "EXDEV"
+            ) {
+                throw error; // Re-throw if not a permission issue
+            }
+        }
+
+        // Strategy 2: Try copy and delete (works better in pkg environments)
+        try {
+            // Temp file should already exist from Strategy 1, but create it again if needed
+            if (!existsSync(tempPath)) {
+                await fs.writeFile(tempPath, content, "utf-8");
+            }
+            await fs.copyFile(tempPath, filePath);
+            await fs.unlink(tempPath).catch(() => {
+                // Ignore cleanup errors
+            });
+            return; // Success!
+        } catch {
+            // Continue to next strategy
+        }
+
+        // Strategy 3: Direct write (non-atomic but most compatible)
+        try {
+            await fs.writeFile(filePath, content, "utf-8");
+            // Clean up any leftover temp file
+            await fs.unlink(tempPath).catch(() => {
+                // Ignore cleanup errors
+            });
+            return; // Success!
+        } catch (directError) {
+            // Strategy 3b: Try removing and recreating the file (for pkg on macOS)
+            try {
+                if (existsSync(filePath)) {
+                    await fs.unlink(filePath);
+                }
+                await fs.writeFile(filePath, content, "utf-8");
+                await fs.unlink(tempPath).catch(() => {});
+                return; // Success!
+            } catch {
+                // Continue to next strategy
+            }
+            // Strategy 4: Try to remove extended attributes and retry (macOS specific)
+            if (process.platform === "darwin") {
+                try {
+                    const { exec } = await import("child_process");
+                    await new Promise<void>(resolve => {
+                        exec(`xattr -c "${filePath}" 2>/dev/null`, () =>
+                            resolve(),
+                        );
+                    });
+                    // Retry direct write after clearing attributes
+                    await fs.writeFile(filePath, content, "utf-8");
+                    await fs.unlink(tempPath).catch(() => {});
+                    return; // Success!
+                } catch {
+                    // Continue to error handling
+                }
+            }
+
+            // All strategies failed
+            throw new Error(
+                `Failed to write database file at ${filePath}. ` +
+                    `Please ensure the directory exists and is writable. ` +
+                    `You may need to manually delete any .tmp files in ${path.dirname(filePath)}. ` +
+                    `Original error: ${(directError as Error).message}`,
+            );
         }
     }
 
@@ -204,18 +549,31 @@ export class JsonDatabase {
      * Create backup of a collection before modification
      */
     private async backupCollection(collectionName: string): Promise<void> {
+        if (!this.backupsEnabled) {
+            return; // Skip backups if disabled
+        }
+
         const collection = this.collections.get(collectionName);
         if (!collection) return;
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const backupFile = path.join(
-            this.backupPath,
-            `${collectionName}_${timestamp}.json`,
-        );
-        await this.writeJsonFile(backupFile, collection);
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const backupFile = path.join(
+                this.backupPath,
+                `${collectionName}_${timestamp}.json`,
+            );
+            await this.writeJsonFile(backupFile, collection);
 
-        // Clean old backups (keep last 10)
-        await this.cleanOldBackups(collectionName);
+            // Clean old backups (keep last 10)
+            await this.cleanOldBackups(collectionName);
+        } catch (error) {
+            // If backup fails, log warning but continue
+            console.warn(
+                `Warning: Could not create backup for ${collectionName}:`,
+                error,
+            );
+            // Don't throw - allow the operation to continue without backup
+        }
     }
 
     /**
@@ -254,6 +612,7 @@ export class JsonDatabase {
         collectionName: string,
         id: string,
     ): Promise<T | null> {
+        await this.ensureInitialized();
         const collection = this.getCollection<T>(collectionName);
         return collection.entities[id] || null;
     }
@@ -265,6 +624,7 @@ export class JsonDatabase {
         collectionName: string,
         entity: T,
     ): Promise<void> {
+        await this.ensureInitialized();
         await this.backupCollection(collectionName);
 
         const collection = this.getCollection<T>(collectionName);
@@ -287,6 +647,7 @@ export class JsonDatabase {
         collectionName: string,
         entities: T[],
     ): Promise<void> {
+        await this.ensureInitialized();
         await this.backupCollection(collectionName);
 
         const collection = this.getCollection<T>(collectionName);
@@ -328,6 +689,7 @@ export class JsonDatabase {
         collectionName: string,
         options: QueryOptions<T> = {},
     ): Promise<T[]> {
+        await this.ensureInitialized();
         const collection = this.getCollection<T>(collectionName);
         let entities = Object.values(collection.entities) as T[];
 
@@ -424,6 +786,7 @@ export class JsonDatabase {
         totalSizeBytes: number;
         metadata: DatabaseMetadata;
     }> {
+        await this.ensureInitialized();
         const stats = {
             collections: [] as Array<{
                 name: string;

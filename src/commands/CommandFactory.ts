@@ -23,6 +23,7 @@ import { DbSyncCommand } from "./DbSyncCommand";
 import { DbClearCommand } from "./DbClearCommand";
 import { DbExportCommand } from "./DbExportCommand";
 import { DbImportCommand } from "./DbImportCommand";
+import { DbRepairCommand } from "./DbRepairCommand";
 
 /**
  * Factory class for creating and managing command instances
@@ -139,6 +140,9 @@ export class CommandFactory {
 
         const dbImportCommand = new DbImportCommand();
         this.commands.set(dbImportCommand.name, dbImportCommand);
+
+        const dbRepairCommand = new DbRepairCommand();
+        this.commands.set(dbRepairCommand.name, dbRepairCommand);
 
         // Help command needs access to all commands and must be registered last
         const helpCommand = new HelpCommand(this.commands);

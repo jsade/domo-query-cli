@@ -92,3 +92,7 @@ export
 reports/
 release/
 docs_local
+
+# Code signing files (local only)
+entitlements.plist
+sign-local.sh
