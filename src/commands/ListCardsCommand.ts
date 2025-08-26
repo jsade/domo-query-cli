@@ -77,7 +77,9 @@ export class ListCardsCommand extends BaseCommand {
                 const pageSize = 50;
                 let hasMoreData = true;
 
-                console.log("Fetching all cards...");
+                if (!this.isJsonOutput) {
+                    console.log("Fetching all cards...");
+                }
 
                 while (hasMoreData) {
                     const pageParams = {
@@ -97,14 +99,16 @@ export class ListCardsCommand extends BaseCommand {
                         } else {
                             currentOffset += pageSize;
                             // Show progress
-                            process.stdout.write(
-                                `\rFetched ${this.cards.length} cards...`,
-                            );
+                            if (!this.isJsonOutput) {
+                                process.stdout.write(
+                                    `\rFetched ${this.cards.length} cards...`,
+                                );
+                            }
                         }
                     }
                 }
 
-                if (this.cards.length > 0) {
+                if (this.cards.length > 0 && !this.isJsonOutput) {
                     process.stdout.write("\r"); // Clear the progress line
                 }
             } else {
@@ -169,6 +173,7 @@ export class ListCardsCommand extends BaseCommand {
                         "Domo Cards",
                         "cards",
                         saveOptions,
+                        this.isJsonOutput,
                     );
 
                     console.log("\nTip: list-cards limit=n offset=m --save-md");

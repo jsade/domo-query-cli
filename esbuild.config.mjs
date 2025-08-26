@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 // Read version from package.json
 const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
 
+// Build main CLI
 await esbuild.build({
     entryPoints: ["src/main.ts"],
     bundle: true,
