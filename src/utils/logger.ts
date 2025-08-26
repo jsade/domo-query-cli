@@ -153,3 +153,6 @@ log.attachTransport(logToFile);
 
 // Log logger initialization (this will only go to file, not console)
 log.info(`Logger initialized with log path: ${logPath}`);
+
+// Export the log path for other modules to use
+export { logPath };

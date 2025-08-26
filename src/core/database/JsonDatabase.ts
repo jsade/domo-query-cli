@@ -866,6 +866,13 @@ export class JsonDatabase {
     }
 
     /**
+     * Get the database path
+     */
+    getDbPath(): string {
+        return this.dbPath;
+    }
+
+    /**
      * Search across all collections
      */
     async search(

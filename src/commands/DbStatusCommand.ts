@@ -3,6 +3,7 @@ import { getDatabase } from "../core/database/JsonDatabase";
 import { TerminalFormatter } from "../utils/terminalFormatter";
 import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { CommandUtils } from "./CommandUtils";
+import { logPath } from "../utils/logger";
 import chalk from "chalk";
 
 export class DbStatusCommand extends BaseCommand {
@@ -20,10 +21,15 @@ export class DbStatusCommand extends BaseCommand {
         try {
             const db = await getDatabase();
             const stats = await db.getStats();
+            const dbPath = db.getDbPath();
 
             if (this.isJsonOutput) {
                 // JSON output
                 const output = {
+                    paths: {
+                        database: dbPath,
+                        logs: logPath,
+                    },
                     database: {
                         version: stats.metadata.version,
                         created: stats.metadata.createdAt,
@@ -59,6 +65,14 @@ export class DbStatusCommand extends BaseCommand {
                 // Terminal output
                 console.log(chalk.cyan("Database Status"));
                 console.log("═".repeat(50));
+
+                // Paths info
+                console.log(chalk.yellow("\nFile Paths:"));
+                const pathsInfo = [
+                    { Location: "Database", Path: dbPath },
+                    { Location: "Logs", Path: logPath },
+                ];
+                console.log(TerminalFormatter.table(pathsInfo));
 
                 // Database info
                 console.log(chalk.yellow("\nDatabase Information:"));
