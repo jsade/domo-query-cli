@@ -206,7 +206,7 @@ const tools: Tool[] = [
     {
         name: "get_dataset_lineage",
         description:
-            "Get lineage information for a dataset from the Domo API. Requires API token and DOMO_API_HOST configuration. Returns upstream and downstream dependencies.",
+            "Get complete lineage information for a dataset from the Domo API, showing all upstream sources and downstream consumers. By default, traverses both directions to return the full dependency graph including parent dataflows, child dataflows, and cards that use this dataset. Requires API token and DOMO_API_HOST configuration.",
         inputSchema: {
             type: "object",
             properties: {
@@ -217,17 +217,17 @@ const tools: Tool[] = [
                 traverseUp: {
                     type: "boolean",
                     description:
-                        "Include upstream dependencies (default: false)",
+                        "Include upstream dependencies - dataflows and datasets that produce this dataset (default: true when both unspecified)",
                 },
                 traverseDown: {
                     type: "boolean",
                     description:
-                        "Include downstream dependencies (default: false)",
+                        "Include downstream dependencies - dataflows and cards that consume this dataset (default: true when both unspecified)",
                 },
                 entities: {
                     type: "string",
                     description:
-                        "Comma-separated entity types to include (e.g., DATA_SOURCE,DATAFLOW,CARD)",
+                        "Comma-separated entity types to include in the response (default: DATA_SOURCE,DATAFLOW,CARD). Options: DATA_SOURCE, DATAFLOW, CARD, ALERT",
                 },
             },
             required: ["datasetId"],
@@ -236,7 +236,7 @@ const tools: Tool[] = [
     {
         name: "get_dataflow_lineage",
         description:
-            "Get lineage information for a dataflow from the Domo API. Requires API token and DOMO_API_HOST configuration. Returns input and output dataset relationships.",
+            "Get complete lineage information for a dataflow from the Domo API, showing all upstream inputs and downstream outputs. By default, traverses both directions to return the full dependency graph including parent datasets, child datasets, connected dataflows, and cards. Requires API token and DOMO_API_HOST configuration.",
         inputSchema: {
             type: "object",
             properties: {
@@ -247,17 +247,17 @@ const tools: Tool[] = [
                 traverseUp: {
                     type: "boolean",
                     description:
-                        "Include upstream dependencies (default: false)",
+                        "Include upstream dependencies - parent datasets and dataflows that feed into this dataflow (default: true when both unspecified)",
                 },
                 traverseDown: {
                     type: "boolean",
                     description:
-                        "Include downstream dependencies (default: false)",
+                        "Include downstream dependencies - child datasets and cards that consume from this dataflow (default: true when both unspecified)",
                 },
                 entities: {
                     type: "string",
                     description:
-                        "Comma-separated entity types to include (e.g., DATA_SOURCE,DATAFLOW,CARD)",
+                        "Comma-separated entity types to include in the response (default: DATA_SOURCE,DATAFLOW,CARD). Options: DATA_SOURCE, DATAFLOW, CARD, ALERT",
                 },
             },
             required: ["dataflowId"],
@@ -604,11 +604,33 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
             case "get_dataset_lineage":
                 command = "get-dataset-lineage";
                 commandArgs.push(args.datasetId as string);
+                // Pass through traverse parameters
+                if (args.traverseUp === true) {
+                    commandArgs.push("--traverse-up=true");
+                }
+                if (args.traverseDown === true) {
+                    commandArgs.push("--traverse-down=true");
+                }
+                // Pass through entity filter if provided
+                if (args.entities) {
+                    commandArgs.push("--entities", args.entities as string);
+                }
                 break;
 
             case "get_dataflow_lineage":
                 command = "get-dataflow-lineage";
                 commandArgs.push(args.dataflowId as string);
+                // Pass through traverse parameters
+                if (args.traverseUp === true) {
+                    commandArgs.push("--traverse-up=true");
+                }
+                if (args.traverseDown === true) {
+                    commandArgs.push("--traverse-down=true");
+                }
+                // Pass through entity filter if provided
+                if (args.entities) {
+                    commandArgs.push("--entities", args.entities as string);
+                }
                 break;
 
             case "execute_dataflow":
@@ -773,7 +795,17 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
                 ) {
                     // Check if we have actual dataflow data
                     if (jsonOutput.success && jsonOutput.data) {
-                        const dataflow = jsonOutput.data;
+                        // Extract the actual dataflow from the nested structure
+                        // The GetDataflowCommand returns { dataflow: {...} } in the data field
+                        const dataflowWrapper =
+                            jsonOutput.data.dataflow || jsonOutput.data;
+
+                        // Handle v1/v2/merged structure - prefer merged, then v1, then v2
+                        const dataflow =
+                            dataflowWrapper.merged ||
+                            dataflowWrapper.v1 ||
+                            dataflowWrapper.v2 ||
+                            dataflowWrapper;
 
                         if (name === "get_dataflow") {
                             // Build smart response for get_dataflow

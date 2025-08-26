@@ -71,12 +71,13 @@ export class GetDataflowLineageCommand extends BaseCommand {
             }
 
             // Default to traversing both directions if neither is specified
+            // This provides more useful data by default
             if (
                 queryParams.traverseUp === undefined &&
                 queryParams.traverseDown === undefined
             ) {
-                queryParams.traverseUp = false;
-                queryParams.traverseDown = false;
+                queryParams.traverseUp = true;
+                queryParams.traverseDown = true;
             }
 
             // Check for entity types filter
@@ -270,10 +271,10 @@ export class GetDataflowLineageCommand extends BaseCommand {
 
         console.log(chalk.cyan("\nOptions:"));
         console.log(
-            "  --traverse-up=<true|false>    Traverse up the lineage graph (default: false)",
+            "  --traverse-up=<true|false>    Traverse up the lineage graph (default: true)",
         );
         console.log(
-            "  --traverse-down=<true|false>  Traverse down the lineage graph (default: false)",
+            "  --traverse-down=<true|false>  Traverse down the lineage graph (default: true)",
         );
         console.log(
             "  --entities=<types>            Entity types to request (comma-separated)",
