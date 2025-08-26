@@ -590,6 +590,107 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
                 }
                 break;
 
+            case "update_dataset_properties":
+                command = "update-dataset-properties";
+                commandArgs.push(args.id as string);
+                if (args.name) {
+                    commandArgs.push("--name", args.name as string);
+                }
+                if (args.description) {
+                    commandArgs.push(
+                        "--description",
+                        args.description as string,
+                    );
+                }
+                if (args.tags) {
+                    commandArgs.push("--tags", args.tags as string);
+                }
+                break;
+
+            case "list_dataflow_executions":
+                command = "list-dataflow-executions";
+                commandArgs.push(args.dataflowId as string);
+                if (args.limit) {
+                    commandArgs.push("--limit", String(args.limit));
+                }
+                if (args.offset) {
+                    commandArgs.push("--offset", String(args.offset));
+                }
+                break;
+
+            case "get_dataflow_execution":
+                command = "get-dataflow-execution";
+                commandArgs.push(args.dataflowId as string);
+                commandArgs.push(args.executionId as string);
+                break;
+
+            case "render_card":
+                command = "render-card";
+                commandArgs.push(args.cardId as string);
+                break;
+
+            case "db_status":
+                command = "db-status";
+                break;
+
+            case "db_sync":
+                command = "db-sync";
+                if (
+                    args.datasets === false &&
+                    args.dataflows === false &&
+                    args.cards === false
+                ) {
+                    // If all are false, sync nothing (edge case)
+                    commandArgs.push("--none");
+                } else {
+                    // Add flags for what to sync
+                    if (
+                        args.datasets !== false &&
+                        args.dataflows !== false &&
+                        args.cards !== false
+                    ) {
+                        // All true or undefined - sync all
+                        commandArgs.push("--all");
+                    } else {
+                        // Selective sync
+                        if (args.datasets !== false) {
+                            commandArgs.push("--datasets");
+                        }
+                        if (args.dataflows !== false) {
+                            commandArgs.push("--dataflows");
+                        }
+                        if (args.cards !== false) {
+                            commandArgs.push("--cards");
+                        }
+                    }
+                }
+                break;
+
+            case "db_clear":
+                command = "db-clear";
+                if (args.collections) {
+                    commandArgs.push(
+                        "--collections",
+                        args.collections as string,
+                    );
+                }
+                if (args.force) {
+                    commandArgs.push("--force");
+                }
+                break;
+
+            case "db_export":
+                command = "db-export";
+                if (args.filename) {
+                    commandArgs.push(args.filename as string);
+                }
+                break;
+
+            case "db_import":
+                command = "db-import";
+                commandArgs.push(args.filename as string);
+                break;
+
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }
