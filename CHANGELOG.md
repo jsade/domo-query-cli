@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/jsade/domo-query-cli/compare/v1.1.1...v1.1.2) (2025-08-26)
+
+
+### Bug Fixes
+
+* **commands:** update default behavior for lineage traversal to true for both dataset and dataflow commands ([4bfac96](https://github.com/jsade/domo-query-cli/commit/4bfac960ce07e72f244169c096ee07fea309a6ff))
+
 ## [1.1.1](https://github.com/jsade/domo-query-cli/compare/v1.1.0...v1.1.1) (2025-08-26)
 
 
