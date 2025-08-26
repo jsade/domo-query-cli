@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/jsade/domo-query-cli/compare/v1.1.0...v1.1.1) (2025-08-26)
+
+
+### Bug Fixes
+
+* **mcp:** add get_dataflow_section tool , fix dataflow response handling, fix auth singleton issue ([1381a22](https://github.com/jsade/domo-query-cli/commit/1381a22fa253f40cc8e1dc1014b6a601d4c2719e))
+
 # [1.1.0](https://github.com/jsade/domo-query-cli/compare/v1.0.0...v1.1.0) (2025-08-26)
 
 
