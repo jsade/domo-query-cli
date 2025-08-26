@@ -20,20 +20,25 @@ export class DataflowRepository extends BaseRepository<DataflowEntity> {
 
     /**
      * Sync dataflows from Domo API
+     * @param silent - If true, suppress console output during sync
      */
-    async sync(): Promise<void> {
+    async sync(silent: boolean = false): Promise<void> {
         if (this.options.offlineMode) {
-            console.log("Offline mode enabled, skipping sync");
+            if (!silent) {
+                console.log("Offline mode enabled, skipping sync");
+            }
             return;
         }
 
         try {
-            console.log("Syncing dataflows from Domo API...");
-            // For now, we can't directly search dataflows without proper API implementation
-            // This would need to be implemented with the proper API client
-            console.log(
-                "Dataflow sync not fully implemented - API integration needed",
-            );
+            if (!silent) {
+                console.log("Syncing dataflows from Domo API...");
+                // For now, we can't directly search dataflows without proper API implementation
+                // This would need to be implemented with the proper API client
+                console.log(
+                    "Dataflow sync not fully implemented - API integration needed",
+                );
+            }
             const searchResults = null;
 
             if (
@@ -49,13 +54,19 @@ export class DataflowRepository extends BaseRepository<DataflowEntity> {
                 if (dataflows.length > 0) {
                     await this.saveMany(dataflows);
                     await this.updateSyncTime();
-                    console.log(`Synced ${dataflows.length} dataflows`);
+                    if (!silent) {
+                        console.log(`Synced ${dataflows.length} dataflows`);
+                    }
                 } else {
-                    console.log("No dataflows found to sync");
+                    if (!silent) {
+                        console.log("No dataflows found to sync");
+                    }
                 }
             }
         } catch (error) {
-            console.error("Failed to sync dataflows:", error);
+            if (!silent) {
+                console.error("Failed to sync dataflows:", error);
+            }
             throw error;
         }
     }

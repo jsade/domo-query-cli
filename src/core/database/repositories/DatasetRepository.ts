@@ -14,15 +14,20 @@ export class DatasetRepository extends BaseRepository<DatasetEntity> {
 
     /**
      * Sync datasets from Domo API
+     * @param silent - If true, suppress console output during sync
      */
-    async sync(): Promise<void> {
+    async sync(silent: boolean = false): Promise<void> {
         if (this.options.offlineMode) {
-            console.log("Offline mode enabled, skipping sync");
+            if (!silent) {
+                console.log("Offline mode enabled, skipping sync");
+            }
             return;
         }
 
         try {
-            console.log("Syncing datasets from Domo API...");
+            if (!silent) {
+                console.log("Syncing datasets from Domo API...");
+            }
 
             // Fetch all datasets (with pagination)
             const allDatasets: DatasetEntity[] = [];
@@ -45,12 +50,18 @@ export class DatasetRepository extends BaseRepository<DatasetEntity> {
             if (allDatasets.length > 0) {
                 await this.saveMany(allDatasets);
                 await this.updateSyncTime();
-                console.log(`Synced ${allDatasets.length} datasets`);
+                if (!silent) {
+                    console.log(`Synced ${allDatasets.length} datasets`);
+                }
             } else {
-                console.log("No datasets found to sync");
+                if (!silent) {
+                    console.log("No datasets found to sync");
+                }
             }
         } catch (error) {
-            console.error("Failed to sync datasets:", error);
+            if (!silent) {
+                console.error("Failed to sync datasets:", error);
+            }
             throw error;
         }
     }

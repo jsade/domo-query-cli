@@ -152,6 +152,7 @@ export abstract class BaseRepository<T extends Entity> {
 
     /**
      * Abstract method to sync with API
+     * @param silent - If true, suppress console output during sync
      */
-    abstract sync(): Promise<void>;
+    abstract sync(silent?: boolean): Promise<void>;
 }

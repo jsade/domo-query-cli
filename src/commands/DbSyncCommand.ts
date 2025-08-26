@@ -58,7 +58,7 @@ export class DbSyncCommand extends BaseCommand {
 
                 try {
                     const datasetRepo = new DatasetRepository(db);
-                    await datasetRepo.sync();
+                    await datasetRepo.sync(this.isJsonOutput);
                     const count = await datasetRepo.count();
                     results.datasets = { success: true, count };
 
@@ -94,7 +94,7 @@ export class DbSyncCommand extends BaseCommand {
 
                 try {
                     const dataflowRepo = new DataflowRepository(db);
-                    await dataflowRepo.sync();
+                    await dataflowRepo.sync(this.isJsonOutput);
                     const count = await dataflowRepo.count();
                     results.dataflows = { success: true, count };
 
@@ -130,7 +130,7 @@ export class DbSyncCommand extends BaseCommand {
 
                 try {
                     const cardRepo = new CardRepository(db);
-                    await cardRepo.sync();
+                    await cardRepo.sync(this.isJsonOutput);
                     const count = await cardRepo.count();
                     results.cards = { success: true, count };
 

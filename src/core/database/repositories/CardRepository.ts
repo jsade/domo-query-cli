@@ -24,15 +24,20 @@ export class CardRepository extends BaseRepository<DomoCard> {
 
     /**
      * Sync cards from Domo API
+     * @param silent - If true, suppress console output during sync
      */
-    async sync(): Promise<void> {
+    async sync(silent: boolean = false): Promise<void> {
         if (this.options.offlineMode) {
-            console.log("Offline mode enabled, skipping sync");
+            if (!silent) {
+                console.log("Offline mode enabled, skipping sync");
+            }
             return;
         }
 
         try {
-            console.log("Syncing cards from Domo API...");
+            if (!silent) {
+                console.log("Syncing cards from Domo API...");
+            }
 
             // Fetch all cards (with pagination)
             const allCards: DomoCard[] = [];
@@ -64,12 +69,18 @@ export class CardRepository extends BaseRepository<DomoCard> {
             if (allCards.length > 0) {
                 await this.saveMany(allCards);
                 await this.updateSyncTime();
-                console.log(`Synced ${allCards.length} cards`);
+                if (!silent) {
+                    console.log(`Synced ${allCards.length} cards`);
+                }
             } else {
-                console.log("No cards found to sync");
+                if (!silent) {
+                    console.log("No cards found to sync");
+                }
             }
         } catch (error) {
-            console.error("Failed to sync cards:", error);
+            if (!silent) {
+                console.error("Failed to sync cards:", error);
+            }
             throw error;
         }
     }
@@ -117,11 +128,11 @@ export class CardRepository extends BaseRepository<DomoCard> {
      * Get detailed card information from API
      */
     async getCardDetails(
-        cardUrn: string,
+        _cardUrn: string,
     ): Promise<Record<string, unknown> | null> {
         // This would need a proper API implementation
         // For now, returning null
-        console.log(`Card details API not implemented for ${cardUrn}`);
+        // Note: console.log removed to prevent JSON output corruption
         return null;
     }
 

@@ -1332,8 +1332,6 @@ export async function renderKpiCard(
     cardId: string,
     parts: KpiCardPart[],
 ): Promise<unknown> {
-    console.log("renderKpiCard called with:", { cardId, parts });
-
     // Ensure we have an API token since this endpoint requires it
     if (!domoConfig.initialized) {
         initializeConfig();
