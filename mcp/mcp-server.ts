@@ -6,7 +6,8 @@ import {
     Tool,
     TextContent,
 } from "@modelcontextprotocol/sdk/types.js";
-import { NonInteractiveExecutor } from "../src/NonInteractiveExecutor";
+import { NonInteractiveExecutor } from "../src/NonInteractiveExecutor.js";
+import { SmartResponseBuilder } from "../src/utils/SmartResponseBuilder.js";
 import { config } from "dotenv";
 import { resolve } from "path";
 import { homedir } from "os";
@@ -477,6 +478,39 @@ const tools: Tool[] = [
             required: ["filename"],
         },
     },
+    {
+        name: "get_dataflow_section",
+        description:
+            "Get a specific section of a large dataflow. Use after get_dataflow indicates sections are available.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    description: "Dataflow ID (numeric or string)",
+                },
+                section: {
+                    type: "string",
+                    enum: [
+                        "core",
+                        "inputs",
+                        "outputs",
+                        "transformations",
+                        "triggers",
+                        "history",
+                        "metadata",
+                    ],
+                    description: "Section to retrieve",
+                },
+                chunkIndex: {
+                    type: "number",
+                    description:
+                        "For chunked sections, the chunk index to retrieve (0-based)",
+                },
+            },
+            required: ["id", "section"],
+        },
+    },
 ];
 
 // Create MCP server
@@ -540,6 +574,13 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
             case "get_dataflow":
                 command = "get-dataflow";
                 commandArgs.push(args.id as string);
+                break;
+
+            case "get_dataflow_section":
+                // First get the full dataflow
+                command = "get-dataflow";
+                commandArgs.push(args.id as string);
+                // We'll handle the section extraction after execution
                 break;
 
             case "get_dataset":
@@ -724,10 +765,65 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
 
             try {
                 const jsonOutput = JSON.parse(outputText);
-                responseContent = {
-                    type: "text",
-                    text: JSON.stringify(jsonOutput, null, 2),
-                };
+
+                // Special handling for get_dataflow and get_dataflow_section
+                if (
+                    name === "get_dataflow" ||
+                    name === "get_dataflow_section"
+                ) {
+                    // Check if we have actual dataflow data
+                    if (jsonOutput.success && jsonOutput.data) {
+                        const dataflow = jsonOutput.data;
+
+                        if (name === "get_dataflow") {
+                            // Build smart response for get_dataflow
+                            const smartResponse =
+                                SmartResponseBuilder.buildDataflowResponse(
+                                    dataflow,
+                                );
+                            responseContent = {
+                                type: "text",
+                                text: JSON.stringify(
+                                    smartResponse.data,
+                                    null,
+                                    2,
+                                ),
+                            };
+                        } else {
+                            // Handle get_dataflow_section
+                            const section = args.section as string;
+                            const chunkIndex = args.chunkIndex as
+                                | number
+                                | undefined;
+                            const smartResponse =
+                                SmartResponseBuilder.buildDataflowResponse(
+                                    dataflow,
+                                    section,
+                                    chunkIndex,
+                                );
+                            responseContent = {
+                                type: "text",
+                                text: JSON.stringify(
+                                    smartResponse.data,
+                                    null,
+                                    2,
+                                ),
+                            };
+                        }
+                    } else {
+                        // Return the original response if not successful or missing data
+                        responseContent = {
+                            type: "text",
+                            text: JSON.stringify(jsonOutput, null, 2),
+                        };
+                    }
+                } else {
+                    // Normal JSON response for other tools
+                    responseContent = {
+                        type: "text",
+                        text: JSON.stringify(jsonOutput, null, 2),
+                    };
+                }
             } catch {
                 // If not valid JSON, return as plain text
                 responseContent = {

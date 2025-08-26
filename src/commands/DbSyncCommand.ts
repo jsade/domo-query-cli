@@ -158,6 +158,14 @@ export class DbSyncCommand extends BaseCommand {
                 }
             }
 
+            // Update the database-level last sync time if any sync was successful
+            const hasSuccessfulSync = Object.values(results).some(
+                r => r.success,
+            );
+            if (hasSuccessfulSync) {
+                await db.updateDatabaseLastSync();
+            }
+
             // Get updated stats
             const stats = await db.getStats();
 

@@ -773,6 +773,14 @@ export class JsonDatabase {
     }
 
     /**
+     * Update the database-level last sync time in metadata
+     */
+    async updateDatabaseLastSync(timestamp?: string): Promise<void> {
+        this.metadata.lastSync = timestamp || new Date().toISOString();
+        await this.saveMetadata();
+    }
+
+    /**
      * Get database statistics
      */
     async getStats(): Promise<{

@@ -1,5 +1,6 @@
 import { CommandFactory } from "./commands/CommandFactory.ts";
 import chalk from "chalk";
+import { initializeConfig } from "./config.ts";
 
 /**
  * Handles non-interactive command execution
@@ -9,6 +10,19 @@ export class NonInteractiveExecutor {
     private jsonOutput: boolean = false;
 
     constructor() {
+        // Initialize configuration to ensure domoConfig is populated
+        // This is essential for MCP server execution where the config
+        // needs to be loaded from environment variables
+        try {
+            initializeConfig();
+        } catch (error) {
+            // Log warning but don't fail - some commands might not need config
+            console.warn(
+                "Warning: Configuration initialization failed:",
+                error,
+            );
+        }
+
         // Create command factory with no-op for setRunning since we're non-interactive
         this.commandFactory = new CommandFactory(() => {});
     }
