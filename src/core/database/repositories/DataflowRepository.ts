@@ -1,7 +1,7 @@
 import { BaseRepository } from "./BaseRepository";
 import { DomoDataflow } from "../../../api/clients/domoClient";
+import { listDataflows } from "../../../api/clients/dataflowApi";
 import { JsonDatabase } from "../JsonDatabase";
-import { DataflowSearchObject } from "../../../types/dataflowSearch";
 
 // Extend DomoDataflow to satisfy Entity constraint
 export interface DataflowEntity extends DomoDataflow {
@@ -33,34 +33,39 @@ export class DataflowRepository extends BaseRepository<DataflowEntity> {
         try {
             if (!silent) {
                 console.log("Syncing dataflows from Domo API...");
-                // For now, we can't directly search dataflows without proper API implementation
-                // This would need to be implemented with the proper API client
-                console.log(
-                    "Dataflow sync not fully implemented - API integration needed",
-                );
             }
-            const searchResults = null;
 
-            if (
-                searchResults &&
-                (searchResults as { searchObjects?: DataflowSearchObject[] })
-                    .searchObjects
-            ) {
-                // Convert search objects to DataflowEntity format
-                const dataflows: DataflowEntity[] = (
-                    searchResults as { searchObjects: DataflowSearchObject[] }
-                ).searchObjects.map(this.convertSearchObjectToDataflow);
+            // Fetch all dataflows (with pagination)
+            const allDataflows: DataflowEntity[] = [];
+            let offset = 0;
+            const limit = 50;
+            let hasMore = true;
 
-                if (dataflows.length > 0) {
-                    await this.saveMany(dataflows);
-                    await this.updateSyncTime();
-                    if (!silent) {
-                        console.log(`Synced ${dataflows.length} dataflows`);
-                    }
+            while (hasMore) {
+                const response = await listDataflows({ limit, offset });
+                if (response && Array.isArray(response)) {
+                    // Convert DomoDataflow to DataflowEntity format
+                    const dataflows = response.map(df =>
+                        this.convertDomoDataflowToEntity(df),
+                    );
+                    allDataflows.push(...dataflows);
+                    hasMore = response.length === limit;
+                    offset += limit;
                 } else {
-                    if (!silent) {
-                        console.log("No dataflows found to sync");
-                    }
+                    hasMore = false;
+                }
+            }
+
+            // Save all dataflows to database
+            if (allDataflows.length > 0) {
+                await this.saveMany(allDataflows);
+                await this.updateSyncTime();
+                if (!silent) {
+                    console.log(`Synced ${allDataflows.length} dataflows`);
+                }
+            } else {
+                if (!silent) {
+                    console.log("No dataflows found to sync");
                 }
             }
         } catch (error) {
@@ -72,36 +77,50 @@ export class DataflowRepository extends BaseRepository<DataflowEntity> {
     }
 
     /**
-     * Convert DataflowSearchObject to DataflowEntity
+     * Convert DomoDataflow to DataflowEntity
      */
-    private convertSearchObjectToDataflow(
-        searchObj: DataflowSearchObject,
+    private convertDomoDataflowToEntity(
+        dataflow: DomoDataflow,
     ): DataflowEntity {
         return {
-            id: searchObj.databaseId,
-            name: searchObj.name,
-            description: searchObj.description,
-            type: searchObj.dataFlowType,
-            status: searchObj.status,
-            lastRunDate: searchObj.lastRunDate
-                ? new Date(searchObj.lastRunDate).toISOString()
-                : undefined,
-            createdAt: searchObj.createDate
-                ? new Date(searchObj.createDate).toISOString()
-                : "", // Required field
-            lastUpdated: searchObj.lastModified
-                ? new Date(searchObj.lastModified).toISOString()
-                : undefined,
-            ownerId: searchObj.ownedById,
-            owner: searchObj.ownedByName,
-            runCount: searchObj.runCount,
-            successRate: searchObj.successRate,
-            paused: searchObj.paused,
-            inputCount: searchObj.inputCount,
-            outputCount: searchObj.outputCount,
-            inputDatasets: searchObj.inputDatasets,
-            outputDatasets: searchObj.outputDatasets,
-        } as unknown as DataflowEntity;
+            id: dataflow.id,
+            name: dataflow.name || "",
+            description: dataflow.description,
+            type: dataflow.databaseType,
+            status: dataflow.status,
+            lastRunDate: dataflow.lastRun,
+            createdAt: dataflow.createdAt || new Date().toISOString(),
+            lastUpdated: dataflow.lastUpdated,
+            ownerId: dataflow.responsibleUserId?.toString(),
+            owner: dataflow.owner,
+            runCount: dataflow.executionCount,
+            successRate:
+                dataflow.executionSuccessCount && dataflow.executionCount
+                    ? (dataflow.executionSuccessCount /
+                          dataflow.executionCount) *
+                      100
+                    : undefined,
+            paused: dataflow.enabled === false,
+            inputCount: dataflow.inputCount,
+            outputCount: dataflow.outputCount,
+            inputDatasets: dataflow.inputs?.map(input => ({
+                id: input.dataSourceId || input.id,
+                name: input.name || "",
+            })),
+            outputDatasets: dataflow.outputs?.map(output => ({
+                id: output.dataSourceId || output.id,
+                name: output.name || "",
+            })),
+            enabled: dataflow.enabled,
+            restricted: dataflow.restricted,
+            databaseType: dataflow.databaseType,
+            dapDataFlowId: dataflow.dapDataFlowId,
+            responsibleUserId: dataflow.responsibleUserId,
+            runState: dataflow.runState,
+            lastSuccessfulExecution: dataflow.lastSuccessfulExecution,
+            executionCount: dataflow.executionCount,
+            executionSuccessCount: dataflow.executionSuccessCount,
+        } as DataflowEntity;
     }
 
     /**

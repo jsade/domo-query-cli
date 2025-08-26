@@ -14,9 +14,12 @@ import { homedir } from "os";
 
 // Detect if running from pkg executable
 // Check if the script is running from a snapshot (pkg compiled executable)
+// For CJS compatibility in esbuild, we check process.argv[1] instead of __dirname
 const isPkg =
-    process.execPath.includes("snapshot") ||
-    (process as unknown as Record<string, unknown>).pkg !== undefined;
+    // @ts-expect-error - process.pkg is set by pkg when running in compiled executable
+    process.pkg !== undefined ||
+    process.argv[1]?.includes("snapshot") ||
+    process.argv[0]?.includes("snapshot");
 
 // Get LOG_PATH from environment variable with smart defaults
 // When running as packaged executable, use absolute path in home directory
