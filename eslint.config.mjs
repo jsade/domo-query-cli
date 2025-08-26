@@ -16,6 +16,7 @@ export default defineConfig([
             "node_modules/**",
             ".yarn/**",
             "dist/**",
+            "mcp/dist/**",
             "build/**",
             "coverage/**",
             ".pnp.*",
@@ -63,9 +64,9 @@ export default defineConfig([
         files: ["**/*.{js,mjs,cjs,ts,tsx}"],
         languageOptions: { globals: globals.browser },
     },
-    // TypeScript files
+    // TypeScript files (main src)
     {
-        files: ["**/*.{ts,tsx}"],
+        files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
         plugins: {
             "@typescript-eslint": tseslint,
             tsdoc: tsdoc,
@@ -76,6 +77,33 @@ export default defineConfig([
                 ecmaVersion: "latest",
                 sourceType: "module",
                 project: "./tsconfig.json",
+            },
+        },
+        rules: {
+            ...tseslint.configs.recommended.rules,
+            "tsdoc/syntax": "warn",
+            "@typescript-eslint/no-unused-vars": [
+                "error",
+                {
+                    varsIgnorePattern: "^_",
+                    argsIgnorePattern: "^_",
+                },
+            ],
+        },
+    },
+    // TypeScript files (MCP)
+    {
+        files: ["mcp/**/*.ts"],
+        plugins: {
+            "@typescript-eslint": tseslint,
+            tsdoc: tsdoc,
+        },
+        languageOptions: {
+            parser: tsparser,
+            parserOptions: {
+                ecmaVersion: "latest",
+                sourceType: "module",
+                project: "./tsconfig.mcp.json",
             },
         },
         rules: {

@@ -11,6 +11,7 @@ import { UpdateDatasetPropertiesCommand } from "./UpdateDatasetPropertiesCommand
 import { ListDataflowsCommand } from "./ListDataflowsCommand";
 import { GetDataflowCommand } from "./GetDataflowCommand";
 import { GetDataflowLineageCommand } from "./GetDataflowLineageCommand";
+import { GetDatasetLineageCommand } from "./GetDatasetLineageCommand";
 import { ListDataflowExecutionsCommand } from "./ListDataflowExecutionsCommand";
 import { GetDataflowExecutionCommand } from "./GetDataflowExecutionCommand";
 import { ExecuteDataflowCommand } from "./ExecuteDataflowCommand";
@@ -85,6 +86,12 @@ export class CommandFactory {
         this.commands.set(
             getDataflowLineageCommand.name,
             getDataflowLineageCommand,
+        );
+
+        const getDatasetLineageCommand = new GetDatasetLineageCommand();
+        this.commands.set(
+            getDatasetLineageCommand.name,
+            getDatasetLineageCommand,
         );
 
         const listDataflowExecutionsCommand =

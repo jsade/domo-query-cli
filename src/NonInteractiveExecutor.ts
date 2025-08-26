@@ -93,6 +93,12 @@ export class NonInteractiveExecutor {
             commandArgs = [...parts.slice(2), ...args];
         }
 
+        // Add format flag to command args if JSON output is requested
+        // This lets commands handle their own JSON formatting
+        if (this.jsonOutput && !commandArgs.includes("--format")) {
+            commandArgs.push("--format", "json");
+        }
+
         // Get the command
         const command = this.commandFactory.getCommand(commandName);
 
@@ -121,92 +127,13 @@ export class NonInteractiveExecutor {
         }
 
         try {
-            // Capture console output if JSON format is requested
-            if (this.jsonOutput) {
-                const originalLog = console.log;
-                const originalError = console.error;
-                const output: string[] = [];
-                const errors: string[] = [];
-
-                console.log = (...args: unknown[]) => {
-                    output.push(args.map(a => String(a)).join(" "));
-                };
-                console.error = (...args: unknown[]) => {
-                    errors.push(args.map(a => String(a)).join(" "));
-                };
-
-                try {
-                    await command.execute(commandArgs);
-
-                    // Restore console and output JSON
-                    console.log = originalLog;
-                    console.error = originalError;
-
-                    console.log(
-                        JSON.stringify(
-                            {
-                                success: true,
-                                command: commandName,
-                                output: output.join("\n"),
-                                errors:
-                                    errors.length > 0
-                                        ? errors.join("\n")
-                                        : undefined,
-                            },
-                            null,
-                            2,
-                        ),
-                    );
-                } catch (error) {
-                    // Restore console
-                    console.log = originalLog;
-                    console.error = originalError;
-
-                    console.log(
-                        JSON.stringify(
-                            {
-                                success: false,
-                                command: commandName,
-                                error:
-                                    error instanceof Error
-                                        ? error.message
-                                        : String(error),
-                                output:
-                                    output.length > 0
-                                        ? output.join("\n")
-                                        : undefined,
-                                errors:
-                                    errors.length > 0
-                                        ? errors.join("\n")
-                                        : undefined,
-                            },
-                            null,
-                            2,
-                        ),
-                    );
-                    process.exit(1);
-                }
-            } else {
-                // Normal execution
-                await command.execute(commandArgs);
-            }
+            // Let commands handle their own JSON output
+            // The commands check for --format json in their args and output proper JSON
+            await command.execute(commandArgs);
         } catch (error) {
-            if (this.jsonOutput) {
-                console.log(
-                    JSON.stringify(
-                        {
-                            success: false,
-                            command: commandName,
-                            error:
-                                error instanceof Error
-                                    ? error.message
-                                    : String(error),
-                        },
-                        null,
-                        2,
-                    ),
-                );
-            } else {
+            // Commands handle their own JSON error output when --format json is passed
+            // So we only need to handle non-JSON errors here
+            if (!this.jsonOutput) {
                 console.error(
                     chalk.red(
                         `Error executing command: ${error instanceof Error ? error.message : error}`,

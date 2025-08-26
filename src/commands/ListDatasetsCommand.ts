@@ -113,7 +113,9 @@ export class ListDatasetsCommand extends BaseCommand {
                 const pageSize = 50;
                 let hasMoreData = true;
 
-                console.log("Fetching all datasets...");
+                if (!this.isJsonOutput) {
+                    console.log("Fetching all datasets...");
+                }
 
                 while (hasMoreData) {
                     const pageParams = {
@@ -134,14 +136,16 @@ export class ListDatasetsCommand extends BaseCommand {
                         } else {
                             currentOffset += pageSize;
                             // Show progress
-                            process.stdout.write(
-                                `\rFetched ${this.datasets.length} datasets...`,
-                            );
+                            if (!this.isJsonOutput) {
+                                process.stdout.write(
+                                    `\rFetched ${this.datasets.length} datasets...`,
+                                );
+                            }
                         }
                     }
                 }
 
-                if (this.datasets.length > 0) {
+                if (this.datasets.length > 0 && !this.isJsonOutput) {
                     process.stdout.write("\r"); // Clear the progress line
                 }
             } else {
@@ -225,6 +229,7 @@ export class ListDatasetsCommand extends BaseCommand {
                         `Domo Datasets${nameLike ? ` matching "${nameLike}"` : ""}`,
                         "datasets",
                         parsedArgs.saveOptions,
+                        this.isJsonOutput,
                     );
 
                     console.log(

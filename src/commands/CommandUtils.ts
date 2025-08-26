@@ -107,6 +107,7 @@ export class CommandUtils {
      * @param title - Title for markdown export
      * @param fileNamePrefix - Prefix for export file names
      * @param saveOptions - Save options
+     * @param isJsonOutput - Whether output is in JSON format (suppresses console messages)
      * @returns Promise resolving when export is complete
      */
     public static async exportData<T>(
@@ -114,6 +115,7 @@ export class CommandUtils {
         title: string,
         fileNamePrefix: string,
         saveOptions: SaveOptions | null,
+        isJsonOutput = false,
     ): Promise<void> {
         if (!saveOptions) return;
 
@@ -127,7 +129,9 @@ export class CommandUtils {
                 saveOptions.format === "both"
             ) {
                 const jsonPath = await exportToJson(data, fileNamePrefix);
-                console.log(`${title} saved to JSON: ${jsonPath}`);
+                if (!isJsonOutput) {
+                    console.log(`${title} saved to JSON: ${jsonPath}`);
+                }
             }
             if (saveOptions.format === "md" || saveOptions.format === "both") {
                 const mdPath = await exportToMarkdown(
@@ -135,7 +139,9 @@ export class CommandUtils {
                     title,
                     fileNamePrefix,
                 );
-                console.log(`${title} saved to Markdown: ${mdPath}`);
+                if (!isJsonOutput) {
+                    console.log(`${title} saved to Markdown: ${mdPath}`);
+                }
             }
         } catch (exportError) {
             log.error(`Error saving ${fileNamePrefix} to file:`, exportError);

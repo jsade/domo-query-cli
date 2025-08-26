@@ -15,7 +15,7 @@ import { homedir } from "os";
 // Detect if running from pkg executable
 // Check if the script is running from a snapshot (pkg compiled executable)
 const isPkg =
-    __dirname.includes("snapshot") ||
+    process.execPath.includes("snapshot") ||
     (process as unknown as Record<string, unknown>).pkg !== undefined;
 
 // Get LOG_PATH from environment variable with smart defaults

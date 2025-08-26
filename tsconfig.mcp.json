@@ -1,0 +1,33 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "module": "CommonJS",
+        "target": "ES2020",
+        "outDir": "./mcp/dist",
+        "rootDir": "./",
+        "baseUrl": "./",
+        "paths": {
+            "@/*": ["src/*"]
+        },
+        "moduleResolution": "node",
+        "allowImportingTsExtensions": false,
+        "noEmit": false,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true
+    },
+    "include": ["mcp/mcp-server.ts", "src/**/*.ts"],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "build",
+        "tests",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+    ]
+}

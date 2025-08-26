@@ -138,7 +138,9 @@ export class ListDataflowsCommand extends BaseCommand {
                 const pageSize = 50;
                 let hasMoreData = true;
 
-                console.log("Fetching all dataflows...");
+                if (!this.isJsonOutput) {
+                    console.log("Fetching all dataflows...");
+                }
 
                 while (hasMoreData) {
                     const pageParams = {
@@ -162,14 +164,16 @@ export class ListDataflowsCommand extends BaseCommand {
                         } else {
                             currentOffset += pageSize;
                             // Show progress
-                            process.stdout.write(
-                                `\rFetched ${this.dataflows.length} dataflows...`,
-                            );
+                            if (!this.isJsonOutput) {
+                                process.stdout.write(
+                                    `\rFetched ${this.dataflows.length} dataflows...`,
+                                );
+                            }
                         }
                     }
                 }
 
-                if (this.dataflows.length > 0) {
+                if (this.dataflows.length > 0 && !this.isJsonOutput) {
                     process.stdout.write("\r"); // Clear the progress line
                 }
             } else {
@@ -292,6 +296,7 @@ export class ListDataflowsCommand extends BaseCommand {
                         `Domo Dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
                         "dataflows",
                         parsedArgs.saveOptions,
+                        this.isJsonOutput,
                     );
 
                     console.log(
