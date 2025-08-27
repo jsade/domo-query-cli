@@ -1,4 +1,6 @@
 import * as dotenv from "dotenv";
+import { homedir } from "node:os";
+import * as path from "node:path";
 import * as process from "node:process";
 import { log } from "./utils/logger.ts";
 
@@ -79,8 +81,33 @@ export function initializeConfig(): void {
     // Load environment variables from .env file
     dotenv.config();
 
-    // Set export path with environment variable or default
-    domoConfig.exportPath = process.env.DOMO_EXPORT_PATH || "./exports";
+    // Helper function to expand tilde in paths
+    const expandTilde = (filepath: string): string => {
+        if (filepath.startsWith("~/")) {
+            return path.join(homedir(), filepath.slice(2));
+        }
+        return filepath;
+    };
+
+    // Set export path with environment variable validation
+    if (process.env.DOMO_EXPORT_PATH) {
+        // Expand tilde if present
+        const expandedPath = expandTilde(process.env.DOMO_EXPORT_PATH);
+
+        if (!path.isAbsolute(expandedPath)) {
+            throw new Error(
+                `DOMO_EXPORT_PATH must be an absolute path. Got: "${process.env.DOMO_EXPORT_PATH}" (expanded: "${expandedPath}")`,
+            );
+        }
+        domoConfig.exportPath = expandedPath;
+        log.debug(`DOMO_EXPORT_PATH set to: ${domoConfig.exportPath}`);
+    } else {
+        // Use absolute path as default - relative to current working directory
+        domoConfig.exportPath = path.join(process.cwd(), "exports");
+        log.debug(
+            `DOMO_EXPORT_PATH not set, using default: ${domoConfig.exportPath}`,
+        );
+    }
 
     // Check for required API host
     if (!process.env.DOMO_API_HOST) {

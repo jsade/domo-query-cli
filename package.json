@@ -70,6 +70,8 @@
     "scripts": {
         "build": "rm -rf dist && node esbuild.config.mjs && tsc --emitDeclarationOnly --outDir dist",
         "build:dist": "node build.mjs",
+        "build:mcp": "yarn mcp:build",
+        "build:all": "yarn build:dist && yarn build:mcp",
         "check": "yarn format && yarn lint:fix && yarn tsc --noEmit",
         "commit": "cz",
         "dev": "tsc --watch --noEmit",

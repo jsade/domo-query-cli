@@ -111,10 +111,8 @@ export class CommandFactory {
         const executeDataflowCommand = new ExecuteDataflowCommand();
         this.commands.set(executeDataflowCommand.name, executeDataflowCommand);
 
-        // Register render card command with provider for card listing
-        const renderCardCommand = new RenderCardCommand(() =>
-            listCardsCommand.getCards(),
-        );
+        // Register render card command - now self-sufficient
+        const renderCardCommand = new RenderCardCommand();
         this.commands.set(renderCardCommand.name, renderCardCommand);
 
         // Register lineage command
