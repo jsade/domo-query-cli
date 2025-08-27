@@ -386,13 +386,25 @@ const tools: Tool[] = [
     {
         name: "render_card",
         description:
-            "Render a card visualization as a text-based chart or table. Best for simple visualizations.",
+            "Render a KPI card visualization and save as image and summary data.\n\nCard Status Values:\n• 'success': Card rendered with data\n• 'not_ran': Card rendered but does not contain data\n• 'error': Configuration or data issues",
         inputSchema: {
             type: "object",
             properties: {
                 cardId: {
                     type: "string",
                     description: "Card ID (numeric or string)",
+                },
+                width: {
+                    type: "number",
+                    description: "Image width in pixels (default: 1024)",
+                },
+                height: {
+                    type: "number",
+                    description: "Image height in pixels (default: 1024)",
+                },
+                scale: {
+                    type: "number",
+                    description: "Scale factor for image (default: 1)",
                 },
             },
             required: ["cardId"],
@@ -690,6 +702,15 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
             case "render_card":
                 command = "render-card";
                 commandArgs.push(args.cardId as string);
+                if (args.width !== undefined) {
+                    commandArgs.push("--width", String(args.width));
+                }
+                if (args.height !== undefined) {
+                    commandArgs.push("--height", String(args.height));
+                }
+                if (args.scale !== undefined) {
+                    commandArgs.push("--scale", String(args.scale));
+                }
                 break;
 
             case "db_status":

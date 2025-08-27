@@ -1,7 +1,11 @@
 import * as fs from "fs/promises";
 import inquirer from "inquirer";
 import * as path from "path";
-import type { KpiCardPart } from "../api/clients/domoClient";
+import type {
+    KpiCardPart,
+    KpiCardRenderOptions,
+    KpiCardRenderResponse,
+} from "../api/clients/domoClient";
 import { renderKpiCard, listCards } from "../api/clients/domoClient";
 import { domoConfig } from "../config";
 import { log } from "../utils/logger";
@@ -39,6 +43,19 @@ export class RenderCardCommand extends BaseCommand {
 
         const saveOptions = parsedArgs.saveOptions;
         let cardId: string | undefined;
+
+        // Parse render options from arguments
+        const renderOptions: KpiCardRenderOptions = {
+            width: parsedArgs.params.width
+                ? Number(parsedArgs.params.width)
+                : undefined,
+            height: parsedArgs.params.height
+                ? Number(parsedArgs.params.height)
+                : undefined,
+            scale: parsedArgs.params.scale
+                ? Number(parsedArgs.params.scale)
+                : undefined,
+        };
 
         // Extract ID from positional args
         if (parsedArgs.positional && parsedArgs.positional.length > 0) {
@@ -150,29 +167,26 @@ export class RenderCardCommand extends BaseCommand {
 
             if (!this.isJsonOutput) {
                 console.log(`Rendering KPI card ${cardId}...`);
+                if (
+                    renderOptions.width ||
+                    renderOptions.height ||
+                    renderOptions.scale
+                ) {
+                    console.log(
+                        `Using custom dimensions: ${renderOptions.width || 1024}x${renderOptions.height || 1024} @ ${renderOptions.scale || 1}x scale`,
+                    );
+                }
             }
             const parts: KpiCardPart[] = ["image", "summary"];
-            const cardData = await renderKpiCard(cardId, parts);
+            const cardData = await renderKpiCard(cardId, parts, renderOptions);
 
             // Handle the JSON response format
             if (
                 cardData &&
                 typeof cardData === "object" &&
-                "image" in cardData &&
-                "summary" in cardData
+                ("image" in cardData || "summary" in cardData)
             ) {
-                const typedCardData = cardData as {
-                    image: { data: string; notAllDataShown: boolean };
-                    summary: {
-                        label: string;
-                        value: string;
-                        number: number;
-                        data: Record<string, unknown>;
-                        status: string;
-                    };
-                    limited: boolean;
-                    notAllDataShown: boolean;
-                };
+                const typedCardData = cardData as KpiCardRenderResponse;
 
                 const files: Record<string, string> = {};
 
@@ -202,6 +216,13 @@ export class RenderCardCommand extends BaseCommand {
                     files.summary = summaryPath;
                     if (!this.isJsonOutput) {
                         console.log(`Summary saved to ${summaryPath}`);
+                        // Provide helpful context about the status
+                        const statusMessage = this.getStatusMessage(
+                            typedCardData.summary.status,
+                        );
+                        console.log(
+                            `Card status: ${typedCardData.summary.status} - ${statusMessage}`,
+                        );
                     }
                 }
 
@@ -228,7 +249,14 @@ export class RenderCardCommand extends BaseCommand {
                             {
                                 cardId,
                                 files,
-                                summary: typedCardData.summary,
+                                summary: {
+                                    ...typedCardData.summary,
+                                    statusDescription: typedCardData.summary
+                                        ? this.getStatusMessage(
+                                              typedCardData.summary.status,
+                                          )
+                                        : undefined,
+                                },
                                 notAllDataShown: typedCardData.notAllDataShown,
                             },
                             {
@@ -305,6 +333,24 @@ export class RenderCardCommand extends BaseCommand {
     }
 
     /**
+     * Get a descriptive message for the card status
+     * @param status - The status value from the API
+     * @returns Human-readable status description
+     */
+    private getStatusMessage(status: string): string {
+        switch (status) {
+            case "success":
+                return "Card rendered with data";
+            case "not_ran":
+                return "Card rendered but does not contain data";
+            case "error":
+                return "Configuration or data issues";
+            default:
+                return "Unknown status";
+        }
+    }
+
+    /**
      * Shows help for the render-card command
      */
     public showHelp(): void {
@@ -312,6 +358,10 @@ export class RenderCardCommand extends BaseCommand {
             "Renders a KPI card and saves the results as images and summary data",
         );
         console.log("\nUsage: render-card [card_id] [options]");
+        console.log("\nCard Status Values:");
+        console.log("  • success: Card rendered with data");
+        console.log("  • not_ran: Card rendered but does not contain data");
+        console.log("  • error: Configuration or data issues");
 
         console.log(chalk.cyan("\nParameters:"));
         const paramsData = [
@@ -330,6 +380,18 @@ export class RenderCardCommand extends BaseCommand {
                 Option: "--path=<directory>",
                 Description: "Specify custom export directory",
             },
+            {
+                Option: "--width=<pixels>",
+                Description: "Image width in pixels (default: 1024)",
+            },
+            {
+                Option: "--height=<pixels>",
+                Description: "Image height in pixels (default: 1024)",
+            },
+            {
+                Option: "--scale=<factor>",
+                Description: "Scale factor for image (default: 1)",
+            },
         ];
         console.log(TerminalFormatter.table(optionsData));
 
@@ -346,6 +408,11 @@ export class RenderCardCommand extends BaseCommand {
             {
                 Command: "render-card abc123 --path=/custom/path",
                 Description: "Render to custom directory",
+            },
+            {
+                Command:
+                    "render-card abc123 --width=2048 --height=1536 --scale=2",
+                Description: "Render with custom dimensions",
             },
         ];
         console.log(TerminalFormatter.table(examplesData));

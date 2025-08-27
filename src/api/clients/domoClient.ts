@@ -645,6 +645,49 @@ export type KpiCardPart =
     | "all";
 
 /**
+ * Status values returned by the KPI card render API
+ * - "success": Card rendered with data
+ * - "not_ran": Card rendered but does not contain data
+ * - "error": Configuration or data issues
+ */
+export type KpiCardStatus = "success" | "not_ran" | "error";
+
+/**
+ * Options for rendering a KPI card
+ */
+export interface KpiCardRenderOptions {
+    /** Width of the rendered image in pixels (default: 1024) */
+    width?: number;
+    /** Height of the rendered image in pixels (default: 1024) */
+    height?: number;
+    /** Scale factor for the rendered image (default: 1) */
+    scale?: number;
+    /** Query overrides including filters */
+    queryOverrides?: {
+        filters?: Array<unknown>;
+    };
+}
+
+/**
+ * Response from the KPI card render API
+ */
+export interface KpiCardRenderResponse {
+    image?: {
+        data: string;
+        notAllDataShown: boolean;
+    };
+    summary?: {
+        label: string;
+        value: string;
+        number: number;
+        data: Record<string, unknown>;
+        status: KpiCardStatus;
+    };
+    limited: boolean;
+    notAllDataShown: boolean;
+}
+
+/**
  * Function to get a single Domo card by ID
  * Uses the /api/content/v1/cards endpoint with urns query parameter
  */
@@ -1331,7 +1374,8 @@ export async function getDatasetLineage(
 export async function renderKpiCard(
     cardId: string,
     parts: KpiCardPart[],
-): Promise<unknown> {
+    options?: KpiCardRenderOptions,
+): Promise<KpiCardRenderResponse> {
     // Ensure we have an API token since this endpoint requires it
     if (!domoConfig.initialized) {
         initializeConfig();
@@ -1359,17 +1403,17 @@ export async function renderKpiCard(
     const queryParams = `?parts=${parts.join(",")}`;
     const url = `/api/content/v1/cards/kpi/${cardId}/render${queryParams}`;
 
-    // Request body as specified
+    // Request body with configurable options
     const requestBody = {
-        queryOverrides: {
+        queryOverrides: options?.queryOverrides || {
             filters: [],
         },
-        width: 1024,
-        height: 1024,
-        scale: 2,
+        width: options?.width ?? 1024,
+        height: options?.height ?? 1024,
+        scale: options?.scale ?? 1,
     };
 
-    const response = await client.put<unknown>(url, requestBody);
+    const response = await client.put<KpiCardRenderResponse>(url, requestBody);
 
     // The response should be a JSON object with image and summary properties
     return response;
