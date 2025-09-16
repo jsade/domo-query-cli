@@ -69,10 +69,9 @@ export class DatasetRepository extends BaseRepository<DatasetEntity> {
                         chunk.map(async id => {
                             try {
                                 const dual = await getDataset(id);
-                                const merged =
-                                    ApiResponseMerger.getBestData(
-                                        dual,
-                                    ) as DomoDataset | null;
+                                const merged = ApiResponseMerger.getBestData(
+                                    dual,
+                                ) as DomoDataset | null;
                                 if (merged) {
                                     await this.save(merged as DatasetEntity);
                                 }

@@ -148,7 +148,8 @@ export class GetDatasetParentsCommand extends BaseCommand {
 
             // Build a map of parent keys to full parent node objects from the lineage response
             const parentsMap: Record<string, unknown> = {};
-            const minimalParents: Array<Pick<LineageEntity, "type" | "id">> = [];
+            const minimalParents: Array<Pick<LineageEntity, "type" | "id">> =
+                [];
 
             // First populate map with existing nodes or minimal placeholders
             for (const p of lineageData.parents || []) {
@@ -170,7 +171,10 @@ export class GetDatasetParentsCommand extends BaseCommand {
                             const df = await getDataflow(p.id);
                             if (df?.name) {
                                 parentsMap[key] = {
-                                    ...(parentsMap[key] as Record<string, unknown>),
+                                    ...(parentsMap[key] as Record<
+                                        string,
+                                        unknown
+                                    >),
                                     name: df.name,
                                 };
                             }
@@ -178,7 +182,10 @@ export class GetDatasetParentsCommand extends BaseCommand {
                             const ds = await getDatasetLegacy(p.id);
                             if (ds?.name) {
                                 parentsMap[key] = {
-                                    ...(parentsMap[key] as Record<string, unknown>),
+                                    ...(parentsMap[key] as Record<
+                                        string,
+                                        unknown
+                                    >),
                                     name: ds.name,
                                 };
                             }

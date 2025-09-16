@@ -75,7 +75,9 @@ export class DataflowRepository extends BaseRepository<DataflowEntity> {
                                 await this.save(entity);
                             } catch (err) {
                                 // Fall back to list-level entity if detail fetch fails
-                                const fallback = response.find(df => df.id === id);
+                                const fallback = response.find(
+                                    df => df.id === id,
+                                );
                                 if (fallback) {
                                     await this.save(
                                         this.convertDomoDataflowToEntity(

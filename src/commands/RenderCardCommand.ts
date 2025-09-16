@@ -434,8 +434,14 @@ export class RenderCardCommand extends BaseCommand {
         for (const path of tryKeys) {
             let node: unknown = raw;
             for (const key of path) {
-                if (node && typeof node === "object" && key in (node as any)) {
-                    node = (node as any)[key];
+                if (node && typeof node === "object") {
+                    const rec = node as Record<string, unknown>;
+                    if (key in rec) {
+                        node = rec[key] as unknown;
+                    } else {
+                        node = null;
+                        break;
+                    }
                 } else {
                     node = null;
                     break;

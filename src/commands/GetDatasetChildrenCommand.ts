@@ -149,7 +149,8 @@ export class GetDatasetChildrenCommand extends BaseCommand {
 
             // Build a map of child keys to full child node objects from the lineage response
             const childrenMap: Record<string, unknown> = {};
-            const minimalChildren: Array<Pick<LineageEntity, "type" | "id">> = [];
+            const minimalChildren: Array<Pick<LineageEntity, "type" | "id">> =
+                [];
 
             for (const c of lineageData.children || []) {
                 const key = `${c.type}${c.id}`;
@@ -172,7 +173,10 @@ export class GetDatasetChildrenCommand extends BaseCommand {
                             const ds = await getDatasetLegacy(c.id);
                             if (ds?.name) {
                                 childrenMap[key] = {
-                                    ...(childrenMap[key] as Record<string, unknown>),
+                                    ...(childrenMap[key] as Record<
+                                        string,
+                                        unknown
+                                    >),
                                     name: ds.name,
                                 };
                             }
@@ -181,7 +185,10 @@ export class GetDatasetChildrenCommand extends BaseCommand {
                             const title = card?.title || card?.cardTitle;
                             if (title) {
                                 childrenMap[key] = {
-                                    ...(childrenMap[key] as Record<string, unknown>),
+                                    ...(childrenMap[key] as Record<
+                                        string,
+                                        unknown
+                                    >),
                                     name: title,
                                 };
                             }
@@ -189,7 +196,10 @@ export class GetDatasetChildrenCommand extends BaseCommand {
                             const df = await getDataflow(c.id);
                             if (df?.name) {
                                 childrenMap[key] = {
-                                    ...(childrenMap[key] as Record<string, unknown>),
+                                    ...(childrenMap[key] as Record<
+                                        string,
+                                        unknown
+                                    >),
                                     name: df.name,
                                 };
                             }
