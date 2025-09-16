@@ -10,6 +10,8 @@ export * from "./GetDataflowCommand";
 export * from "./GetDataflowLineageCommand";
 export * from "./GetDatasetCommand";
 export * from "./GetDatasetLineageCommand";
+export * from "./GetDatasetParentsCommand";
+export * from "./GetDatasetChildrenCommand";
 export * from "./GetCardCommand";
 export * from "./UpdateDatasetPropertiesCommand";
 export * from "./GetDataflowExecutionCommand";

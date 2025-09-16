@@ -183,6 +183,14 @@ domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890
 domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890 --traverse-up=true --traverse-down=true
 domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890 --entities=DATA_SOURCE,DATAFLOW
 
+# Get dataset parents (shortcut; requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-parents 12345678-abcd-1234-5678-901234567890
+domo-query-cli get-dataset-parents 12345678-abcd-1234-5678-901234567890 --format=json
+
+# Get dataset children (shortcut; requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-children 12345678-abcd-1234-5678-901234567890
+domo-query-cli get-dataset-children 12345678-abcd-1234-5678-901234567890 --format=json
+
 # Update dataset properties (requires API token)
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --name "New Dataset Name"
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --description "Updated description" --tags "sales,2024,finance"
@@ -245,6 +253,188 @@ domo-query-cli get-dataflow-lineage dataflow-id --entities=DATA_SOURCE,DATAFLOW,
 domo-query-cli get-dataset-lineage dataset-id
 domo-query-cli get-dataset-lineage dataset-id --traverse-up=true --traverse-down=true
 domo-query-cli get-dataset-lineage dataset-id --format=json --save
+
+# Get dataset parents from API (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-parents dataset-id
+domo-query-cli get-dataset-parents dataset-id --format=json
+
+# Get dataset children from API (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-children dataset-id
+domo-query-cli get-dataset-children dataset-id --format=json
+
+### Get Dataset Parents
+
+Get only the immediate parents for a dataset. This is a shortcut for quickly determining the parent dataflow(s) or upstream dataset(s) without inspecting the full lineage graph.
+
+```bash
+domo-query-cli get-dataset-parents <dataset-id> --format json
+```
+
+Output returns both (with `name` included when available):
+- `parents`: an array of full parent node objects
+- a map of parent nodes keyed as `<TYPE><ID>` (same as the lineage API), each value being the full node object
+
+```json
+{
+  "success": true,
+  "command": "get-dataset-parents",
+  "data": {
+    "parents": [
+      {
+        "type": "DATAFLOW",
+        "id": "24",
+        "name": "My ETL Flow",
+        "descendantCounts": {},
+        "ancestorCounts": { "DATAFLOW": 1, "DATA_SOURCE": 5 },
+        "complete": true,
+        "children": [
+          {
+            "type": "DATA_SOURCE",
+            "id": "3f91f397-74fb-44ca-b836-95fb852d6e18",
+            "complete": true,
+            "children": [],
+            "parents": []
+          }
+        ],
+        "parents": [
+          { "type": "DATA_SOURCE", "id": "cd5a6e39-be1e-40ca-922c-745b86e11ac7", "complete": true, "children": [], "parents": [] },
+          { "type": "DATA_SOURCE", "id": "14765e40-2993-4d09-a444-6257a980f02d", "complete": true, "children": [], "parents": [] }
+        ]
+      }
+    ],
+    "DATAFLOW24": {
+      "type": "DATAFLOW",
+      "id": "24",
+      "name": "My ETL Flow",
+      "descendantCounts": {},
+      "ancestorCounts": {
+        "DATAFLOW": 1,
+        "DATA_SOURCE": 5
+      },
+      "complete": true,
+      "children": [
+        {
+          "type": "DATA_SOURCE",
+          "id": "3f91f397-74fb-44ca-b836-95fb852d6e18",
+          "complete": true,
+          "children": [],
+          "parents": []
+        }
+      ],
+      "parents": [
+        {
+          "type": "DATA_SOURCE",
+          "id": "cd5a6e39-be1e-40ca-922c-745b86e11ac7",
+          "complete": true,
+          "children": [],
+          "parents": []
+        },
+        {
+          "type": "DATA_SOURCE",
+          "id": "14765e40-2993-4d09-a444-6257a980f02d",
+          "complete": true,
+          "children": [],
+          "parents": []
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "timestamp": "2025-09-16T13:41:10.500Z",
+    "datasetId": "3f91f397-74fb-44ca-b836-95fb852d6e18",
+    "entityType": "dataset",
+    "note": "Parents extracted from Domo API v1/lineage endpoint"
+  }
+}
+```
+
+### Get Dataset Children
+
+Get only the immediate children for a dataset. Useful for quickly finding direct dataset outputs and cards downstream from a dataset.
+
+```bash
+domo-query-cli get-dataset-children <dataset-id> --format json
+```
+
+Output returns both (with `name` included when available):
+- `children`: an array of full child node objects
+- a map of child nodes keyed as `<TYPE><ID>` with each value being the full node object from the lineage response when available
+
+```json
+{
+  "success": true,
+  "command": "get-dataset-children",
+  "data": {
+    "children": [
+      {
+        "type": "CARD",
+        "id": "1213681340",
+        "name": "Sales Overview",
+        "descendantCounts": {},
+        "ancestorCounts": {},
+        "complete": true,
+        "children": [],
+        "parents": [
+          { "type": "DATA_SOURCE", "id": "3f91f397-74fb-44ca-b836-95fb852d6e18", "complete": true, "children": [], "parents": [] }
+        ]
+      },
+      {
+        "type": "DATA_SOURCE",
+        "id": "a03d933e-8abf-4d11-9099-cd9d3bc45e48",
+        "descendantCounts": {},
+        "ancestorCounts": {},
+        "complete": true,
+        "children": [],
+        "parents": [
+          { "type": "DATA_SOURCE", "id": "3f91f397-74fb-44ca-b836-95fb852d6e18", "complete": true, "children": [], "parents": [] }
+        ]
+      }
+    ],
+    "CARD1213681340": {
+      "type": "CARD",
+      "id": "1213681340",
+      "name": "Sales Overview",
+      "descendantCounts": {},
+      "ancestorCounts": {},
+      "complete": true,
+      "children": [],
+      "parents": [
+        {
+          "type": "DATA_SOURCE",
+          "id": "3f91f397-74fb-44ca-b836-95fb852d6e18",
+          "complete": true,
+          "children": [],
+          "parents": []
+        }
+      ]
+    },
+    "DATA_SOURCEa03d933e-8abf-4d11-9099-cd9d3bc45e48": {
+      "type": "DATA_SOURCE",
+      "id": "a03d933e-8abf-4d11-9099-cd9d3bc45e48",
+      "name": "Transformed Sales Dataset",
+      "descendantCounts": {},
+      "ancestorCounts": {},
+      "complete": true,
+      "children": [],
+      "parents": [
+        {
+          "type": "DATA_SOURCE",
+          "id": "3f91f397-74fb-44ca-b836-95fb852d6e18",
+          "complete": true,
+          "children": [],
+          "parents": []
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "timestamp": "2025-09-16T13:41:10.500Z",
+    "datasetId": "3f91f397-74fb-44ca-b836-95fb852d6e18",
+    "entityType": "dataset",
+    "note": "Children extracted from Domo API v1/lineage endpoint"
+  }
+}
+```
 
 # Generate lineage report
 domo-query-cli generate-lineage-report dataset-id
@@ -365,6 +555,14 @@ domo-query-cli db-sync --datasets --cards
 # JSON output
 domo-query-cli db-sync --all --format=json
 ```
+
+Notes:
+- Full-detail sync by default:
+  - Datasets: Fetches v1 details and v3 `includeAllDetails=true` when available; stores merged record.
+  - Dataflows: Fetches detailed v2 plus v1 (actions, gui, triggers) when available; stores a normalized entity.
+  - Cards: Attempts detailed content API fetch; falls back to list-level fields if detail is unavailable.
+- Concurrency: detail fetches run with a bounded concurrency (default 5). Adjust via `DOMO_SYNC_CONCURRENCY=<number>`.
+- Graceful degradation: If an enrichment call fails (e.g., missing token for card detail), the sync stores the best available data and continues.
 
 #### db-clear
 Clear database contents with safety confirmations.
@@ -843,4 +1041,3 @@ domo-query-cli list-datasets --limit 10
 # Use offset for pagination
 domo-query-cli list-datasets --limit 10 --offset 20
 ```
-

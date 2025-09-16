@@ -199,6 +199,12 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 
 For non-interactive usage (scripts, automation, CI/CD), see [CLI.md](./CLI.md) for comprehensive documentation.
 
+## Contributing
+
+Contributions are welcome! Start with:
+- Repository Guidelines: [AGENTS.md](./AGENTS.md) — structure, commands, and conventions
+- Contributor guide: [CONTRIBUTING.md](./CONTRIBUTING.md) — setup, workflow, tests, and release
+
 ## Command Reference
 
 > 📚 **For comprehensive command documentation and non-interactive usage, see [CLI.md](./CLI.md)**
@@ -209,6 +215,8 @@ For non-interactive usage (scripts, automation, CI/CD), see [CLI.md](./CLI.md) f
 | ------- | ----------- |
 | `list-datasets [search]` | List all datasets with filtering and search |
 | `get-dataset <id>` | Get detailed dataset information |
+| `get-dataset-parents <id>` | Get immediate parents for a dataset (API-required); returns parent nodes keyed like `DATAFLOW24` |
+| `get-dataset-children <id>` | Get immediate children for a dataset (API-required); returns child nodes keyed like `CARD123` |
 | `update-dataset-properties <id>` | Update dataset name, description, tags (requires API token) |
 | `list-dataflows [search]` | List or search dataflows |
 | `get-dataflow <id>` | Get dataflow details and execution history |
@@ -232,6 +240,18 @@ domo-query-cli
 > get-dataset abc-123-def    # Get specific dataset details
 > execute-dataflow 12345     # Run a dataflow
 > show-lineage abc-123 --diagram  # Visualize data lineage
+
+### Get Dataset Parents (JSON)
+```bash
+domo-query-cli get-dataset-parents <dataset-id> --format json
+```
+Returns a JSON `parents` array of full nodes and a keyed map (`<TYPE><ID>`, e.g., `DATAFLOW24`) for O(1) lookup. Parent nodes include a `name` field when available (e.g., dataflow or dataset names).
+
+### Get Dataset Children (JSON)
+```bash
+domo-query-cli get-dataset-children <dataset-id> --format json
+```
+Returns a JSON `children` array of full nodes and a keyed map (`<TYPE><ID>`, e.g., `CARD1213...`) for O(1) lookup. Child nodes include a `name` field when available (e.g., card title, dataset name, or dataflow name).
 > help                       # See all commands
 ```
 

@@ -1,6 +1,6 @@
 import { BaseRepository } from "./BaseRepository";
 import { DomoDataflow } from "../../../api/clients/domoClient";
-import { listDataflows } from "../../../api/clients/dataflowApi";
+import { listDataflows, getDataflow } from "../../../api/clients/dataflowApi";
 import { JsonDatabase } from "../JsonDatabase";
 
 // Extend DomoDataflow to satisfy Entity constraint
@@ -35,38 +35,85 @@ export class DataflowRepository extends BaseRepository<DataflowEntity> {
                 console.log("Syncing dataflows from Domo API...");
             }
 
-            // Fetch all dataflows (with pagination)
-            const allDataflows: DataflowEntity[] = [];
+            // Fetch dataflows with pagination, then enrich each with details using bounded concurrency
+            const concurrency = Math.max(
+                1,
+                Number(process.env.DOMO_SYNC_CONCURRENCY || 5),
+            );
+
             let offset = 0;
             const limit = 50;
-            let hasMore = true;
+            let totalProcessed = 0;
+            let pageNum = 0;
 
-            while (hasMore) {
+            while (true) {
                 const response = await listDataflows({ limit, offset });
-                if (response && Array.isArray(response)) {
-                    // Convert DomoDataflow to DataflowEntity format
-                    const dataflows = response.map(df =>
-                        this.convertDomoDataflowToEntity(df),
-                    );
-                    allDataflows.push(...dataflows);
-                    hasMore = response.length === limit;
-                    offset += limit;
-                } else {
-                    hasMore = false;
+                pageNum++;
+
+                if (!Array.isArray(response) || response.length === 0) {
+                    if (pageNum === 1 && !silent) {
+                        console.log("No dataflows found to sync");
+                    }
+                    break;
                 }
+
+                // Prepare IDs to fetch details for
+                const ids = response
+                    .map(df => df?.id)
+                    .filter((id): id is string => typeof id === "string");
+
+                for (let i = 0; i < ids.length; i += concurrency) {
+                    const chunk = ids.slice(i, i + concurrency);
+                    await Promise.all(
+                        chunk.map(async id => {
+                            try {
+                                const detailed = (await getDataflow(
+                                    id,
+                                )) as DomoDataflow;
+                                const entity =
+                                    this.convertDomoDataflowToEntity(detailed);
+                                await this.save(entity);
+                            } catch (err) {
+                                // Fall back to list-level entity if detail fetch fails
+                                const fallback = response.find(df => df.id === id);
+                                if (fallback) {
+                                    await this.save(
+                                        this.convertDomoDataflowToEntity(
+                                            fallback,
+                                        ),
+                                    );
+                                }
+                                if (!silent) {
+                                    const msg =
+                                        err instanceof Error
+                                            ? err.message
+                                            : String(err);
+                                    console.error(
+                                        `Failed to fetch details for dataflow ${id}: ${msg}`,
+                                    );
+                                }
+                            }
+                        }),
+                    );
+
+                    totalProcessed += chunk.length;
+                    if (!silent && totalProcessed % 50 === 0) {
+                        process.stdout.write(
+                            `\rProcessed ${totalProcessed} dataflows...`,
+                        );
+                    }
+                }
+
+                if (response.length < limit) {
+                    break;
+                }
+                offset += limit;
             }
 
-            // Save all dataflows to database
-            if (allDataflows.length > 0) {
-                await this.saveMany(allDataflows);
-                await this.updateSyncTime();
-                if (!silent) {
-                    console.log(`Synced ${allDataflows.length} dataflows`);
-                }
-            } else {
-                if (!silent) {
-                    console.log("No dataflows found to sync");
-                }
+            await this.updateSyncTime();
+            if (!silent && totalProcessed > 0) {
+                process.stdout.write("\r");
+                console.log(`Synced ${totalProcessed} dataflows`);
             }
         } catch (error) {
             if (!silent) {

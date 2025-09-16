@@ -6,7 +6,11 @@ import type {
     KpiCardRenderOptions,
     KpiCardRenderResponse,
 } from "../api/clients/domoClient";
-import { renderKpiCard, listCards } from "../api/clients/domoClient";
+import {
+    renderKpiCard,
+    listCards,
+    getCardRaw,
+} from "../api/clients/domoClient";
 import { domoConfig } from "../config";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
@@ -165,20 +169,77 @@ export class RenderCardCommand extends BaseCommand {
                 return;
             }
 
-            if (!this.isJsonOutput) {
-                console.log(`Rendering KPI card ${cardId}...`);
+            // Auto-compute missing dimensions using card metadata when available
+            const hasWidth = renderOptions.width !== undefined;
+            const hasHeight = renderOptions.height !== undefined;
+            const needsAuto = !hasWidth || !hasHeight;
+
+            const effectiveOptions: KpiCardRenderOptions = { ...renderOptions };
+
+            let aspect: number | null = null; // height/width
+            if (needsAuto) {
+                try {
+                    const raw = await getCardRaw(cardId, [
+                        "masonData",
+                        "properties",
+                        "metadata",
+                        "metadataOverrides",
+                    ]);
+                    aspect = this.extractAspectRatio(raw);
+                } catch {
+                    // Ignore; we'll use fallback aspect
+                }
+
                 if (
-                    renderOptions.width ||
-                    renderOptions.height ||
-                    renderOptions.scale
+                    !aspect ||
+                    !isFinite(aspect) ||
+                    aspect <= 0.05 ||
+                    aspect > 10
                 ) {
-                    console.log(
-                        `Using custom dimensions: ${renderOptions.width || 1024}x${renderOptions.height || 1024} @ ${renderOptions.scale || 1}x scale`,
+                    // Fallback to a sensible landscape default
+                    aspect = 9 / 16; // height per 1 width
+                }
+
+                if (!hasWidth && !hasHeight) {
+                    const baseW = 1024;
+                    effectiveOptions.width = baseW;
+                    effectiveOptions.height = Math.round(baseW * aspect);
+                } else if (hasWidth && !hasHeight) {
+                    effectiveOptions.height = Math.round(
+                        (renderOptions.width as number) * aspect,
+                    );
+                } else if (!hasWidth && hasHeight) {
+                    effectiveOptions.width = Math.round(
+                        (renderOptions.height as number) / aspect,
                     );
                 }
             }
+
+            if (!this.isJsonOutput) {
+                console.log(`Rendering KPI card ${cardId}...`);
+                const widthText = String(effectiveOptions.width ?? 1024);
+                const heightText =
+                    effectiveOptions.height !== undefined
+                        ? String(effectiveOptions.height)
+                        : "auto";
+                console.log(
+                    `Using dimensions: ${widthText}x${heightText} @ ${effectiveOptions.scale || 1}x scale`,
+                );
+            }
+
             const parts: KpiCardPart[] = ["image", "summary"];
-            const cardData = await renderKpiCard(cardId, parts, renderOptions);
+            // Ensure height is present to satisfy API requirements
+            if (effectiveOptions.height === undefined) {
+                const w = effectiveOptions.width ?? 1024;
+                const ratio = 9 / 16;
+                effectiveOptions.height = Math.round(w * ratio);
+            }
+
+            const cardData = await renderKpiCard(
+                cardId,
+                parts,
+                effectiveOptions,
+            );
 
             // Handle the JSON response format
             if (
@@ -256,6 +317,11 @@ export class RenderCardCommand extends BaseCommand {
                                               typedCardData.summary.status,
                                           )
                                         : undefined,
+                                    dimensions: {
+                                        width: effectiveOptions.width ?? 1024,
+                                        height: effectiveOptions.height ?? null,
+                                        scale: effectiveOptions.scale ?? 1,
+                                    },
                                 },
                                 notAllDataShown: typedCardData.notAllDataShown,
                             },
@@ -350,6 +416,105 @@ export class RenderCardCommand extends BaseCommand {
         }
     }
 
+    // (removed parsePngSize helper; aspect now comes from card metadata)
+
+    /**
+     * Attempt to extract an aspect ratio (height/width) from raw card parts
+     */
+    private extractAspectRatio(raw: Record<string, unknown>): number | null {
+        // Known locations/patterns to try
+        const tryKeys = [
+            ["masonData", "tile"],
+            ["masonData", "layout"],
+            ["masonData"],
+            ["properties"],
+            ["metadataOverrides"],
+        ];
+
+        for (const path of tryKeys) {
+            let node: unknown = raw;
+            for (const key of path) {
+                if (node && typeof node === "object" && key in (node as any)) {
+                    node = (node as any)[key];
+                } else {
+                    node = null;
+                    break;
+                }
+            }
+            if (node && typeof node === "object") {
+                const ratio = this.findAspectInObject(
+                    node as Record<string, unknown>,
+                );
+                if (ratio) return ratio;
+            }
+        }
+
+        return null;
+    }
+
+    private findAspectInObject(
+        obj: Record<string, unknown>,
+        depth = 0,
+    ): number | null {
+        if (depth > 4) return null;
+
+        // Direct width/height keys
+        const keys = Object.keys(obj);
+        const widthKey = keys.find(k => /(^|_)w(idth)?$/i.test(k));
+        const heightKey = keys.find(k => /(^|_)h(eight)?$/i.test(k));
+        if (
+            widthKey &&
+            heightKey &&
+            typeof obj[widthKey] === "number" &&
+            typeof obj[heightKey] === "number"
+        ) {
+            const w = obj[widthKey] as number;
+            const h = obj[heightKey] as number;
+            if (w > 0 && h > 0) return h / w;
+        }
+
+        // Common tile/grid keys
+        const colsKey = keys.find(k =>
+            /(cols|columns|sizeX|gridWidth)/i.test(k),
+        );
+        const rowsKey = keys.find(k => /(rows|sizeY|gridHeight)/i.test(k));
+        if (
+            colsKey &&
+            rowsKey &&
+            typeof obj[colsKey] === "number" &&
+            typeof obj[rowsKey] === "number"
+        ) {
+            const c = obj[colsKey] as number;
+            const r = obj[rowsKey] as number;
+            if (c > 0 && r > 0) return r / c;
+        }
+
+        // Recurse into nested objects/arrays likely to contain layout
+        for (const k of keys) {
+            const v = obj[k];
+            if (v && typeof v === "object") {
+                if (Array.isArray(v)) {
+                    for (const item of v) {
+                        if (item && typeof item === "object") {
+                            const ratio = this.findAspectInObject(
+                                item as Record<string, unknown>,
+                                depth + 1,
+                            );
+                            if (ratio) return ratio;
+                        }
+                    }
+                } else {
+                    const ratio = this.findAspectInObject(
+                        v as Record<string, unknown>,
+                        depth + 1,
+                    );
+                    if (ratio) return ratio;
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Shows help for the render-card command
      */
@@ -382,11 +547,13 @@ export class RenderCardCommand extends BaseCommand {
             },
             {
                 Option: "--width=<pixels>",
-                Description: "Image width in pixels (default: 1024)",
+                Description:
+                    "Image width in pixels (default: 1024). If height not provided, it is auto-computed from the card's aspect",
             },
             {
                 Option: "--height=<pixels>",
-                Description: "Image height in pixels (default: 1024)",
+                Description:
+                    "Image height in pixels (optional). If width is not provided, it is auto-computed from the card's aspect",
             },
             {
                 Option: "--scale=<factor>",
@@ -410,9 +577,9 @@ export class RenderCardCommand extends BaseCommand {
                 Description: "Render to custom directory",
             },
             {
-                Command:
-                    "render-card abc123 --width=2048 --height=1536 --scale=2",
-                Description: "Render with custom dimensions",
+                Command: "render-card abc123 --width=1600 --scale=2",
+                Description:
+                    "Render at width 1600px with auto height (preserves aspect) at 2x scale",
             },
         ];
         console.log(TerminalFormatter.table(examplesData));

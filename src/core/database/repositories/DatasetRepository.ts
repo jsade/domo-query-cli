@@ -1,5 +1,10 @@
 import { BaseRepository } from "./BaseRepository";
-import { DomoDataset, listDatasets } from "../../../api/clients/domoClient";
+import {
+    DomoDataset,
+    listDatasets,
+    getDataset,
+} from "../../../api/clients/domoClient";
+import { ApiResponseMerger } from "../../../utils/apiResponseMerger";
 import { JsonDatabase } from "../JsonDatabase";
 
 // Extend DomoDataset to satisfy Entity constraint
@@ -26,36 +31,87 @@ export class DatasetRepository extends BaseRepository<DatasetEntity> {
 
         try {
             if (!silent) {
-                console.log("Syncing datasets from Domo API...");
+                console.log("Syncing datasets from Domo API (full details)...");
             }
 
-            // Fetch all datasets (with pagination)
-            const allDatasets: DatasetEntity[] = [];
+            // Concurrency limit for per-dataset detail fetches
+            const concurrency = Math.max(
+                1,
+                Number(process.env.DOMO_SYNC_CONCURRENCY || 5),
+            );
+
             let offset = 0;
             const limit = 50;
-            let hasMore = true;
+            let totalProcessed = 0;
+            let pageNum = 0;
 
-            while (hasMore) {
-                const response = await listDatasets({ limit, offset });
-                if (response && Array.isArray(response)) {
-                    allDatasets.push(...(response as DatasetEntity[]));
-                    hasMore = response.length === limit;
-                    offset += limit;
-                } else {
-                    hasMore = false;
+            // Process pages of dataset summaries, then fetch detailed records
+            while (true) {
+                const page = await listDatasets({ limit, offset });
+                pageNum++;
+
+                if (!Array.isArray(page) || page.length === 0) {
+                    if (pageNum === 1 && !silent) {
+                        console.log("No datasets found to sync");
+                    }
+                    break;
                 }
+
+                // Build list of IDs to fetch details for
+                const ids = page
+                    .map(d => d?.id)
+                    .filter((id): id is string => typeof id === "string");
+
+                // Fetch details in chunks with limited concurrency
+                for (let i = 0; i < ids.length; i += concurrency) {
+                    const chunk = ids.slice(i, i + concurrency);
+                    await Promise.all(
+                        chunk.map(async id => {
+                            try {
+                                const dual = await getDataset(id);
+                                const merged =
+                                    ApiResponseMerger.getBestData(
+                                        dual,
+                                    ) as DomoDataset | null;
+                                if (merged) {
+                                    await this.save(merged as DatasetEntity);
+                                }
+                            } catch (err) {
+                                if (!silent) {
+                                    const msg =
+                                        err instanceof Error
+                                            ? err.message
+                                            : String(err);
+                                    console.error(
+                                        `Failed to fetch details for dataset ${id}: ${msg}`,
+                                    );
+                                }
+                            }
+                        }),
+                    );
+
+                    totalProcessed += chunk.length;
+                    if (!silent && totalProcessed % 50 === 0) {
+                        // Periodic progress output
+                        process.stdout.write(
+                            `\rProcessed ${totalProcessed} datasets...`,
+                        );
+                    }
+                }
+
+                // Next page
+                if (page.length < limit) {
+                    break;
+                }
+                offset += limit;
             }
 
-            // Save all datasets to database
-            if (allDatasets.length > 0) {
-                await this.saveMany(allDatasets);
-                await this.updateSyncTime();
-                if (!silent) {
-                    console.log(`Synced ${allDatasets.length} datasets`);
-                }
-            } else {
-                if (!silent) {
-                    console.log("No datasets found to sync");
+            // Finalize
+            await this.updateSyncTime();
+            if (!silent) {
+                if (totalProcessed > 0) {
+                    process.stdout.write("\r");
+                    console.log(`Synced ${totalProcessed} datasets`);
                 }
             }
         } catch (error) {

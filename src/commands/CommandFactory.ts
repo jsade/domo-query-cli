@@ -12,6 +12,8 @@ import { ListDataflowsCommand } from "./ListDataflowsCommand";
 import { GetDataflowCommand } from "./GetDataflowCommand";
 import { GetDataflowLineageCommand } from "./GetDataflowLineageCommand";
 import { GetDatasetLineageCommand } from "./GetDatasetLineageCommand";
+import { GetDatasetParentsCommand } from "./GetDatasetParentsCommand";
+import { GetDatasetChildrenCommand } from "./GetDatasetChildrenCommand";
 import { ListDataflowExecutionsCommand } from "./ListDataflowExecutionsCommand";
 import { GetDataflowExecutionCommand } from "./GetDataflowExecutionCommand";
 import { ExecuteDataflowCommand } from "./ExecuteDataflowCommand";
@@ -93,6 +95,18 @@ export class CommandFactory {
         this.commands.set(
             getDatasetLineageCommand.name,
             getDatasetLineageCommand,
+        );
+
+        const getDatasetParentsCommand = new GetDatasetParentsCommand();
+        this.commands.set(
+            getDatasetParentsCommand.name,
+            getDatasetParentsCommand,
+        );
+
+        const getDatasetChildrenCommand = new GetDatasetChildrenCommand();
+        this.commands.set(
+            getDatasetChildrenCommand.name,
+            getDatasetChildrenCommand,
         );
 
         const listDataflowExecutionsCommand =

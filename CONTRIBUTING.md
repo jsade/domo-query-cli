@@ -1,6 +1,12 @@
 # Contributing to Domo Query CLI
 
-Thank you for your interest in contributing to Domo Query CLI! This guide will help you get started with development, testing, and releasing.
+Thank you for your interest in contributing to Domo Query CLI! This guide will help you get started with development, testing, and releasing. For a concise overview of project layout, commands, and conventions, see the Repository Guidelines in `AGENTS.md`.
+
+## Quick Links
+
+- Repository Guidelines: [AGENTS.md](./AGENTS.md)
+- CLI usage and non-interactive examples: [CLI.md](./CLI.md)
+- Storage details: [STORAGE.md](./STORAGE.md)
 
 ## Table of Contents
 

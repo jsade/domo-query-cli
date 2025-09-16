@@ -856,6 +856,44 @@ export async function getCard(cardId: string): Promise<DomoCard> {
 }
 
 /**
+ * Fetch raw card object with specified parts for advanced parsing (e.g., layout/aspect)
+ */
+export async function getCardRaw(
+    cardId: string,
+    parts: string[] = [
+        "metadata",
+        "metadataOverrides",
+        "properties",
+        "masonData",
+        "library",
+    ],
+): Promise<Record<string, unknown>> {
+    if (!domoConfig.apiToken) {
+        throw new Error(
+            "API token is required for the get-card endpoint. Please set DOMO_API_TOKEN environment variable.",
+        );
+    }
+    if (!domoConfig.apiHost) {
+        throw new Error(
+            "Domo API host is required for the get-card endpoint. Please set DOMO_API_HOST environment variable.",
+        );
+    }
+    const client = createApiTokenClient(
+        domoConfig.apiToken,
+        domoConfig.apiHost,
+    );
+    const url = `/api/content/v1/cards?urns=${cardId}&parts=${parts.join(",")}&includeFiltered=true`;
+    const response = await client.get<unknown>(url);
+    if (Array.isArray(response) && response.length > 0) {
+        return (response as Record<string, unknown>[])[0] as Record<
+            string,
+            unknown
+        >;
+    }
+    throw new Error(`Card with ID ${cardId} not found`);
+}
+
+/**
  * Function to list Domo cards
  * Uses the v1/cards endpoint from the Domo API Schema
  */
@@ -1400,14 +1438,18 @@ export async function renderKpiCard(
     );
 
     // Build URL with query parameters
-    const queryParams = `?parts=${parts.join(",")}`;
+    // Ensure both image and summary are requested for consistent output
+    const partsSet = new Set<KpiCardPart>(parts || []);
+    partsSet.add("image");
+    partsSet.add("summary");
+    const queryParams = `?parts=${Array.from(partsSet).join(",")}`;
     const url = `/api/content/v1/cards/kpi/${cardId}/render${queryParams}`;
 
     // Request body with configurable options
+    // The API expects both width and height; omitting height can cause 400 Bad Request.
+    // Upstream logic should compute a height that preserves aspect when possible.
     const requestBody = {
-        queryOverrides: options?.queryOverrides || {
-            filters: [],
-        },
+        queryOverrides: options?.queryOverrides || { filters: [] },
         width: options?.width ?? 1024,
         height: options?.height ?? 1024,
         scale: options?.scale ?? 1,

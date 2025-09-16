@@ -3,6 +3,7 @@ import * as fsSync from "fs";
 import * as path from "path";
 import { homedir } from "os";
 import { existsSync } from "fs";
+import { log } from "../../utils/logger.ts";
 
 interface DatabaseMetadata {
     version: string;
@@ -67,9 +68,7 @@ export class JsonDatabase {
         // Disable backups in pkg-compiled executables on macOS
         if (this.isPkg && process.platform === "darwin") {
             this.backupsEnabled = false;
-            console.log(
-                "Note: Automatic backups disabled in packaged executable",
-            );
+            log.info("Automatic backups disabled in packaged executable");
         }
     }
 
@@ -108,7 +107,7 @@ export class JsonDatabase {
                     }
                     this.metadata = JSON.parse(content);
                 } catch (error) {
-                    console.error(
+                    log.error(
                         "Failed to load metadata, attempting recovery:",
                         error,
                     );
@@ -138,7 +137,7 @@ export class JsonDatabase {
             this.initialized = true;
         } catch (error) {
             if (retryCount < maxRetries) {
-                console.warn(
+                log.warn(
                     `Database initialization attempt ${retryCount + 1} failed, retrying...`,
                 );
                 await new Promise(resolve =>
@@ -187,7 +186,7 @@ export class JsonDatabase {
                             if (content.trim() === "") {
                                 // File is empty, try to recover from .tmp
                                 if (existsSync(tmpPath)) {
-                                    console.log(
+                                    log.info(
                                         `Recovering ${file} from temporary file...`,
                                     );
                                     await this.recoverFile(filePath);
@@ -196,7 +195,7 @@ export class JsonDatabase {
                         } catch {
                             // File is corrupted, try to recover
                             if (existsSync(tmpPath)) {
-                                console.log(
+                                log.info(
                                     `Recovering corrupted ${file} from temporary file...`,
                                 );
                                 await this.recoverFile(filePath);
@@ -206,7 +205,7 @@ export class JsonDatabase {
                 }
             }
         } catch (error) {
-            console.warn("Could not check for corrupted files:", error);
+            log.warn("Could not check for corrupted files:", error);
         }
     }
 
@@ -227,7 +226,7 @@ export class JsonDatabase {
             try {
                 JSON.parse(tmpContent);
             } catch {
-                console.warn(`Temporary file ${tmpPath} contains invalid JSON`);
+                log.warn(`Temporary file ${tmpPath} contains invalid JSON`);
                 return false;
             }
 
@@ -235,7 +234,7 @@ export class JsonDatabase {
             if (this.isPkg) {
                 try {
                     fsSync.writeFileSync(filePath, tmpContent, "utf-8");
-                    console.log(
+                    log.info(
                         `Successfully recovered ${path.basename(filePath)}`,
                     );
                     // Try to remove the tmp file (may fail but that's ok)
@@ -246,15 +245,13 @@ export class JsonDatabase {
                     }
                     return true;
                 } catch (error) {
-                    console.error(`Failed to recover ${filePath}:`, error);
+                    log.error(`Failed to recover ${filePath}:`, error);
                     return false;
                 }
             } else {
                 // For non-pkg, use async operations
                 await fs.writeFile(filePath, tmpContent, "utf-8");
-                console.log(
-                    `Successfully recovered ${path.basename(filePath)}`,
-                );
+                log.info(`Successfully recovered ${path.basename(filePath)}`);
                 try {
                     await fs.unlink(tmpPath);
                 } catch {
@@ -263,7 +260,7 @@ export class JsonDatabase {
                 return true;
             }
         } catch (error) {
-            console.error(`Failed to recover from ${tmpPath}:`, error);
+            log.error(`Failed to recover from ${tmpPath}:`, error);
             return false;
         }
     }
@@ -280,10 +277,10 @@ export class JsonDatabase {
                 const tempPath = path.join(this.dbPath, tempFile);
                 try {
                     await fs.unlink(tempPath);
-                    console.log(`Cleaned up orphaned temp file: ${tempFile}`);
+                    log.debug(`Cleaned up orphaned temp file: ${tempFile}`);
                 } catch (error) {
                     // Ignore errors when cleaning up individual files
-                    console.warn(`Could not clean up ${tempFile}:`, error);
+                    log.warn(`Could not clean up ${tempFile}:`, error);
                 }
             }
 
@@ -306,7 +303,7 @@ export class JsonDatabase {
             }
         } catch (error) {
             // Ignore errors during cleanup
-            console.warn("Could not clean up temp files:", error);
+            log.warn("Could not clean up temp files:", error);
         }
     }
 
@@ -340,7 +337,7 @@ export class JsonDatabase {
                     ) as Collection<DatabaseEntity>;
                     this.collections.set(collectionName, collection);
                 } catch (error) {
-                    console.error(
+                    log.error(
                         `Failed to load collection ${collectionName}:`,
                         error,
                     );
@@ -353,7 +350,7 @@ export class JsonDatabase {
                 }
             }
         } catch (error) {
-            console.error("Failed to load collections:", error);
+            log.error("Failed to load collections:", error);
         }
     }
 
@@ -415,7 +412,7 @@ export class JsonDatabase {
                     const tempPath = `${filePath}.tmp`;
                     try {
                         fsSync.writeFileSync(tempPath, content, "utf-8");
-                        console.warn(
+                        log.warn(
                             `Note: Data saved to ${path.basename(tempPath)}. ` +
                                 `The packaged executable has limited file permissions.`,
                         );
@@ -568,7 +565,7 @@ export class JsonDatabase {
             await this.cleanOldBackups(collectionName);
         } catch (error) {
             // If backup fails, log warning but continue
-            console.warn(
+            log.warn(
                 `Warning: Could not create backup for ${collectionName}:`,
                 error,
             );
@@ -601,7 +598,7 @@ export class JsonDatabase {
                 }
             }
         } catch (error) {
-            console.error("Failed to clean old backups:", error);
+            log.error("Failed to clean old backups:", error);
         }
     }
 

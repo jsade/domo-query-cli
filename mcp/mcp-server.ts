@@ -163,6 +163,11 @@ const tools: Tool[] = [
                     type: "string",
                     description: "Dataset ID (GUID format)",
                 },
+                sync: {
+                    type: "boolean",
+                    description:
+                        "Force refresh from API and update local DB (bypass cached database entry)",
+                },
             },
             required: ["id"],
         },
@@ -228,6 +233,36 @@ const tools: Tool[] = [
                     type: "string",
                     description:
                         "Comma-separated entity types to include in the response (default: DATA_SOURCE,DATAFLOW,CARD). Options: DATA_SOURCE, DATAFLOW, CARD, ALERT",
+                },
+            },
+            required: ["datasetId"],
+        },
+    },
+    {
+        name: "get_dataset_parents",
+        description:
+            "Get direct parents for a dataset from the Domo API. Returns only the immediate parents (type and id), typically DATAFLOWs or upstream DATA_SOURCEs. Requires API token and DOMO_API_HOST configuration.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                datasetId: {
+                    type: "string",
+                    description: "Dataset ID (GUID format)",
+                },
+            },
+            required: ["datasetId"],
+        },
+    },
+    {
+        name: "get_dataset_children",
+        description:
+            "Get direct children for a dataset from the Domo API. Returns only the immediate children keyed as <TYPE><ID> with full node objects when available (e.g., CARDs and downstream DATA_SOURCEs). Requires API token and DOMO_API_HOST configuration.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                datasetId: {
+                    type: "string",
+                    description: "Dataset ID (GUID format)",
                 },
             },
             required: ["datasetId"],
@@ -386,7 +421,7 @@ const tools: Tool[] = [
     {
         name: "render_card",
         description:
-            "Render a KPI card visualization and save as image and summary data.\n\nCard Status Values:\n• 'success': Card rendered with data\n• 'not_ran': Card rendered but does not contain data\n• 'error': Configuration or data issues",
+            "Render a KPI card visualization and save as image and summary data. By default, dimensions are auto-computed from the card's aspect via a preflight render: if you provide only width (or only height), the other dimension is derived to avoid cropping.\n\nCard Status Values:\n• 'success': Card rendered with data\n• 'not_ran': Card rendered but does not contain data\n• 'error': Configuration or data issues",
         inputSchema: {
             type: "object",
             properties: {
@@ -396,11 +431,13 @@ const tools: Tool[] = [
                 },
                 width: {
                     type: "number",
-                    description: "Image width in pixels (default: 1024)",
+                    description:
+                        "Image width in pixels (default: 1024). Height auto unless provided",
                 },
                 height: {
                     type: "number",
-                    description: "Image height in pixels (default: 1024)",
+                    description:
+                        "Image height in pixels (optional). If width and height don't match the card's aspect, image may crop",
                 },
                 scale: {
                     type: "number",
@@ -598,6 +635,9 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
             case "get_dataset":
                 command = "get-dataset";
                 commandArgs.push(args.id as string);
+                if (args.sync === true) {
+                    commandArgs.push("--sync");
+                }
                 break;
 
             case "get_card":
@@ -627,6 +667,16 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
                 if (args.entities) {
                     commandArgs.push("--entities", args.entities as string);
                 }
+                break;
+
+            case "get_dataset_parents":
+                command = "get-dataset-parents";
+                commandArgs.push(args.datasetId as string);
+                break;
+
+            case "get_dataset_children":
+                command = "get-dataset-children";
+                commandArgs.push(args.datasetId as string);
                 break;
 
             case "get_dataflow_lineage":

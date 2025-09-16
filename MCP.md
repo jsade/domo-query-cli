@@ -85,16 +85,18 @@ The MCP server provides the following tools to Claude Desktop:
 #### Data Retrieval Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `get_dataset` | Get detailed dataset information | `id` (required) |
+| `get_dataset` | Get detailed dataset information | `id` (required), `sync` (optional) |
 | `get_dataflow` | Get detailed dataflow information | `id` (required) |
 | `get_card` | Get detailed card information | `id` (required) |
-| `render_card` | Render card as text visualization | `cardId` (required) |
+| `render_card` | Render a KPI card image and summary; auto-computes missing dimension from card aspect to avoid cropping | `cardId` (required), `width` (optional), `height` (optional), `scale` (optional) |
 
 #### Lineage Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
 | `show_lineage` | Show data lineage from local data | `datasetId` (required), `format` (optional: text/mermaid/json) |
 | `get_dataset_lineage` | Get lineage from API (requires API token) | `datasetId` (required), `traverseUp` (optional), `traverseDown` (optional), `entities` (optional) |
+| `get_dataset_parents` | Get direct parents for a dataset (requires API token). Returns a `parents` array and a keyed map (`<TYPE><ID>`) of full nodes, enriched with `name` when available. | `datasetId` (required) |
+| `get_dataset_children` | Get direct children for a dataset (requires API token). Returns a `children` array and a keyed map (`<TYPE><ID>`) of full nodes, enriched with `name` when available. | `datasetId` (required) |
 | `get_dataflow_lineage` | Get dataflow lineage from API | `dataflowId` (required), `traverseUp` (optional), `traverseDown` (optional), `entities` (optional) |
 | `generate_lineage_report` | Generate comprehensive lineage report | `format` (optional: markdown/json) |
 
@@ -129,3 +131,7 @@ The MCP server provides the following tools to Claude Desktop:
 - Operations marked as "requires API token" need DOMO_API_TOKEN configuration
 - Write operations respect read-only mode settings
 - Lineage API calls require both API token and DOMO_API_HOST configuration
+
+### Sync behavior
+- `get_dataset` supports a `sync: true` parameter to force a fresh fetch from the Domo API and update the local database, bypassing any cached database entry. This mirrors the CLI flag `--sync` for `get-dataset`.
+- For broader refreshes (datasets, dataflows, cards), use `db_sync` before calling list tools, or use `clear_cache` to drop in-memory/file caches.

@@ -1,6 +1,6 @@
 import { BaseRepository } from "./BaseRepository";
 import { JsonDatabase } from "../JsonDatabase";
-import { listCards } from "../../../api/clients/domoClient";
+import { listCards, getCard } from "../../../api/clients/domoClient";
 
 // Define DomoCard type based on the API response with Entity constraint
 export interface DomoCard {
@@ -39,43 +39,87 @@ export class CardRepository extends BaseRepository<DomoCard> {
                 console.log("Syncing cards from Domo API...");
             }
 
-            // Fetch all cards (with pagination)
-            const allCards: DomoCard[] = [];
+            // Fetch all cards (with pagination), then enrich each with details using bounded concurrency
+            const concurrency = Math.max(
+                1,
+                Number(process.env.DOMO_SYNC_CONCURRENCY || 5),
+            );
+
             let offset = 0;
             const limit = 100;
-            let hasMore = true;
+            let totalProcessed = 0;
+            let pageNum = 0;
 
-            while (hasMore) {
+            while (true) {
                 const response = await listCards({ limit, offset });
+                pageNum++;
 
-                if (response && Array.isArray(response)) {
-                    // Convert API response to our DomoCard format
-                    const cards = response.map(card =>
-                        this.convertApiCardToDomoCard(
-                            card as unknown as Record<string, unknown>,
-                        ),
-                    );
-                    allCards.push(...cards);
-
-                    // Check if there are more cards to fetch
-                    hasMore = response.length === limit;
-                    offset += limit;
-                } else {
-                    hasMore = false;
+                if (!Array.isArray(response) || response.length === 0) {
+                    if (pageNum === 1 && !silent) {
+                        console.log("No cards found to sync");
+                    }
+                    break;
                 }
+
+                // Convert list response to minimal shape to ensure we have IDs for fallback
+                const listCardsConverted = response.map(card =>
+                    this.convertApiCardToDomoCard(
+                        card as unknown as Record<string, unknown>,
+                    ),
+                );
+
+                // Fetch details per card with concurrency
+                const ids = listCardsConverted
+                    .map(c => c.id)
+                    .filter((id): id is string => typeof id === "string");
+
+                for (let i = 0; i < ids.length; i += concurrency) {
+                    const chunk = ids.slice(i, i + concurrency);
+                    await Promise.all(
+                        chunk.map(async id => {
+                            try {
+                                // getCard requires API token + host; may throw if not configured
+                                const detailed = await getCard(id);
+                                await this.save(detailed as DomoCard);
+                            } catch (err) {
+                                // Fallback to list-level card
+                                const fallback = listCardsConverted.find(
+                                    c => c.id === id,
+                                );
+                                if (fallback) {
+                                    await this.save(fallback);
+                                }
+                                if (!silent) {
+                                    const msg =
+                                        err instanceof Error
+                                            ? err.message
+                                            : String(err);
+                                    console.error(
+                                        `Failed to fetch details for card ${id}: ${msg}`,
+                                    );
+                                }
+                            }
+                        }),
+                    );
+
+                    totalProcessed += chunk.length;
+                    if (!silent && totalProcessed % 100 === 0) {
+                        process.stdout.write(
+                            `\rProcessed ${totalProcessed} cards...`,
+                        );
+                    }
+                }
+
+                if (response.length < limit) {
+                    break;
+                }
+                offset += limit;
             }
 
-            // Save all cards to database
-            if (allCards.length > 0) {
-                await this.saveMany(allCards);
-                await this.updateSyncTime();
-                if (!silent) {
-                    console.log(`Synced ${allCards.length} cards`);
-                }
-            } else {
-                if (!silent) {
-                    console.log("No cards found to sync");
-                }
+            await this.updateSyncTime();
+            if (!silent && totalProcessed > 0) {
+                process.stdout.write("\r");
+                console.log(`Synced ${totalProcessed} cards`);
             }
         } catch (error) {
             if (!silent) {
