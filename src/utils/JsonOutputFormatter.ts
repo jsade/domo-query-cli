@@ -37,6 +37,8 @@ export class JsonOutputFormatter {
         command: string,
         message: string,
         code?: string,
+        details?: unknown,
+        metadata?: Record<string, unknown>,
     ): string {
         const response = {
             success: false,
@@ -44,9 +46,11 @@ export class JsonOutputFormatter {
             error: {
                 message,
                 code: code || "UNKNOWN_ERROR",
+                ...(details !== undefined ? { details } : {}),
             },
             metadata: {
                 timestamp: new Date().toISOString(),
+                ...metadata,
             },
         };
         return JSON.stringify(response, null, 2);

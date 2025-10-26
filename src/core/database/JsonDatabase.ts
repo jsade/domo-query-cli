@@ -435,7 +435,8 @@ export class JsonDatabase {
         }
 
         // Normal atomic write strategy for non-pkg environments
-        const tempPath = `${filePath}.tmp`;
+        const tempId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const tempPath = `${filePath}.${tempId}.tmp`;
 
         // Try atomic write with rename
         try {
@@ -555,9 +556,10 @@ export class JsonDatabase {
 
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const uniqueId = Math.random().toString(36).slice(2, 8);
             const backupFile = path.join(
                 this.backupPath,
-                `${collectionName}_${timestamp}.json`,
+                `${collectionName}_${timestamp}-${uniqueId}.json`,
             );
             await this.writeJsonFile(backupFile, collection);
 
@@ -594,11 +596,23 @@ export class JsonDatabase {
             if (backups.length > keepCount) {
                 const toDelete = backups.slice(keepCount);
                 for (const file of toDelete) {
-                    await fs.unlink(path.join(this.backupPath, file));
+                    const filePath = path.join(this.backupPath, file);
+                    try {
+                        await fs.unlink(filePath);
+                    } catch (error) {
+                        const err = error as NodeJS.ErrnoException;
+                        if (err?.code === "ENOENT") {
+                            log.debug(
+                                `Backup file already removed, skipping cleanup: ${filePath}`,
+                            );
+                            continue;
+                        }
+                        throw error;
+                    }
                 }
             }
         } catch (error) {
-            log.error("Failed to clean old backups:", error);
+            log.warn("Failed to clean old backups:", error);
         }
     }
 

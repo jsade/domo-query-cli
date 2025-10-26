@@ -171,7 +171,9 @@ export class DbSyncCommand extends BaseCommand {
 
             if (this.isJsonOutput) {
                 // JSON output
+                const allSuccess = Object.values(results).every(r => r.success);
                 const output = {
+                    status: allSuccess ? "success" : "partial_failure",
                     syncResults: results,
                     database: {
                         totalEntities: stats.totalEntities,
@@ -182,8 +184,6 @@ export class DbSyncCommand extends BaseCommand {
                     },
                 };
 
-                const allSuccess = Object.values(results).every(r => r.success);
-
                 if (allSuccess) {
                     console.log(JsonOutputFormatter.success(this.name, output));
                 } else {
@@ -191,6 +191,8 @@ export class DbSyncCommand extends BaseCommand {
                         JsonOutputFormatter.error(
                             this.name,
                             "Some syncs failed",
+                            "PARTIAL_SYNC_FAILURE",
+                            output,
                         ),
                     );
                 }

@@ -50,7 +50,9 @@ Add your MCP server:
         "DOMO_CLIENT_ID": "your-client-id",
         "DOMO_CLIENT_SECRET": "your-client-secret",
         "DOMO_DISABLE_SSL_VERIFICATION": "false",
-        "HTTPS_PROXY": ""
+        "HTTPS_PROXY": "",
+        "DOMO_DB_PATH": "/absolute/path/for/domo-db",
+        "LOG_PATH": "/absolute/path/for/logs"
       }
     }
   }
@@ -58,6 +60,13 @@ Add your MCP server:
 ```
 
 **Note**: Replace `/path/to/your/domo-query-cli` with the actual path to your domo-query-cli directory, and add your Domo API credentials to the env section.
+
+The MCP server reads these variables directly from its process environment, so anything you list under `env` is honored at runtime. Use the optional entries above to
+
+- point `DOMO_DB_PATH` at a custom on-disk database/cache (default is `~/.domo-cli/db`), and
+- set `LOG_PATH` to an absolute directory for MCP logs (packaged builds fall back to `~/.domo-cli/logs`).
+
+Because the server loads `process.env` before consulting `.env` files, MCP-provided values take precedence over local configuration.
 
 **Restart Claude Desktop** to load the MCP server.
 

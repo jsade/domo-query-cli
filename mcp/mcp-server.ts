@@ -769,33 +769,24 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
 
             case "db_sync":
                 command = "db-sync";
+                // Add flags for what to sync
                 if (
-                    args.datasets === false &&
-                    args.dataflows === false &&
-                    args.cards === false
+                    args.datasets !== false &&
+                    args.dataflows !== false &&
+                    args.cards !== false
                 ) {
-                    // If all are false, sync nothing (edge case)
-                    commandArgs.push("--none");
+                    // All true or undefined - sync all
+                    commandArgs.push("--all");
                 } else {
-                    // Add flags for what to sync
-                    if (
-                        args.datasets !== false &&
-                        args.dataflows !== false &&
-                        args.cards !== false
-                    ) {
-                        // All true or undefined - sync all
-                        commandArgs.push("--all");
-                    } else {
-                        // Selective sync
-                        if (args.datasets !== false) {
-                            commandArgs.push("--datasets");
-                        }
-                        if (args.dataflows !== false) {
-                            commandArgs.push("--dataflows");
-                        }
-                        if (args.cards !== false) {
-                            commandArgs.push("--cards");
-                        }
+                    // Selective sync
+                    if (args.datasets !== false) {
+                        commandArgs.push("--datasets");
+                    }
+                    if (args.dataflows !== false) {
+                        commandArgs.push("--dataflows");
+                    }
+                    if (args.cards !== false) {
+                        commandArgs.push("--cards");
                     }
                 }
                 break;
