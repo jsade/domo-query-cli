@@ -1,3 +1,17 @@
+# [1.2.0](https://github.com/jsade/domo-query-cli/compare/v1.1.2...v1.2.0) (2025-10-26)
+
+
+### Bug Fixes
+
+* **commands:** Added customizable rendering options and detailed status messages to RenderCardCommand [skip ci] ([3cb5807](https://github.com/jsade/domo-query-cli/commit/3cb580764f43d65b46f6fc0356364aa2d2239502))
+* **commands:** improve formatting and readability in GetDatasetChildrenCommand and GetDatasetParentsCommand ([b1ae4e4](https://github.com/jsade/domo-query-cli/commit/b1ae4e43a233704dd421c78406315ad5a30befe8))
+* **commands:** RenderCardCommand more self-sufficient and improve export path handling [skip ci] ([8ea4d76](https://github.com/jsade/domo-query-cli/commit/8ea4d76efc1e2c76a22536513aa75371fbc4f30d))
+
+
+### Features
+
+* **commands:** add GetDatasetChildrenCommand and GetDatasetParentsCommand for lineage queries ([00bc0c6](https://github.com/jsade/domo-query-cli/commit/00bc0c66a53b56a3e3d388812292a5a067abdacd))
+
 ## [1.1.2](https://github.com/jsade/domo-query-cli/compare/v1.1.1...v1.1.2) (2025-08-26)
 
 
