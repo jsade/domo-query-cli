@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/jsade/domo-query-cli/compare/v1.2.0...v1.3.0) (2025-10-26)
+
+
+### Features
+
+* **mcp:** add environment variables for database and log paths in MCP server setup ([a1eb16b](https://github.com/jsade/domo-query-cli/commit/a1eb16bbc31063bb536a7b9521813c5d796329f1))
+
 # [1.2.0](https://github.com/jsade/domo-query-cli/compare/v1.1.2...v1.2.0) (2025-10-26)
 
 
