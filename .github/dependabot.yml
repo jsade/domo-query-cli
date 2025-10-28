@@ -8,9 +8,9 @@ updates:
     open-pull-requests-limit: 10
     groups:
       development-dependencies:
-        dependency-type: "development"
+        dependency-type: development
       production-dependencies:
-        dependency-type: "production"
+        dependency-type: production
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
