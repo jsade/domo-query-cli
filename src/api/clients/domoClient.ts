@@ -625,6 +625,60 @@ export interface DomoPage {
 }
 
 /**
+ * Defines a Domo user
+ * Based on Domo Platform API v1/users
+ */
+export interface DomoUser {
+    id: number;
+    name: string;
+    email: string;
+    alternateEmail?: string;
+    role: "Admin" | "Privileged" | "Participant";
+    roleId?: string;
+    title?: string;
+    phone?: string;
+    location?: string;
+    employeeNumber?: number;
+    image?: string;
+    groups?: DomoGroup[];
+    createdAt?: string;
+    updatedAt?: string;
+    deleted?: boolean;
+}
+
+/**
+ * Defines a Domo group
+ * Based on Domo Content API v2/groups
+ */
+export interface DomoGroup {
+    groupId: number; // Primary field (matches API)
+    id?: number; // Alias for compatibility
+    name: string;
+    groupType?: "open" | "user" | "system";
+    memberCount?: number;
+    created?: string;
+    groupMembers?: DomoGroupMember[];
+}
+
+/**
+ * Defines a Domo group member
+ */
+export interface DomoGroupMember {
+    id: number; // Match user ID type
+    name: string;
+    displayName?: string;
+    email?: string;
+}
+
+/**
+ * Parameters for listing users
+ */
+export interface UserListParams {
+    limit?: number;
+    offset?: number;
+}
+
+/**
  * Parameters for listing cards
  * Based on Domo API Schema v1/cards
  */
@@ -984,6 +1038,79 @@ export async function listPages(): Promise<DomoPage[]> {
     const client = getDomoClient();
     const response = await client.get<unknown>("/api/content/v1/pages");
     return Array.isArray(response) ? response : [];
+}
+
+/**
+ * Function to list Domo users with pagination
+ * Uses the v1/users endpoint from the Domo Platform API
+ * @param params - Pagination parameters (limit max 500, default 50)
+ * @returns Array of DomoUser objects
+ */
+export async function listUsers(
+    params: UserListParams = {},
+): Promise<DomoUser[]> {
+    const cacheManager = getCacheManager();
+
+    // Create cache key based on parameters
+    const limit = params.limit ?? 50;
+    const offset = params.offset ?? 0;
+    const cacheKey = `users_list_${limit}_${offset}`;
+
+    // Check cache first
+    const cached = await cacheManager.get<DomoUser[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} users from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient(); // OAuth by default
+    const apiParams: Record<string, string | number> = {
+        limit: Math.min(limit, 500).toString(),
+        offset: offset.toString(),
+    };
+
+    log.debug(`Fetching users with params:`, apiParams);
+
+    const users = await client.get<DomoUser[]>("/v1/users", apiParams);
+
+    if (Array.isArray(users)) {
+        // Cache for 1 hour
+        await cacheManager.set(cacheKey, users, 3600);
+        log.debug(`Fetched and cached ${users.length} users`);
+        return users;
+    }
+
+    return [];
+}
+
+/**
+ * Function to get a specific user by ID
+ * Uses the v1/users/:id endpoint from the Domo Platform API
+ * @param userId - The user ID
+ * @returns The DomoUser object
+ */
+export async function getUser(userId: number | string): Promise<DomoUser> {
+    const cacheManager = getCacheManager();
+    const cacheKey = `user_${userId}`;
+
+    // Check cache first
+    const cached = await cacheManager.get<DomoUser>(cacheKey);
+    if (cached) {
+        log.debug(`Returning user ${userId} from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug(`Fetching user ${userId} from API`);
+
+    const user = await client.get<DomoUser>(`/v1/users/${userId}`);
+
+    // Cache for 1 hour
+    await cacheManager.set(cacheKey, user, 3600);
+    log.debug(`Fetched and cached user ${userId}`);
+
+    return user;
 }
 
 /**

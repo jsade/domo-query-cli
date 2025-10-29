@@ -40,8 +40,15 @@ export interface ParsedArgs {
  * Multi-word command mappings
  */
 const MULTI_WORD_COMMANDS: Record<string, string[]> = {
-    list: ["datasets", "dataflows", "cards", "pages", "dataflow-executions"],
-    get: ["dataflow", "dataflow-execution", "dataset", "card"],
+    list: [
+        "datasets",
+        "dataflows",
+        "cards",
+        "pages",
+        "dataflow-executions",
+        "users",
+    ],
+    get: ["dataflow", "dataflow-execution", "dataset", "card", "user"],
     show: ["lineage"],
     execute: ["dataflow"],
     render: ["card"],
