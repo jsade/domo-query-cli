@@ -1,3 +1,20 @@
+# [1.5.0](https://github.com/jsade/domo-query-cli/compare/v1.4.0...v1.5.0) (2025-10-30)
+
+
+### Features
+
+* Add group management commands and repository ([92dcad1](https://github.com/jsade/domo-query-cli/commit/92dcad179d77ea4b033ab7b4164f6e2603dc4698))
+* add user management commands (list-users, get-user) ([5107c3f](https://github.com/jsade/domo-query-cli/commit/5107c3fde8ee3bccd0cf9a480be5660489f597cb))
+* fix group API endpoints and add MCP user/group tools ([12fa60e](https://github.com/jsade/domo-query-cli/commit/12fa60efb30fd31fdde6b9feec10dde613c5091a))
+* integrate user/group management with database sync and documentation ([df26438](https://github.com/jsade/domo-query-cli/commit/df2643853a586e9c420c116ebb15faddabf4f692))
+
+# [1.4.0](https://github.com/jsade/domo-query-cli/compare/v1.3.0...v1.4.0) (2025-10-29)
+
+
+### Features
+
+* add dependabot.yml configuration for npm and GitHub Actions ([56617f5](https://github.com/jsade/domo-query-cli/commit/56617f5a1b06f65bffac7b189747b60a2b12aff8))
+
 # [1.3.0](https://github.com/jsade/domo-query-cli/compare/v1.2.0...v1.3.0) (2025-10-26)
 
 

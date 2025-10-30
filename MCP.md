@@ -116,6 +116,18 @@ The MCP server provides the following tools to Claude Desktop:
 | `list_dataflow_executions` | List dataflow execution history | `dataflowId` (required), `limit` (optional), `offset` (optional) |
 | `get_dataflow_execution` | Get specific execution details | `dataflowId` (required), `executionId` (required) |
 
+#### User Management Tools
+| Tool Name | Description | Parameters |
+|-----------|-------------|------------|
+| `list_users` | List all Domo users with optional search and role filtering | `search` (optional), `role` (optional: Admin/Privileged/Participant), `limit` (optional), `offset` (optional) |
+| `get_user` | Get detailed user information including group memberships | `id` (required), `sync` (optional: force refresh from API) |
+
+#### Group Management Tools
+| Tool Name | Description | Parameters |
+|-----------|-------------|------------|
+| `list_groups` | List all Domo groups with optional search and type filtering | `search` (optional), `type` (optional: open/user/system), `limit` (optional), `offset` (optional) |
+| `get_group` | Get detailed group information including member list | `id` (required), `sync` (optional: force refresh from API) |
+
 #### Data Management Tools (Write Operations)
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
@@ -143,4 +155,203 @@ The MCP server provides the following tools to Claude Desktop:
 
 ### Sync behavior
 - `get_dataset` supports a `sync: true` parameter to force a fresh fetch from the Domo API and update the local database, bypassing any cached database entry. This mirrors the CLI flag `--sync` for `get-dataset`.
-- For broader refreshes (datasets, dataflows, cards), use `db_sync` before calling list tools, or use `clear_cache` to drop in-memory/file caches.
+- `get_user` and `get_group` also support the `sync: true` parameter for forcing fresh data from the API
+- For broader refreshes (datasets, dataflows, cards, users, groups), use `db_sync` before calling list tools, or use `clear_cache` to drop in-memory/file caches.
+
+## User and Group Management
+
+### list_users
+
+List all Domo users with optional search and role filtering.
+
+**Input Parameters:**
+```json
+{
+  "search": "euler",           // Optional: filter by name or email
+  "role": "Admin",            // Optional: Admin, Privileged, or Participant
+  "limit": 100,               // Optional: max results (default: 50, max: 500)
+  "offset": 0                 // Optional: pagination offset (default: 0)
+}
+```
+
+**Example Usage in Claude Desktop:**
+```
+Can you list all Admin users?
+Can you find users with "engineer" in their name or email?
+Show me the first 100 users
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "command": "list-users",
+  "data": {
+    "users": [
+      {
+        "id": 871428330,
+        "name": "John Euler",
+        "email": "john.euler@company.com",
+        "role": "Admin",
+        "title": "Data Engineer",
+        "groups": [...]
+      }
+    ]
+  },
+  "metadata": {
+    "count": 1,
+    "filter": {
+      "search": "euler",
+      "role": "Admin"
+    }
+  }
+}
+```
+
+### get_user
+
+Get detailed information about a specific user including group memberships, contact information, and metadata.
+
+**Input Parameters:**
+```json
+{
+  "id": "871428330",          // Required: user ID (as string)
+  "sync": true                // Optional: force refresh from API
+}
+```
+
+**Example Usage in Claude Desktop:**
+```
+Get details for user 871428330
+Show me information about user ID 871428330 and refresh from the API
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "command": "get-user",
+  "data": {
+    "user": {
+      "id": 871428330,
+      "name": "John Euler",
+      "email": "john.euler@company.com",
+      "role": "Admin",
+      "title": "Data Engineer",
+      "phone": "+1-555-0123",
+      "location": "San Francisco",
+      "employeeNumber": "EMP-12345",
+      "groups": [
+        {
+          "id": 1324037627,
+          "groupId": 1324037627,
+          "name": "Engineering"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "entityType": "user",
+    "source": "database"
+  }
+}
+```
+
+### list_groups
+
+List all Domo groups with optional search and type filtering.
+
+**Input Parameters:**
+```json
+{
+  "search": "engineering",    // Optional: filter by group name
+  "type": "user",            // Optional: open, user, or system
+  "limit": 50,               // Optional: max results (default: 50)
+  "offset": 0                // Optional: pagination offset (default: 0)
+}
+```
+
+**Example Usage in Claude Desktop:**
+```
+List all groups
+Find groups with "engineering" in the name
+Show me all open groups
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "command": "list-groups",
+  "data": {
+    "groups": [
+      {
+        "id": 1324037627,
+        "groupId": 1324037627,
+        "name": "Engineering",
+        "groupType": "user",
+        "memberCount": 15
+      }
+    ]
+  },
+  "metadata": {
+    "count": 1,
+    "filter": {
+      "search": "engineering"
+    }
+  }
+}
+```
+
+**Group Types:**
+- `open` - Anyone can join
+- `user` - Restricted membership, user-created
+- `system` - System-managed groups
+
+### get_group
+
+Get detailed information about a specific group including full member list and metadata.
+
+**Input Parameters:**
+```json
+{
+  "id": "1324037627",         // Required: group ID (as string)
+  "sync": true                // Optional: force refresh from API
+}
+```
+
+**Example Usage in Claude Desktop:**
+```
+Get details for group 1324037627
+Show me the members of group 1324037627
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "command": "get-group",
+  "data": {
+    "group": {
+      "id": 1324037627,
+      "groupId": 1324037627,
+      "name": "Engineering",
+      "groupType": "user",
+      "memberCount": 15,
+      "created": "2024-01-15T10:30:00Z",
+      "groupMembers": [
+        {
+          "id": 871428330,
+          "name": "John Euler",
+          "displayName": "John Euler",
+          "email": "john.euler@company.com"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "entityType": "group",
+    "source": "database"
+  }
+}
+```
