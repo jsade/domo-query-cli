@@ -242,55 +242,320 @@ domo-query-cli render-card abc-123-def-456
 
 ### User Management
 
+**Authentication Required**: OAuth or API Token
+
+#### list-users
+
+List all Domo users with optional search and role filtering.
+
+**Interactive Usage:**
+```bash
+# Start the CLI shell
+domo-query-cli
+
+# Inside the shell:
+> list-users                  # List all users (auto-paginate)
+> list-users euler            # Search by name or email
+> list-users --role Admin     # Filter by role
+> list-users --limit 100      # Limit results
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
 ```bash
 # List all users
 domo-query-cli list-users
 
-# Search for users
+# Search for users by name or email
 domo-query-cli list-users "euler"
 
 # Filter by role
 domo-query-cli list-users --role Admin
 domo-query-cli list-users --role Privileged
+domo-query-cli list-users --role Participant
 
 # Pagination
 domo-query-cli list-users --limit 100
 domo-query-cli list-users --limit 50 --offset 100
 
-# Get detailed user information
+# JSON output for automation
+domo-query-cli list-users --format json
+domo-query-cli list-users "john" --role Admin --format json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-users",
+  "data": {
+    "users": [
+      {
+        "id": 871428330,
+        "name": "John Euler",
+        "email": "john.euler@company.com",
+        "role": "Admin",
+        "title": "Data Engineer",
+        "groups": [
+          {"id": 1324037627, "name": "Engineering", "groupId": 1324037627}
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "count": 1,
+    "filter": {
+      "search": "euler"
+    }
+  }
+}
+```
+
+**Common Use Cases:**
+- Find users by name or email for group management
+- Audit user roles and permissions
+- Export user lists for compliance reporting
+- Identify users with specific roles (Admin, Privileged, Participant)
+
+**See Also:**
+- [get-user](#get-user) - Get detailed information about a specific user
+- [list-groups](#list-groups) - List groups to see user memberships
+
+#### get-user
+
+Get detailed information about a specific user including group memberships, title, and contact information.
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> get-user 871428330
+> get-user 871428330 --offline    # Use cached data only
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Get user details
 domo-query-cli get-user 871428330
+
+# JSON output for processing
 domo-query-cli get-user 871428330 --format json
 
-# Offline mode (use cached data)
+# Offline mode (use cached data only, no API calls)
 domo-query-cli get-user 871428330 --offline
 
-# Force sync from API
+# Force sync from API (refresh cached data)
 domo-query-cli get-user 871428330 --sync
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "get-user",
+  "data": {
+    "user": {
+      "id": 871428330,
+      "name": "John Euler",
+      "email": "john.euler@company.com",
+      "role": "Admin",
+      "title": "Data Engineer",
+      "phone": "+1-555-0123",
+      "location": "San Francisco",
+      "employeeNumber": "EMP-12345",
+      "groups": [
+        {
+          "id": 1324037627,
+          "groupId": 1324037627,
+          "name": "Engineering"
+        },
+        {
+          "id": 987654321,
+          "groupId": 987654321,
+          "name": "Administrators"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "entityType": "user",
+    "source": "database"
+  }
+}
 ```
+
+**Common Use Cases:**
+- Verify user group memberships before granting access
+- Look up user contact information
+- Check user roles and permissions
+- Build automated user audit reports
+
+**Database Integration:**
+- First fetch saves to local database
+- Subsequent fetches use cached data (shows notice)
+- Use `--sync` to force refresh from API
+- Use `--offline` to work without network access
+
+**See Also:**
+- [list-users](#list-users) - Search and list all users
+- [get-group](#get-group) - View group details and members
 
 ### Group Management
 
+**Authentication Required**: OAuth or API Token
+
+#### list-groups
+
+List all Domo groups with optional search and type filtering.
+
+**Interactive Usage:**
+```bash
+# Start the CLI shell
+domo-query-cli
+
+# Inside the shell:
+> list-groups                     # List all groups
+> list-groups engineering         # Search by name
+> list-groups --type open         # Filter by type
+> list-groups --limit 50          # Limit results
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
 ```bash
 # List all groups
 domo-query-cli list-groups
 
-# Search for groups
+# Search for groups by name
 domo-query-cli list-groups "engineering"
+domo-query-cli list-groups "admin"
 
-# Filter by type
+# Filter by group type
 domo-query-cli list-groups --type open
 domo-query-cli list-groups --type user
+domo-query-cli list-groups --type system
 
-# Get group with members
+# Combine filters
+domo-query-cli list-groups "eng" --type user
+
+# JSON output for automation
+domo-query-cli list-groups --format json
+domo-query-cli list-groups "sales" --type open --format json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-groups",
+  "data": {
+    "groups": [
+      {
+        "id": 1324037627,
+        "groupId": 1324037627,
+        "name": "Engineering",
+        "groupType": "user",
+        "memberCount": 15
+      },
+      {
+        "id": 987654321,
+        "groupId": 987654321,
+        "name": "Engineering Leadership",
+        "groupType": "open",
+        "memberCount": 5
+      }
+    ]
+  },
+  "metadata": {
+    "count": 2,
+    "filter": {
+      "search": "engineering"
+    }
+  }
+}
+```
+
+**Group Types:**
+- `open` - Anyone can join these groups
+- `user` - User-created groups with restricted membership
+- `system` - System-managed groups
+
+**Common Use Cases:**
+- Find groups for access management
+- Audit group membership and structure
+- Identify groups by type for security reviews
+- Export group lists for compliance reporting
+
+**See Also:**
+- [get-group](#get-group) - Get detailed information about a specific group
+- [list-users](#list-users) - List users and their group memberships
+
+#### get-group
+
+Get detailed information about a specific group including full member list and group metadata.
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> get-group 1324037627
+> get-group 1324037627 --offline    # Use cached data only
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Get group details with member list
 domo-query-cli get-group 1324037627
+
+# JSON output for processing
 domo-query-cli get-group 1324037627 --format json
 
-# Offline mode (use cached data)
+# Offline mode (use cached data only, no API calls)
 domo-query-cli get-group 1324037627 --offline
 
-# Force sync from API
+# Force sync from API (refresh cached data)
 domo-query-cli get-group 1324037627 --sync
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "get-group",
+  "data": {
+    "group": {
+      "id": 1324037627,
+      "groupId": 1324037627,
+      "name": "Engineering",
+      "groupType": "user",
+      "memberCount": 15,
+      "created": "2024-01-15T10:30:00Z",
+      "groupMembers": [
+        {
+          "id": 871428330,
+          "name": "John Euler",
+          "displayName": "John Euler",
+          "email": "john.euler@company.com"
+        },
+        {
+          "id": 123456789,
+          "name": "Jane Smith",
+          "displayName": "Jane Smith",
+          "email": "jane.smith@company.com"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "entityType": "group",
+    "source": "database"
+  }
+}
 ```
+
+**Common Use Cases:**
+- View complete group membership lists
+- Verify who has access through specific groups
+- Export group member information for audits
+- Check group metadata (creation date, type)
+
+**Database Integration:**
+- First fetch saves to local database
+- Subsequent fetches use cached data (shows notice)
+- Use `--sync` to force refresh from API
+- Use `--offline` to work without network access
+
+**See Also:**
+- [list-groups](#list-groups) - Search and list all groups
+- [get-user](#get-user) - View user details including group memberships
 
 ### Lineage and Reporting
 

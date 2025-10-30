@@ -295,6 +295,23 @@ else
 fi
 ```
 
+### User and Group Management
+```bash
+# List users by role
+domo-query-cli list-users --role Admin --format json
+
+# Get user details with group memberships
+domo-query-cli get-user 871428330
+
+# Find groups and view members
+domo-query-cli list-groups "engineering"
+domo-query-cli get-group 1324037627 --format json
+
+# Use offline mode with cached data
+domo-query-cli get-user 871428330 --offline
+domo-query-cli get-group 1324037627 --offline
+```
+
 ## Troubleshooting
 
 ### macOS Issues
