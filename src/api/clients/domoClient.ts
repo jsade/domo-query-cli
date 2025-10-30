@@ -679,6 +679,14 @@ export interface UserListParams {
 }
 
 /**
+ * Parameters for listing groups
+ */
+export interface GroupListParams {
+    limit?: number;
+    offset?: number;
+}
+
+/**
  * Parameters for listing cards
  * Based on Domo API Schema v1/cards
  */
@@ -1111,6 +1119,79 @@ export async function getUser(userId: number | string): Promise<DomoUser> {
     log.debug(`Fetched and cached user ${userId}`);
 
     return user;
+}
+
+/**
+ * Function to list Domo groups with pagination
+ * Uses the api/content/v2/groups endpoint from the Domo Content API
+ * @param params - Pagination parameters (limit, offset)
+ * @returns Array of DomoGroup objects
+ */
+export async function listGroups(
+    params: GroupListParams = {},
+): Promise<DomoGroup[]> {
+    const cacheManager = getCacheManager();
+
+    // Create cache key based on parameters
+    const limit = params.limit ?? 50;
+    const offset = params.offset ?? 0;
+    const cacheKey = `groups_list_${limit}_${offset}`;
+
+    // Check cache first
+    const cached = await cacheManager.get<DomoGroup[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} groups from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug(`Fetching groups from API`);
+
+    // Note: Content API v2 may not support pagination, so we fetch all groups
+    // and handle pagination client-side if needed
+    const groups = await client.get<DomoGroup[]>("/api/content/v2/groups");
+
+    if (Array.isArray(groups)) {
+        // Cache for 1 hour
+        await cacheManager.set(cacheKey, groups, 3600);
+        log.debug(`Fetched and cached ${groups.length} groups`);
+        return groups;
+    }
+
+    return [];
+}
+
+/**
+ * Function to get a specific group by ID with full member details
+ * Uses the api/content/v2/groups/:id endpoint from the Domo Content API
+ * @param groupId - The group ID
+ * @returns The DomoGroup object with members
+ */
+export async function getGroup(groupId: number | string): Promise<DomoGroup> {
+    const cacheManager = getCacheManager();
+    const cacheKey = `group_${groupId}`;
+
+    // Check cache first
+    const cached = await cacheManager.get<DomoGroup>(cacheKey);
+    if (cached) {
+        log.debug(`Returning group ${groupId} from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug(`Fetching group ${groupId} from API`);
+
+    const group = await client.get<DomoGroup>(
+        `/api/content/v2/groups/${groupId}`,
+    );
+
+    // Cache for 1 hour
+    await cacheManager.set(cacheKey, group, 3600);
+    log.debug(`Fetched and cached group ${groupId}`);
+
+    return group;
 }
 
 /**

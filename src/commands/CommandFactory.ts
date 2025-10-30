@@ -29,6 +29,8 @@ import { DbImportCommand } from "./DbImportCommand";
 import { DbRepairCommand } from "./DbRepairCommand";
 import { ListUsersCommand } from "./ListUsersCommand";
 import { GetUserCommand } from "./GetUserCommand";
+import { ListGroupsCommand } from "./ListGroupsCommand";
+import { GetGroupCommand } from "./GetGroupCommand";
 
 /**
  * Factory class for creating and managing command instances
@@ -171,6 +173,13 @@ export class CommandFactory {
 
         const getUserCommand = new GetUserCommand();
         this.commands.set(getUserCommand.name, getUserCommand);
+
+        // Register group commands
+        const listGroupsCommand = new ListGroupsCommand();
+        this.commands.set(listGroupsCommand.name, listGroupsCommand);
+
+        const getGroupCommand = new GetGroupCommand();
+        this.commands.set(getGroupCommand.name, getGroupCommand);
 
         // Help command needs access to all commands and must be registered last
         const helpCommand = new HelpCommand(this.commands);
