@@ -201,9 +201,7 @@ For non-interactive usage (scripts, automation, CI/CD), see [CLI.md](./CLI.md) f
 
 ## Contributing
 
-Contributions are welcome! Start with:
-- Repository Guidelines: [AGENTS.md](./AGENTS.md) — structure, commands, and conventions
-- Contributor guide: [CONTRIBUTING.md](./CONTRIBUTING.md) — setup, workflow, tests, and release
+Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, workflow, tests, and release process.
 
 ## Command Reference
 
