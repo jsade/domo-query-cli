@@ -30,13 +30,15 @@ export class DbSyncCommand extends BaseCommand {
         const syncUsers = syncAll || args?.includes("--users");
         const syncGroups = syncAll || args?.includes("--groups");
 
-        if (
-            !syncDatasets &&
-            !syncDataflows &&
-            !syncCards &&
-            !syncUsers &&
-            !syncGroups
-        ) {
+        // Check if at least one entity type is selected for sync
+        const syncFlags = [
+            syncDatasets,
+            syncDataflows,
+            syncCards,
+            syncUsers,
+            syncGroups,
+        ];
+        if (!syncFlags.some(flag => flag)) {
             const message =
                 "Please specify what to sync: --all, --datasets, --dataflows, --cards, --users, or --groups";
             if (this.isJsonOutput) {
