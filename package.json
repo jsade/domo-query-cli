@@ -79,6 +79,7 @@
         "format:check": "prettier --check .",
         "generate:api-types": "node scripts/generate-api-types.js",
         "generate:types": "yarn generate:api-types",
+        "install:dev": "bash scripts/install-dev.sh",
         "lint": "eslint . --ext .ts,.mjs,.cjs",
         "lint:fix": "eslint . --ext .ts,.mjs,.cjs --fix",
         "mcp:build": "rm -rf mcp/dist && node mcp/build-mcp.mjs",
@@ -95,6 +96,7 @@
         "test:coverage": "vitest --coverage",
         "test:watch": "vitest --watch",
         "typecheck": "tsc --noEmit",
+        "uninstall": "bash scripts/uninstall.sh",
         "prepare": "husky"
     },
     "type": "module",

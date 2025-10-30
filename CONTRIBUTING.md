@@ -57,6 +57,40 @@ Thank you for your interest in contributing to Domo Query CLI! This guide will h
    yarn start  # Start the interactive shell
    ```
 
+### Installing for Development (Optional but Recommended)
+
+For active development, install the CLI system-wide in **symlink mode** so that it auto-updates whenever you run `yarn build:dist`:
+
+```bash
+# Quick install (recommended for developers)
+yarn install:dev
+
+# Or use the install script directly
+./install.sh --symlink
+```
+
+**What this does:**
+- Creates a symlink from `$HOME/.local/bin/domo-query-cli` to your repository's `release/domo-query-cli`
+- The CLI automatically uses the latest build whenever you run `yarn build:dist`
+- No manual reinstallation needed during development
+
+**Benefits:**
+- Test changes immediately in your shell
+- No need to reinstall after each rebuild
+- Seamless integration with other tools and workflows
+
+**Uninstalling:**
+```bash
+yarn uninstall
+# or
+./scripts/uninstall.sh
+```
+
+**Standard installation (for end users):**
+```bash
+./install.sh  # Copies binary instead of symlinking
+```
+
 ## Development Workflow
 
 ### 1. Create a Feature Branch
@@ -428,7 +462,7 @@ Version bumps are automatic based on commit types:
 
 ### Release Artifacts
 
-Each release includes:
+Each release includes (depending on build platform):
 
 - `domo-query-cli-macos-arm64.zip` - macOS Apple Silicon
 - `domo-query-cli-windows.zip` - Windows 64-bit

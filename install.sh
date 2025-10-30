@@ -5,13 +5,59 @@
 
 set -e
 
-echo "🚀 Installing Domo Query CLI..."
+# Parse command line arguments
+USE_SYMLINK=false
+SHOW_HELP=false
+
+for arg in "$@"; do
+    case $arg in
+        --symlink|--dev)
+            USE_SYMLINK=true
+            shift
+            ;;
+        --help|-h)
+            SHOW_HELP=true
+            shift
+            ;;
+        *)
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Show help if requested
+if [ "$SHOW_HELP" = true ]; then
+    echo "Domo Query CLI Installation Script"
+    echo ""
+    echo "Usage: ./install.sh [options]"
+    echo ""
+    echo "Options:"
+    echo "  --symlink, --dev    Create a symlink instead of copying the binary"
+    echo "                      (recommended for development - auto-updates on rebuild)"
+    echo "  --help, -h          Show this help message"
+    echo ""
+    echo "Installation modes:"
+    echo "  Copy mode (default): Copies the binary to the install directory"
+    echo "                       Requires manual reinstall after rebuilding"
+    echo ""
+    echo "  Symlink mode:        Creates a symlink to the repository binary"
+    echo "                       Auto-updates when you run 'yarn build:dist'"
+    echo "                       Recommended for developers"
+    echo ""
+    exit 0
+fi
+
+if [ "$USE_SYMLINK" = true ]; then
+    echo "🔗 Installing Domo Query CLI (symlink mode - auto-updating)..."
+else
+    echo "🚀 Installing Domo Query CLI..."
+fi
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
@@ -78,17 +124,43 @@ fi
 
 # Check if pre-built binary exists in release directory
 if [ -f "$SCRIPT_DIR/release/$BINARY_NAME" ]; then
-    echo "Installing pre-built binary..."
-    
-    # Copy the binary to the installation directory
-    if [ -w "$INSTALL_DIR" ]; then
-        cp "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
-        chmod +x "$INSTALL_DIR/domo-query-cli"
+    if [ "$USE_SYMLINK" = true ]; then
+        echo "Creating symlink to repository binary..."
+
+        # Remove existing file/symlink if present
+        if [ -e "$INSTALL_DIR/domo-query-cli" ] || [ -L "$INSTALL_DIR/domo-query-cli" ]; then
+            if [ -w "$INSTALL_DIR" ]; then
+                rm -f "$INSTALL_DIR/domo-query-cli"
+            else
+                echo "⚠️  Need elevated privileges to remove existing installation"
+                sudo rm -f "$INSTALL_DIR/domo-query-cli"
+            fi
+        fi
+
+        # Create symlink to the binary
+        if [ -w "$INSTALL_DIR" ]; then
+            ln -sf "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
+        else
+            echo "⚠️  Need elevated privileges to install to $INSTALL_DIR"
+            echo "Creating symlink with sudo..."
+            sudo ln -sf "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
+        fi
+
+        # Ensure binary is executable
+        chmod +x "$SCRIPT_DIR/release/$BINARY_NAME"
     else
-        echo "⚠️  Need elevated privileges to install to $INSTALL_DIR"
-        echo "Installing binary with sudo..."
-        sudo cp "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
-        sudo chmod +x "$INSTALL_DIR/domo-query-cli"
+        echo "Installing pre-built binary..."
+
+        # Copy the binary to the installation directory
+        if [ -w "$INSTALL_DIR" ]; then
+            cp "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
+            chmod +x "$INSTALL_DIR/domo-query-cli"
+        else
+            echo "⚠️  Need elevated privileges to install to $INSTALL_DIR"
+            echo "Installing binary with sudo..."
+            sudo cp "$SCRIPT_DIR/release/$BINARY_NAME" "$INSTALL_DIR/domo-query-cli"
+            sudo chmod +x "$INSTALL_DIR/domo-query-cli"
+        fi
     fi
 else
     echo -e "${RED}Error: Pre-built binary not found at $SCRIPT_DIR/release/$BINARY_NAME${NC}"
@@ -108,9 +180,36 @@ if [ ! -f "$SCRIPT_DIR/.env" ]; then
     ln -sf "$CONFIG_DIR/.env" "$SCRIPT_DIR/.env"
 fi
 
+# Save installation metadata
+METADATA_FILE="$CONFIG_DIR/installation.json"
+INSTALL_TYPE="copy"
+if [ "$USE_SYMLINK" = true ]; then
+    INSTALL_TYPE="symlink"
+fi
+
+cat > "$METADATA_FILE" << EOF
+{
+  "installType": "$INSTALL_TYPE",
+  "installDir": "$INSTALL_DIR",
+  "installPath": "$INSTALL_DIR/domo-query-cli",
+  "repositoryPath": "$SCRIPT_DIR",
+  "binaryPath": "$SCRIPT_DIR/release/$BINARY_NAME",
+  "installedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "version": "$(cd "$SCRIPT_DIR" && git describe --tags --always 2>/dev/null || echo "unknown")"
+}
+EOF
+
 echo -e "${GREEN}✅ Installation complete!${NC}"
 echo ""
-echo "The Domo Query CLI has been installed to: $INSTALL_DIR"
+if [ "$USE_SYMLINK" = true ]; then
+    echo "The Domo Query CLI has been symlinked to: $INSTALL_DIR/domo-query-cli"
+    echo "  → Points to: $SCRIPT_DIR/release/$BINARY_NAME"
+    echo ""
+    echo -e "${BLUE}ℹ️  Auto-update enabled:${NC}"
+    echo "   The CLI will automatically update when you run 'yarn build:dist'"
+else
+    echo "The Domo Query CLI has been installed to: $INSTALL_DIR"
+fi
 echo ""
 
 # Check if the install directory is in PATH
@@ -146,5 +245,11 @@ echo "  domo-query-cli --help                             # Show help"
 echo "  domo-query-cli --command list-datasets            # List all datasets"
 echo "  domo-query-cli -c list-dataflows --format json    # List dataflows as JSON"
 echo ""
+if [ "$USE_SYMLINK" = true ]; then
+    echo "🔄 Development workflow:"
+    echo "  After making changes, simply run 'yarn build:dist' and the installed"
+    echo "  CLI will automatically use the new version (no reinstall needed)."
+    echo ""
+fi
 echo "For Claude Desktop integration, the CLI is now available at:"
 echo "  $INSTALL_DIR/domo-query-cli"
