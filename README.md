@@ -14,6 +14,7 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 - 🔍 **Data Discovery** - Search and explore datasets, dataflows, and cards
 - 🔗 **Data Lineage** - Trace data flow with focused Mermaid diagrams
 - 📊 **Pipeline Monitoring** - Track dataflow execution and health scores
+- 👥 **Team Management** - List and explore users and groups
 - 📝 **Report Generation** - Export documentation in Markdown/JSON formats
 - 🚀 **Performance** - Built-in caching to minimize API calls
 - 🎯 **Smart Autocomplete** - Interactive command discovery with tab completion
@@ -201,9 +202,7 @@ For non-interactive usage (scripts, automation, CI/CD), see [CLI.md](./CLI.md) f
 
 ## Contributing
 
-Contributions are welcome! Start with:
-- Repository Guidelines: [AGENTS.md](./AGENTS.md) — structure, commands, and conventions
-- Contributor guide: [CONTRIBUTING.md](./CONTRIBUTING.md) — setup, workflow, tests, and release
+Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, workflow, tests, and release process.
 
 ## Command Reference
 
@@ -223,6 +222,10 @@ Contributions are welcome! Start with:
 | `execute-dataflow <id>` | Trigger a dataflow to run |
 | `show-lineage <id>` | Visualize data lineage with Mermaid diagrams |
 | `list-cards` | List all accessible Domo cards |
+| `list-users [search]` | List all users with optional search and role filtering |
+| `get-user <id>` | Get detailed user information including group memberships |
+| `list-groups [search]` | List all groups with optional search and type filtering |
+| `get-group <id>` | Get group details with member information |
 | `cache-status` | View or clear cache |
 | `help` | Show all available commands |
 
@@ -290,6 +293,23 @@ else
   echo "Failed to start dataflow"
   exit 1
 fi
+```
+
+### User and Group Management
+```bash
+# List users by role
+domo-query-cli list-users --role Admin --format json
+
+# Get user details with group memberships
+domo-query-cli get-user 871428330
+
+# Find groups and view members
+domo-query-cli list-groups "engineering"
+domo-query-cli get-group 1324037627 --format json
+
+# Use offline mode with cached data
+domo-query-cli get-user 871428330 --offline
+domo-query-cli get-group 1324037627 --offline
 ```
 
 ## Troubleshooting

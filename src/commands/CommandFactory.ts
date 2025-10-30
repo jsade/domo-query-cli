@@ -27,6 +27,10 @@ import { DbClearCommand } from "./DbClearCommand";
 import { DbExportCommand } from "./DbExportCommand";
 import { DbImportCommand } from "./DbImportCommand";
 import { DbRepairCommand } from "./DbRepairCommand";
+import { ListUsersCommand } from "./ListUsersCommand";
+import { GetUserCommand } from "./GetUserCommand";
+import { ListGroupsCommand } from "./ListGroupsCommand";
+import { GetGroupCommand } from "./GetGroupCommand";
 
 /**
  * Factory class for creating and managing command instances
@@ -162,6 +166,20 @@ export class CommandFactory {
 
         const dbRepairCommand = new DbRepairCommand();
         this.commands.set(dbRepairCommand.name, dbRepairCommand);
+
+        // Register user commands
+        const listUsersCommand = new ListUsersCommand();
+        this.commands.set(listUsersCommand.name, listUsersCommand);
+
+        const getUserCommand = new GetUserCommand();
+        this.commands.set(getUserCommand.name, getUserCommand);
+
+        // Register group commands
+        const listGroupsCommand = new ListGroupsCommand();
+        this.commands.set(listGroupsCommand.name, listGroupsCommand);
+
+        const getGroupCommand = new GetGroupCommand();
+        this.commands.set(getGroupCommand.name, getGroupCommand);
 
         // Help command needs access to all commands and must be registered last
         const helpCommand = new HelpCommand(this.commands);

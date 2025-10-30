@@ -3,6 +3,8 @@ import { getDatabase } from "../core/database/JsonDatabase";
 import { DatasetRepository } from "../core/database/repositories/DatasetRepository";
 import { DataflowRepository } from "../core/database/repositories/DataflowRepository";
 import { CardRepository } from "../core/database/repositories/CardRepository";
+import { UserRepository } from "../core/database/repositories/UserRepository";
+import { GroupRepository } from "../core/database/repositories/GroupRepository";
 import { TerminalFormatter } from "../utils/terminalFormatter";
 import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { CommandUtils } from "./CommandUtils";
@@ -25,10 +27,20 @@ export class DbSyncCommand extends BaseCommand {
         const syncDatasets = syncAll || args?.includes("--datasets");
         const syncDataflows = syncAll || args?.includes("--dataflows");
         const syncCards = syncAll || args?.includes("--cards");
+        const syncUsers = syncAll || args?.includes("--users");
+        const syncGroups = syncAll || args?.includes("--groups");
 
-        if (!syncDatasets && !syncDataflows && !syncCards) {
+        // Check if at least one entity type is selected for sync
+        const syncFlags = [
+            syncDatasets,
+            syncDataflows,
+            syncCards,
+            syncUsers,
+            syncGroups,
+        ];
+        if (!syncFlags.some(flag => flag)) {
             const message =
-                "Please specify what to sync: --all, --datasets, --dataflows, or --cards";
+                "Please specify what to sync: --all, --datasets, --dataflows, --cards, --users, or --groups";
             if (this.isJsonOutput) {
                 console.log(JsonOutputFormatter.error(this.name, message));
             } else {
@@ -158,6 +170,78 @@ export class DbSyncCommand extends BaseCommand {
                 }
             }
 
+            // Sync users
+            if (syncUsers) {
+                if (!this.isJsonOutput) {
+                    console.log(chalk.yellow("\nSyncing users..."));
+                }
+
+                try {
+                    const userRepo = new UserRepository(db);
+                    await userRepo.sync(this.isJsonOutput);
+                    const count = await userRepo.count();
+                    results.users = { success: true, count };
+
+                    if (!this.isJsonOutput) {
+                        console.log(
+                            TerminalFormatter.success(
+                                `✓ Synced ${count} users`,
+                            ),
+                        );
+                    }
+                } catch (error) {
+                    const message =
+                        error instanceof Error
+                            ? error.message
+                            : "Unknown error";
+                    results.users = { success: false, error: message };
+
+                    if (!this.isJsonOutput) {
+                        console.error(
+                            TerminalFormatter.error(
+                                `✗ Failed to sync users: ${message}`,
+                            ),
+                        );
+                    }
+                }
+            }
+
+            // Sync groups
+            if (syncGroups) {
+                if (!this.isJsonOutput) {
+                    console.log(chalk.yellow("\nSyncing groups..."));
+                }
+
+                try {
+                    const groupRepo = new GroupRepository(db);
+                    await groupRepo.sync(this.isJsonOutput);
+                    const count = await groupRepo.count();
+                    results.groups = { success: true, count };
+
+                    if (!this.isJsonOutput) {
+                        console.log(
+                            TerminalFormatter.success(
+                                `✓ Synced ${count} groups`,
+                            ),
+                        );
+                    }
+                } catch (error) {
+                    const message =
+                        error instanceof Error
+                            ? error.message
+                            : "Unknown error";
+                    results.groups = { success: false, error: message };
+
+                    if (!this.isJsonOutput) {
+                        console.error(
+                            TerminalFormatter.error(
+                                `✗ Failed to sync groups: ${message}`,
+                            ),
+                        );
+                    }
+                }
+            }
+
             // Update the database-level last sync time if any sync was successful
             const hasSuccessfulSync = Object.values(results).some(
                 r => r.success,
@@ -253,6 +337,14 @@ export class DbSyncCommand extends BaseCommand {
                 Description: "Sync only cards",
             },
             {
+                Option: "--users",
+                Description: "Sync only users",
+            },
+            {
+                Option: "--groups",
+                Description: "Sync only groups",
+            },
+            {
                 Option: "--format=json",
                 Description: "Output results in JSON format",
             },
@@ -272,6 +364,18 @@ export class DbSyncCommand extends BaseCommand {
             {
                 Command: `${this.name} --dataflows --cards`,
                 Description: "Sync dataflows and cards",
+            },
+            {
+                Command: `${this.name} --users`,
+                Description: "Sync only users",
+            },
+            {
+                Command: `${this.name} --groups`,
+                Description: "Sync only groups",
+            },
+            {
+                Command: `${this.name} --users --groups`,
+                Description: "Sync users and groups",
             },
             {
                 Command: `${this.name} --all --format=json`,
