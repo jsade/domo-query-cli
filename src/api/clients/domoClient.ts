@@ -1148,9 +1148,9 @@ export async function listGroups(
 
     log.debug(`Fetching groups from API`);
 
-    // Note: Content API v2 may not support pagination, so we fetch all groups
+    // Note: Platform API v1 may not support pagination, so we fetch all groups
     // and handle pagination client-side if needed
-    const groups = await client.get<DomoGroup[]>("/api/content/v2/groups");
+    const groups = await client.get<DomoGroup[]>("/v1/groups");
 
     if (Array.isArray(groups)) {
         // Cache for 1 hour
@@ -1164,7 +1164,7 @@ export async function listGroups(
 
 /**
  * Function to get a specific group by ID with full member details
- * Uses the api/content/v2/groups/:id endpoint from the Domo Content API
+ * Uses the v1/groups/:id endpoint from the Domo Platform API
  * @param groupId - The group ID
  * @returns The DomoGroup object with members
  */
@@ -1183,9 +1183,7 @@ export async function getGroup(groupId: number | string): Promise<DomoGroup> {
 
     log.debug(`Fetching group ${groupId} from API`);
 
-    const group = await client.get<DomoGroup>(
-        `/api/content/v2/groups/${groupId}`,
-    );
+    const group = await client.get<DomoGroup>(`/v1/groups/${groupId}`);
 
     // Cache for 1 hour
     await cacheManager.set(cacheKey, group, 3600);

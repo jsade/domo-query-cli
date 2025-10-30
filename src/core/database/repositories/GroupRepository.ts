@@ -1,5 +1,5 @@
 import { BaseRepository } from "./BaseRepository";
-import { DomoGroup } from "../../../api/clients/domoClient";
+import { DomoGroup, listGroups } from "../../../api/clients/domoClient";
 import { JsonDatabase } from "../JsonDatabase";
 
 // Extend DomoGroup to satisfy Entity constraint
@@ -15,13 +15,71 @@ export class GroupRepository extends BaseRepository<GroupEntity> {
     }
 
     /**
-     * Sync groups from Domo API (optional - can be implemented later)
+     * Sync groups from Domo API
      * @param silent - If true, suppress console output during sync
      */
     async sync(silent: boolean = false): Promise<void> {
-        // TODO: Implement sync in Phase 3 when updating db-sync command
-        if (!silent) {
-            console.log("Group sync not yet implemented");
+        if (this.options.offlineMode) {
+            if (!silent) {
+                console.log("Offline mode enabled, skipping sync");
+            }
+            return;
+        }
+
+        try {
+            if (!silent) {
+                console.log("Syncing groups from Domo API...");
+            }
+
+            // Fetch all groups (Platform API v1 may not support pagination)
+            const groups = await listGroups();
+
+            if (!Array.isArray(groups) || groups.length === 0) {
+                if (!silent) {
+                    console.log("No groups found to sync");
+                }
+                return;
+            }
+
+            let totalProcessed = 0;
+
+            // Save each group to the database
+            for (const group of groups) {
+                if (group && (group.groupId || group.id)) {
+                    // Use groupId if available, otherwise fall back to id
+                    const groupId =
+                        group.groupId || (group as { id?: number }).id;
+                    if (groupId) {
+                        // Convert numeric id to string for Entity constraint
+                        const groupEntity: GroupEntity = {
+                            ...group,
+                            id: String(groupId),
+                        };
+                        await this.save(groupEntity);
+                        totalProcessed++;
+
+                        if (!silent && totalProcessed % 50 === 0) {
+                            process.stdout.write(
+                                `\rProcessed ${totalProcessed} groups...`,
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Finalize
+            await this.updateSyncTime();
+            if (!silent) {
+                if (totalProcessed > 0) {
+                    process.stdout.write("\r");
+                    console.log(`Synced ${totalProcessed} groups`);
+                }
+            }
+        } catch (error) {
+            if (!silent) {
+                console.error("Failed to sync groups:", error);
+            }
+            throw error;
         }
     }
 

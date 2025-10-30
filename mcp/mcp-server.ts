@@ -560,6 +560,106 @@ const tools: Tool[] = [
             required: ["id", "section"],
         },
     },
+    {
+        name: "list_users",
+        description:
+            "List all Domo users with optional search and filtering. Returns user information including ID, name, email, role, and group memberships.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                search: {
+                    type: "string",
+                    description:
+                        "Optional search term to filter users by name or email",
+                },
+                role: {
+                    type: "string",
+                    enum: ["Admin", "Privileged", "Participant"],
+                    description: "Filter users by role",
+                },
+                limit: {
+                    type: "number",
+                    description:
+                        "Maximum number of results to return (default: 50, max: 500)",
+                },
+                offset: {
+                    type: "number",
+                    description:
+                        "Number of results to skip for pagination (default: 0)",
+                },
+            },
+        },
+    },
+    {
+        name: "get_user",
+        description:
+            "Get detailed information about a specific user including group memberships, title, contact information, and metadata.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    description: "User ID (numeric)",
+                },
+                sync: {
+                    type: "boolean",
+                    description:
+                        "Force refresh from API and update local DB (bypass cached database entry)",
+                },
+            },
+            required: ["id"],
+        },
+    },
+    {
+        name: "list_groups",
+        description:
+            "List all Domo groups with optional search and filtering. Returns group information including ID, name, type, and member count.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                search: {
+                    type: "string",
+                    description:
+                        "Optional search term to filter groups by name",
+                },
+                type: {
+                    type: "string",
+                    enum: ["open", "user", "system"],
+                    description: "Filter groups by type",
+                },
+                limit: {
+                    type: "number",
+                    description:
+                        "Maximum number of results to return (default: 50)",
+                },
+                offset: {
+                    type: "number",
+                    description:
+                        "Number of results to skip for pagination (default: 0)",
+                },
+            },
+        },
+    },
+    {
+        name: "get_group",
+        description:
+            "Get detailed information about a specific group including full member list and group metadata.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    description: "Group ID (numeric)",
+                },
+                sync: {
+                    type: "boolean",
+                    description:
+                        "Force refresh from API and update local DB (bypass cached database entry)",
+                },
+            },
+            required: ["id"],
+        },
+    },
 ];
 
 // Create MCP server
@@ -814,6 +914,54 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
             case "db_import":
                 command = "db-import";
                 commandArgs.push(args.filename as string);
+                break;
+
+            case "list_users":
+                command = "list-users";
+                if (args.search) {
+                    commandArgs.push(args.search as string);
+                }
+                if (args.role) {
+                    commandArgs.push("--role", args.role as string);
+                }
+                if (args.limit) {
+                    commandArgs.push("--limit", String(args.limit));
+                }
+                if (args.offset) {
+                    commandArgs.push("--offset", String(args.offset));
+                }
+                break;
+
+            case "get_user":
+                command = "get-user";
+                commandArgs.push(args.id as string);
+                if (args.sync === true) {
+                    commandArgs.push("--sync");
+                }
+                break;
+
+            case "list_groups":
+                command = "list-groups";
+                if (args.search) {
+                    commandArgs.push(args.search as string);
+                }
+                if (args.type) {
+                    commandArgs.push("--type", args.type as string);
+                }
+                if (args.limit) {
+                    commandArgs.push("--limit", String(args.limit));
+                }
+                if (args.offset) {
+                    commandArgs.push("--offset", String(args.offset));
+                }
+                break;
+
+            case "get_group":
+                command = "get-group";
+                commandArgs.push(args.id as string);
+                if (args.sync === true) {
+                    commandArgs.push("--sync");
+                }
                 break;
 
             default:

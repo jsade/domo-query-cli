@@ -1,5 +1,5 @@
 import { BaseRepository } from "./BaseRepository";
-import { DomoUser } from "../../../api/clients/domoClient";
+import { DomoUser, listUsers } from "../../../api/clients/domoClient";
 import { JsonDatabase } from "../JsonDatabase";
 
 // Extend DomoUser to satisfy Entity constraint
@@ -15,13 +15,78 @@ export class UserRepository extends BaseRepository<UserEntity> {
     }
 
     /**
-     * Sync users from Domo API (optional - can be implemented later)
+     * Sync users from Domo API
      * @param silent - If true, suppress console output during sync
      */
     async sync(silent: boolean = false): Promise<void> {
-        // TODO: Implement sync in Phase 3 when updating db-sync command
-        if (!silent) {
-            console.log("User sync not yet implemented");
+        if (this.options.offlineMode) {
+            if (!silent) {
+                console.log("Offline mode enabled, skipping sync");
+            }
+            return;
+        }
+
+        try {
+            if (!silent) {
+                console.log("Syncing users from Domo API...");
+            }
+
+            let offset = 0;
+            const limit = 50;
+            let totalProcessed = 0;
+            let pageNum = 0;
+
+            // Process pages of users
+            while (true) {
+                const page = await listUsers({ limit, offset });
+                pageNum++;
+
+                if (!Array.isArray(page) || page.length === 0) {
+                    if (pageNum === 1 && !silent) {
+                        console.log("No users found to sync");
+                    }
+                    break;
+                }
+
+                // Save each user to the database
+                for (const user of page) {
+                    if (user && user.id) {
+                        // Convert numeric id to string for Entity constraint
+                        const userEntity: UserEntity = {
+                            ...user,
+                            id: String(user.id),
+                        };
+                        await this.save(userEntity);
+                        totalProcessed++;
+                    }
+                }
+
+                if (!silent && totalProcessed % 50 === 0) {
+                    process.stdout.write(
+                        `\rProcessed ${totalProcessed} users...`,
+                    );
+                }
+
+                // Next page
+                if (page.length < limit) {
+                    break;
+                }
+                offset += limit;
+            }
+
+            // Finalize
+            await this.updateSyncTime();
+            if (!silent) {
+                if (totalProcessed > 0) {
+                    process.stdout.write("\r");
+                    console.log(`Synced ${totalProcessed} users`);
+                }
+            }
+        } catch (error) {
+            if (!silent) {
+                console.error("Failed to sync users:", error);
+            }
+            throw error;
         }
     }
 
