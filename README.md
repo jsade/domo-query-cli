@@ -14,6 +14,7 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 - 🔍 **Data Discovery** - Search and explore datasets, dataflows, and cards
 - 🔗 **Data Lineage** - Trace data flow with focused Mermaid diagrams
 - 📊 **Pipeline Monitoring** - Track dataflow execution and health scores
+- 👥 **Team Management** - List and explore users and groups
 - 📝 **Report Generation** - Export documentation in Markdown/JSON formats
 - 🚀 **Performance** - Built-in caching to minimize API calls
 - 🎯 **Smart Autocomplete** - Interactive command discovery with tab completion
@@ -221,6 +222,10 @@ Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, w
 | `execute-dataflow <id>` | Trigger a dataflow to run |
 | `show-lineage <id>` | Visualize data lineage with Mermaid diagrams |
 | `list-cards` | List all accessible Domo cards |
+| `list-users [search]` | List all users with optional search and role filtering |
+| `get-user <id>` | Get detailed user information including group memberships |
+| `list-groups [search]` | List all groups with optional search and type filtering |
+| `get-group <id>` | Get group details with member information |
 | `cache-status` | View or clear cache |
 | `help` | Show all available commands |
 

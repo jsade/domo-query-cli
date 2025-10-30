@@ -21,6 +21,8 @@ title: Domo Query CLI - Non-Interactive Command Guide
     - [Dataset Operations](#dataset-operations)
     - [Dataflow Operations](#dataflow-operations)
     - [Card Operations](#card-operations)
+    - [User Management](#user-management)
+    - [Group Management](#group-management)
     - [Lineage and Reporting](#lineage-and-reporting)
     - [Database Operations](#database-operations)
 - [Output Formats](#output-formats)
@@ -236,6 +238,58 @@ domo-query-cli list-pages
 
 # Render a KPI card
 domo-query-cli render-card abc-123-def-456
+```
+
+### User Management
+
+```bash
+# List all users
+domo-query-cli list-users
+
+# Search for users
+domo-query-cli list-users "euler"
+
+# Filter by role
+domo-query-cli list-users --role Admin
+domo-query-cli list-users --role Privileged
+
+# Pagination
+domo-query-cli list-users --limit 100
+domo-query-cli list-users --limit 50 --offset 100
+
+# Get detailed user information
+domo-query-cli get-user 871428330
+domo-query-cli get-user 871428330 --format json
+
+# Offline mode (use cached data)
+domo-query-cli get-user 871428330 --offline
+
+# Force sync from API
+domo-query-cli get-user 871428330 --sync
+```
+
+### Group Management
+
+```bash
+# List all groups
+domo-query-cli list-groups
+
+# Search for groups
+domo-query-cli list-groups "engineering"
+
+# Filter by type
+domo-query-cli list-groups --type open
+domo-query-cli list-groups --type user
+
+# Get group with members
+domo-query-cli get-group 1324037627
+domo-query-cli get-group 1324037627 --format json
+
+# Offline mode (use cached data)
+domo-query-cli get-group 1324037627 --offline
+
+# Force sync from API
+domo-query-cli get-group 1324037627 --sync
 ```
 
 ### Lineage and Reporting
@@ -455,6 +509,8 @@ domo-query-cli db-sync                    # Sync all entities
 domo-query-cli db-sync --datasets         # Sync only datasets
 domo-query-cli db-sync --dataflows        # Sync only dataflows
 domo-query-cli db-sync --cards            # Sync only cards
+domo-query-cli db-sync --users            # Sync only users
+domo-query-cli db-sync --groups           # Sync only groups
 domo-query-cli db-sync --all              # Explicitly sync all
 
 # Clear database
@@ -462,6 +518,9 @@ domo-query-cli db-clear                   # Clear all (with confirmation)
 domo-query-cli db-clear --force           # Clear all without confirmation
 domo-query-cli db-clear datasets          # Clear specific collection
 domo-query-cli db-clear dataflows cards   # Clear multiple collections
+domo-query-cli db-clear users             # Clear users collection
+domo-query-cli db-clear groups            # Clear groups collection
+domo-query-cli db-clear users groups      # Clear both users and groups
 
 # Export database
 domo-query-cli db-export                  # Export to timestamped file
@@ -548,9 +607,12 @@ domo-query-cli db-sync --all
 domo-query-cli db-sync --datasets
 domo-query-cli db-sync --dataflows
 domo-query-cli db-sync --cards
+domo-query-cli db-sync --users
+domo-query-cli db-sync --groups
 
 # Combine multiple types
 domo-query-cli db-sync --datasets --cards
+domo-query-cli db-sync --users --groups
 
 # JSON output
 domo-query-cli db-sync --all --format=json
@@ -577,6 +639,9 @@ domo-query-cli db-clear --force
 # Clear specific collections
 domo-query-cli db-clear datasets
 domo-query-cli db-clear dataflows cards
+domo-query-cli db-clear users
+domo-query-cli db-clear groups
+domo-query-cli db-clear users groups
 
 # JSON output
 domo-query-cli db-clear --all --force --format=json

@@ -216,6 +216,18 @@ export class DbClearCommand extends BaseCommand {
                 Description: "Clear dataflows and cards collections",
             },
             {
+                Command: `${this.name} users`,
+                Description: "Clear users collection",
+            },
+            {
+                Command: `${this.name} groups`,
+                Description: "Clear groups collection",
+            },
+            {
+                Command: `${this.name} users groups`,
+                Description: "Clear both users and groups collections",
+            },
+            {
                 Command: `${this.name} --all --force`,
                 Description: "Clear all without confirmation",
             },
