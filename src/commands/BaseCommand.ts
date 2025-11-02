@@ -1,6 +1,7 @@
 import type { Command, OutputOptions } from "../types/shellTypes";
 import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { writeJsonToFile } from "../utils/FileOutputWriter";
+import { domoConfig } from "../config";
 
 /**
  * Base class for all shell commands
@@ -56,7 +57,12 @@ export abstract class BaseCommand implements Command {
     ): Promise<void> {
         // If output options are provided, write to file
         if (outputOptions) {
-            const result = await writeJsonToFile(jsonData, outputOptions.path);
+            // Pass domoConfig.outputPath as basePath for admin-controlled sandboxing
+            const result = await writeJsonToFile(
+                jsonData,
+                outputOptions.path,
+                domoConfig.outputPath,
+            );
             // Output success message in appropriate format
             if (this.isJsonOutput) {
                 console.log(

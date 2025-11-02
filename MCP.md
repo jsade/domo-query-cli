@@ -52,6 +52,7 @@ Add your MCP server:
         "DOMO_DISABLE_SSL_VERIFICATION": "false",
         "HTTPS_PROXY": "",
         "DOMO_DB_PATH": "/absolute/path/for/domo-db",
+        "DOMO_OUTPUT_PATH": "/absolute/path/for/mcp-outputs",
         "LOG_PATH": "/absolute/path/for/logs"
       }
     }
@@ -63,8 +64,9 @@ Add your MCP server:
 
 The MCP server reads these variables directly from its process environment, so anything you list under `env` is honored at runtime. Use the optional entries above to
 
-- point `DOMO_DB_PATH` at a custom on-disk database/cache (default is `~/.domo-cli/db`), and
-- set `LOG_PATH` to an absolute directory for MCP logs (packaged builds fall back to `~/.domo-cli/logs`).
+- point `DOMO_DB_PATH` at a custom on-disk database/cache (default is `~/.domo-cli/db`)
+- set `DOMO_OUTPUT_PATH` to control where file-based output can be written (see [Output Path Sandboxing](#output-path-sandboxing) below)
+- set `LOG_PATH` to an absolute directory for MCP logs (packaged builds fall back to `~/.domo-cli/logs`)
 
 Because the server loads `process.env` before consulting `.env` files, MCP-provided values take precedence over local configuration.
 
@@ -185,8 +187,6 @@ The MCP server provides the following tools to Claude Desktop:
 - `get_dataset` supports a `sync: true` parameter to force a fresh fetch from the Domo API and update the local database, bypassing any cached database entry. This mirrors the CLI flag `--sync` for `get-dataset`.
 - `get_user` and `get_group` also support the `sync: true` parameter for forcing fresh data from the API
 - For broader refreshes (datasets, dataflows, cards, users, groups), use `db_sync` before calling list tools, or use `clear_cache` to drop in-memory/file caches.
-
-## User and Group Management
 
 ## Using File-Based Output
 
@@ -327,6 +327,48 @@ The CLI automatically creates parent directories if they don't exist:
 // Creates /tmp/domo/exports/2024/ if needed
 ```
 
+### Output Path Sandboxing
+
+For enhanced security and admin control, you can set the `DOMO_OUTPUT_PATH` environment variable to restrict where MCP tools can write files. When this variable is set, **all output paths** (even absolute ones) are placed inside the specified directory.
+
+**Why use `DOMO_OUTPUT_PATH`?**
+- Prevents MCP clients from writing to arbitrary locations on the filesystem
+- Provides centralized control over output file locations
+- Simplifies cleanup and file management
+- Ideal for multi-user or production MCP deployments
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "domo-query-cli": {
+      "command": "node",
+      "args": ["/path/to/mcp/dist/mcp-server.cjs"],
+      "env": {
+        "DOMO_API_HOST": "your-instance.domo.com",
+        "DOMO_OUTPUT_PATH": "/var/domo/mcp-outputs"
+      }
+    }
+  }
+}
+```
+
+**Behavior Examples:**
+
+When `DOMO_OUTPUT_PATH=/var/domo/outputs` is set:
+
+| MCP Client Provides | Actual File Written |
+|---------------------|---------------------|
+| `outputPath="/tmp/data.json"` | `/var/domo/outputs/tmp/data.json` |
+| `outputPath="exports/dataset.json"` | `/var/domo/outputs/exports/dataset.json` |
+| `outputPath="/Users/admin/file.json"` | `/var/domo/outputs/Users/admin/file.json` |
+
+**Important Notes:**
+- `DOMO_OUTPUT_PATH` must be an absolute path
+- Tilde expansion is supported: `DOMO_OUTPUT_PATH=~/domo-outputs`
+- When `DOMO_OUTPUT_PATH` is not set, paths work as normal (backward compatible)
+- Parent directories are still created automatically within the sandboxed location
+
 ### Combining with Other Parameters
 
 The `outputPath` parameter works seamlessly with all other tool parameters:
@@ -380,7 +422,7 @@ The `outputPath` parameter is completely optional. All tools work exactly as bef
 // Returns data in response as usual
 ```
 
-## Detailed Tool Documentation
+## User and Group Management
 
 ### list_users
 

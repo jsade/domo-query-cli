@@ -17,6 +17,7 @@ import { log } from "./utils/logger.ts";
  * - `DOMO_WEBPASSWORD`: Your Domo password (for username/password authentication, specific to dataflow operations).
  * - `DOMO_API_HOST`: Your Domo instance hostname (e.g., 'yourcompany.domo.com').
  * - `DOMO_EXPORT_PATH`: Path to save exported files (optional, defaults to './exports').
+ * - `DOMO_OUTPUT_PATH`: Base directory for file-based command output (optional, for admin control over MCP output locations).
  * - `LOG_PATH`: Path to save log files (optional, defaults to './logs').
  * - `HTTPS_PROXY`: HTTPS proxy URL (e.g., 'http://proxy.company.com:8080').
  * - `HTTP_PROXY`: HTTP proxy URL (fallback if HTTPS_PROXY not set).
@@ -34,6 +35,7 @@ export const domoConfig = {
     webPassword: "",
     apiHost: "",
     exportPath: "./exports",
+    outputPath: undefined as string | undefined,
     httpsProxy: "",
     httpProxy: "",
     noProxy: "",
@@ -107,6 +109,20 @@ export function initializeConfig(): void {
         log.debug(
             `DOMO_EXPORT_PATH not set, using default: ${domoConfig.exportPath}`,
         );
+    }
+
+    // Set output path for file-based command output (admin control for MCP)
+    if (process.env.DOMO_OUTPUT_PATH) {
+        // Expand tilde if present
+        const expandedPath = expandTilde(process.env.DOMO_OUTPUT_PATH);
+
+        if (!path.isAbsolute(expandedPath)) {
+            throw new Error(
+                `DOMO_OUTPUT_PATH must be an absolute path. Got: "${process.env.DOMO_OUTPUT_PATH}" (expanded: "${expandedPath}")`,
+            );
+        }
+        domoConfig.outputPath = expandedPath;
+        log.debug(`DOMO_OUTPUT_PATH set to: ${domoConfig.outputPath}`);
     }
 
     // Check for required API host
