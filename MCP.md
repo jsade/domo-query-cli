@@ -83,50 +83,78 @@ And Claude Desktop will be able to execute these commands directly through the M
 
 The MCP server provides the following tools to Claude Desktop:
 
+> [!tip]
+> **File-Based Output for Reduced Context Usage**
+>
+> All read-only tools support an optional `outputPath` parameter that writes JSON results to a local file instead of returning them in the MCP response. This is especially useful when retrieving details for multiple Domo objects or large datasets, as it significantly reduces context window usage.
+>
+> **Example:**
+> ```json
+> {
+>   "name": "list_datasets",
+>   "arguments": {
+>     "limit": 100,
+>     "outputPath": "/tmp/datasets.json"
+>   }
+> }
+> ```
+>
+> **Response:** When `outputPath` is provided, the tool returns metadata about the file write operation instead of the full data:
+> ```json
+> {
+>   "success": true,
+>   "filePath": "/tmp/datasets.json",
+>   "bytesWritten": 52480
+> }
+> ```
+>
+> This feature works with both absolute and relative paths, automatically creates parent directories, and is fully backward compatible (tools work normally when `outputPath` is omitted).
+
 #### Data Listing Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `list_datasets` | List all Domo datasets with metadata | `search` (optional), `limit` (optional), `offset` (optional) |
-| `list_dataflows` | List all Domo dataflows with execution info | `search` (optional), `limit` (optional), `offset` (optional) |
-| `list_cards` | List all Domo cards (visualizations) | `limit` (optional), `offset` (optional) |
-| `list_pages` | List all Domo pages (dashboard collections) | `limit` (optional), `offset` (optional) |
+| `list_datasets` | List all Domo datasets with metadata | `search` (optional), `limit` (optional), `offset` (optional), `outputPath` (optional) |
+| `list_dataflows` | List all Domo dataflows with execution info | `search` (optional), `limit` (optional), `offset` (optional), `outputPath` (optional) |
+| `list_cards` | List all Domo cards (visualizations) | `limit` (optional), `offset` (optional), `outputPath` (optional) |
+| `list_pages` | List all Domo pages (dashboard collections) | `limit` (optional), `offset` (optional), `outputPath` (optional) |
 
 #### Data Retrieval Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `get_dataset` | Get detailed dataset information | `id` (required), `sync` (optional) |
-| `get_dataflow` | Get detailed dataflow information | `id` (required) |
-| `get_card` | Get detailed card information | `id` (required) |
-| `render_card` | Render a KPI card image and summary; auto-computes missing dimension from card aspect to avoid cropping | `cardId` (required), `width` (optional), `height` (optional), `scale` (optional) |
+| `get_dataset` | Get detailed dataset information | `id` (required), `sync` (optional), `outputPath` (optional) |
+| `get_dataflow` | Get detailed dataflow information | `id` (required), `outputPath` (optional) |
+| `get_card` | Get detailed card information | `id` (required), `outputPath` (optional) |
+| `render_card` | Render a KPI card image and summary; auto-computes missing dimension from card aspect to avoid cropping | `cardId` (required), `width` (optional), `height` (optional), `scale` (optional), `outputPath` (optional) |
 
 #### Lineage Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `show_lineage` | Show data lineage from local data | `datasetId` (required), `format` (optional: text/mermaid/json) |
-| `get_dataset_lineage` | Get lineage from API (requires API token) | `datasetId` (required), `traverseUp` (optional), `traverseDown` (optional), `entities` (optional) |
-| `get_dataset_parents` | Get direct parents for a dataset (requires API token). Returns a `parents` array and a keyed map (`<TYPE><ID>`) of full nodes, enriched with `name` when available. | `datasetId` (required) |
-| `get_dataset_children` | Get direct children for a dataset (requires API token). Returns a `children` array and a keyed map (`<TYPE><ID>`) of full nodes, enriched with `name` when available. | `datasetId` (required) |
-| `get_dataflow_lineage` | Get dataflow lineage from API | `dataflowId` (required), `traverseUp` (optional), `traverseDown` (optional), `entities` (optional) |
-| `generate_lineage_report` | Generate comprehensive lineage report | `format` (optional: markdown/json) |
+| `show_lineage` | Show data lineage from local data | `datasetId` (required), `format` (optional: text/mermaid/json), `outputPath` (optional) |
+| `get_dataset_lineage` | Get lineage from API (requires API token) | `datasetId` (required), `traverseUp` (optional), `traverseDown` (optional), `entities` (optional), `outputPath` (optional) |
+| `get_dataset_parents` | Get direct parents for a dataset (requires API token). Returns a `parents` array and a keyed map (`<TYPE><ID>`) of full nodes, enriched with `name` when available. | `datasetId` (required), `outputPath` (optional) |
+| `get_dataset_children` | Get direct children for a dataset (requires API token). Returns a `children` array and a keyed map (`<TYPE><ID>`) of full nodes, enriched with `name` when available. | `datasetId` (required), `outputPath` (optional) |
+| `get_dataflow_lineage` | Get dataflow lineage from API | `dataflowId` (required), `traverseUp` (optional), `traverseDown` (optional), `entities` (optional), `outputPath` (optional) |
+| `generate_lineage_report` | Generate comprehensive lineage report | `format` (optional: markdown/json), `outputPath` (optional) |
 
 #### Dataflow Execution Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
 | `execute_dataflow` | Execute a dataflow (write operation) | `id` (required) |
-| `list_dataflow_executions` | List dataflow execution history | `dataflowId` (required), `limit` (optional), `offset` (optional) |
-| `get_dataflow_execution` | Get specific execution details | `dataflowId` (required), `executionId` (required) |
+| `list_dataflow_executions` | List dataflow execution history | `dataflowId` (required), `limit` (optional), `offset` (optional), `outputPath` (optional) |
+| `get_dataflow_execution` | Get specific execution details | `dataflowId` (required), `executionId` (required), `outputPath` (optional) |
+| `get_dataflow_section` | Get a specific section of a large dataflow (use after get_dataflow indicates sections are available) | `id` (required), `section` (required), `chunkIndex` (optional), `outputPath` (optional) |
 
 #### User Management Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `list_users` | List all Domo users with optional search and role filtering | `search` (optional), `role` (optional: Admin/Privileged/Participant), `limit` (optional), `offset` (optional) |
-| `get_user` | Get detailed user information including group memberships | `id` (required), `sync` (optional: force refresh from API) |
+| `list_users` | List all Domo users with optional search and role filtering | `search` (optional), `role` (optional: Admin/Privileged/Participant), `limit` (optional), `offset` (optional), `outputPath` (optional) |
+| `get_user` | Get detailed user information including group memberships | `id` (required), `sync` (optional: force refresh from API), `outputPath` (optional) |
 
 #### Group Management Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `list_groups` | List all Domo groups with optional search and type filtering | `search` (optional), `type` (optional: open/user/system), `limit` (optional), `offset` (optional) |
-| `get_group` | Get detailed group information including member list | `id` (required), `sync` (optional: force refresh from API) |
+| `list_groups` | List all Domo groups with optional search and type filtering | `search` (optional), `type` (optional: open/user/system), `limit` (optional), `offset` (optional), `outputPath` (optional) |
+| `get_group` | Get detailed group information including member list | `id` (required), `sync` (optional: force refresh from API), `outputPath` (optional) |
 
 #### Data Management Tools (Write Operations)
 | Tool Name | Description | Parameters |
@@ -136,13 +164,13 @@ The MCP server provides the following tools to Claude Desktop:
 #### Cache Management Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `cache_status` | Show local cache status | None |
+| `cache_status` | Show local cache status | `outputPath` (optional) |
 | `clear_cache` | Clear local cache | None |
 
 #### Database Management Tools
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
-| `db_status` | Show local database status | None |
+| `db_status` | Show local database status | `outputPath` (optional) |
 | `db_sync` | Sync database with Domo API | `datasets` (optional), `dataflows` (optional), `cards` (optional) |
 | `db_clear` | Clear local database | `collections` (optional), `force` (optional) |
 | `db_export` | Export database to JSON | `filename` (optional) |
@@ -160,6 +188,200 @@ The MCP server provides the following tools to Claude Desktop:
 
 ## User and Group Management
 
+## Using File-Based Output
+
+All read-only MCP tools support the `outputPath` parameter for writing results to local files instead of returning them in the MCP response. This is particularly valuable when working with large datasets or retrieving multiple objects.
+
+### When to Use File-Based Output
+
+**Ideal scenarios:**
+- Retrieving details for many datasets, cards, or users
+- Working with large lineage graphs
+- Building batch processing workflows
+- Reducing context window usage in long conversations
+- Persisting data for later analysis
+
+### Basic Usage Pattern
+
+**Standard MCP call (returns data in response):**
+```json
+{
+  "name": "list_datasets",
+  "arguments": {
+    "limit": 10
+  }
+}
+```
+
+**With file output (returns file metadata only):**
+```json
+{
+  "name": "list_datasets",
+  "arguments": {
+    "limit": 100,
+    "outputPath": "/tmp/datasets.json"
+  }
+}
+```
+
+**Response when using `outputPath`:**
+```json
+{
+  "success": true,
+  "filePath": "/tmp/datasets.json",
+  "bytesWritten": 52480
+}
+```
+
+### Practical Examples
+
+#### Example 1: Batch Dataset Retrieval
+
+When you need details for many datasets, write each to a separate file:
+
+```json
+{
+  "name": "get_dataset",
+  "arguments": {
+    "id": "abc-123-def",
+    "outputPath": "/tmp/dataset_abc-123-def.json"
+  }
+}
+```
+
+Then process the files locally without consuming context:
+```bash
+# Later, process all saved datasets
+for file in /tmp/dataset_*.json; do
+  jq '.data.dataset | {name, rows, columns}' "$file"
+done
+```
+
+#### Example 2: Large Lineage Export
+
+Export complex lineage graphs to files for analysis:
+
+```json
+{
+  "name": "get_dataset_lineage",
+  "arguments": {
+    "datasetId": "xyz-789",
+    "traverseUp": true,
+    "traverseDown": true,
+    "outputPath": "/tmp/lineage_xyz-789.json"
+  }
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "filePath": "/tmp/lineage_xyz-789.json",
+  "bytesWritten": 125840
+}
+```
+
+#### Example 3: User and Group Audits
+
+Export user and group data for compliance reporting:
+
+```json
+{
+  "name": "list_users",
+  "arguments": {
+    "role": "Admin",
+    "outputPath": "/tmp/admin_users.json"
+  }
+}
+```
+
+```json
+{
+  "name": "list_groups",
+  "arguments": {
+    "type": "system",
+    "outputPath": "/tmp/system_groups.json"
+  }
+}
+```
+
+### Path Handling
+
+**Absolute paths:**
+```json
+{"outputPath": "/tmp/output.json"}
+{"outputPath": "/Users/username/data/result.json"}
+```
+
+**Relative paths** (relative to CLI working directory):
+```json
+{"outputPath": "./output.json"}
+{"outputPath": "exports/datasets.json"}
+```
+
+**Automatic directory creation:**
+The CLI automatically creates parent directories if they don't exist:
+```json
+{"outputPath": "/tmp/domo/exports/2024/datasets.json"}
+// Creates /tmp/domo/exports/2024/ if needed
+```
+
+### Combining with Other Parameters
+
+The `outputPath` parameter works seamlessly with all other tool parameters:
+
+```json
+{
+  "name": "list_datasets",
+  "arguments": {
+    "search": "sales",
+    "limit": 50,
+    "offset": 0,
+    "outputPath": "/tmp/sales_datasets.json"
+  }
+}
+```
+
+```json
+{
+  "name": "get_dataset",
+  "arguments": {
+    "id": "abc-123",
+    "sync": true,
+    "outputPath": "/tmp/dataset_fresh.json"
+  }
+}
+```
+
+### Error Handling
+
+If file writing fails, the tool returns an error:
+
+```json
+{
+  "success": false,
+  "error": "Failed to write output file",
+  "details": "EACCES: permission denied, open '/root/protected.json'"
+}
+```
+
+### Backward Compatibility
+
+The `outputPath` parameter is completely optional. All tools work exactly as before when it's omitted:
+
+```json
+{
+  "name": "list_datasets",
+  "arguments": {
+    "limit": 10
+  }
+}
+// Returns data in response as usual
+```
+
+## Detailed Tool Documentation
+
 ### list_users
 
 List all Domo users with optional search and role filtering.
@@ -170,7 +392,8 @@ List all Domo users with optional search and role filtering.
   "search": "euler",           // Optional: filter by name or email
   "role": "Admin",            // Optional: Admin, Privileged, or Participant
   "limit": 100,               // Optional: max results (default: 50, max: 500)
-  "offset": 0                 // Optional: pagination offset (default: 0)
+  "offset": 0,                // Optional: pagination offset (default: 0)
+  "outputPath": "/tmp/users.json"  // Optional: write to file instead of response
 }
 ```
 
@@ -178,10 +401,10 @@ List all Domo users with optional search and role filtering.
 ```
 Can you list all Admin users?
 Can you find users with "engineer" in their name or email?
-Show me the first 100 users
+Show me the first 100 users and save to /tmp/all_users.json
 ```
 
-**Response Format:**
+**Standard Response Format:**
 ```json
 {
   "success": true,
@@ -208,6 +431,15 @@ Show me the first 100 users
 }
 ```
 
+**File Output Response Format:**
+```json
+{
+  "success": true,
+  "filePath": "/tmp/users.json",
+  "bytesWritten": 8340
+}
+```
+
 ### get_user
 
 Get detailed information about a specific user including group memberships, contact information, and metadata.
@@ -216,7 +448,8 @@ Get detailed information about a specific user including group memberships, cont
 ```json
 {
   "id": "871428330",          // Required: user ID (as string)
-  "sync": true                // Optional: force refresh from API
+  "sync": true,               // Optional: force refresh from API
+  "outputPath": "/tmp/user.json"  // Optional: write to file instead of response
 }
 ```
 
@@ -267,7 +500,8 @@ List all Domo groups with optional search and type filtering.
   "search": "engineering",    // Optional: filter by group name
   "type": "user",            // Optional: open, user, or system
   "limit": 50,               // Optional: max results (default: 50)
-  "offset": 0                // Optional: pagination offset (default: 0)
+  "offset": 0,               // Optional: pagination offset (default: 0)
+  "outputPath": "/tmp/groups.json"  // Optional: write to file instead of response
 }
 ```
 
@@ -316,7 +550,8 @@ Get detailed information about a specific group including full member list and m
 ```json
 {
   "id": "1324037627",         // Required: group ID (as string)
-  "sync": true                // Optional: force refresh from API
+  "sync": true,               // Optional: force refresh from API
+  "outputPath": "/tmp/group.json"  // Optional: write to file instead of response
 }
 ```
 

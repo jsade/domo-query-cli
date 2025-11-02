@@ -18,6 +18,7 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 - 📝 **Report Generation** - Export documentation in Markdown/JSON formats
 - 🚀 **Performance** - Built-in caching to minimize API calls
 - 🎯 **Smart Autocomplete** - Interactive command discovery with tab completion
+- 💾 **File-Based Output** - Save command results to local files for batch processing and reduced context usage
 
 ## Prerequisites
 
@@ -45,15 +46,25 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 git clone https://github.com/jsade/domo-query-cli.git
 cd domo-query-cli
 
-# Run the installation script
+# Standard installation (copies binary)
 ./install.sh
+
+# OR for developers (creates auto-updating symlink)
+./install.sh --symlink
+# or
+yarn install:dev
 ```
 
 The installation script will:
 1. Install dependencies
 2. Build a standalone executable
-3. Install it to your system PATH
+3. Install it to your system PATH (`$HOME/.local/bin` or `/usr/local/bin`)
 4. Set up configuration files
+
+**Symlink mode** (recommended for developers):
+- Creates a symlink instead of copying the binary
+- Automatically uses the latest version after running `yarn build:dist`
+- No manual reinstallation needed during development
 
 ### Manual Installation
 
@@ -82,6 +93,26 @@ cp .env.example ~/.domo-cli/.env
 ```
 
 ## Development Setup
+
+### Developer Installation (Auto-Updating)
+
+For active development, install the CLI in symlink mode for automatic updates:
+
+```bash
+# Install as symlink (auto-updates on rebuild)
+yarn install:dev
+
+# Build the executable
+yarn build:dist
+
+# CLI is now globally available and automatically updated!
+domo-query-cli --version
+```
+
+**Uninstall:**
+```bash
+yarn uninstall
+```
 
 ### Build from Source
 

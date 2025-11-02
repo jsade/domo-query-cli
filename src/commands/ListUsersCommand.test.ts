@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+    type MockInstance,
+} from "vitest";
 import * as domoClient from "../api/clients/domoClient";
 import { resetCacheManager } from "../core/cache/CacheManager";
 import { ListUsersCommand } from "./ListUsersCommand";
@@ -9,7 +17,7 @@ vi.mock("../api/clients/domoClient");
 
 describe("ListUsersCommand", () => {
     let command: ListUsersCommand;
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: MockInstance;
 
     const mockUsers: DomoUser[] = [
         {

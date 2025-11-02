@@ -60,9 +60,17 @@ describe("DataFlowManager with Cache", () => {
             searchDomo: vi.fn().mockResolvedValue(mockSearchResponse),
         } as unknown as SearchManager;
 
-        // Mock constructors
-        vi.mocked(DataflowClient).mockImplementation(() => mockClient);
-        vi.mocked(SearchManager).mockImplementation(() => mockSearchManager);
+        // Mock constructors - vitest requires actual function/class syntax
+        vi.mocked(DataflowClient).mockImplementation(function (
+            this: DataflowClient,
+        ) {
+            return mockClient as DataflowClient;
+        } as unknown as () => DataflowClient);
+        vi.mocked(SearchManager).mockImplementation(function (
+            this: SearchManager,
+        ) {
+            return mockSearchManager as SearchManager;
+        } as unknown as () => SearchManager);
 
         dataFlowManager = new DataFlowManager(mockClient);
     });

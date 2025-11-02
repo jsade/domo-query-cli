@@ -34,7 +34,7 @@ export class CacheStatusCommand extends BaseCommand {
         // Get cache statistics
         const stats = cacheManager.getStats();
 
-        if (this.isJsonOutput) {
+        if (this.isJsonOutput || parsedArgs.outputOptions) {
             // JSON output - return cache statistics as structured data
             const cacheData = {
                 memoryEntries: stats.memoryEntries,
@@ -54,16 +54,22 @@ export class CacheStatusCommand extends BaseCommand {
                 cleared: shouldClear,
             };
 
-            console.log(
-                JsonOutputFormatter.success(
-                    this.name,
-                    { cache: cacheData },
-                    {
-                        memoryEntries: stats.memoryEntries,
-                        totalSize: stats.totalSize,
-                        cleared: shouldClear,
-                    },
-                ),
+            await this.outputData(
+                { cache: cacheData },
+                () => {
+                    console.log(
+                        JsonOutputFormatter.success(
+                            this.name,
+                            { cache: cacheData },
+                            {
+                                memoryEntries: stats.memoryEntries,
+                                totalSize: stats.totalSize,
+                                cleared: shouldClear,
+                            },
+                        ),
+                    );
+                },
+                parsedArgs.outputOptions ?? undefined,
             );
         } else {
             // Default table output

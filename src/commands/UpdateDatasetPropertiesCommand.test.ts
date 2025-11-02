@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    beforeEach,
+    vi,
+    afterEach,
+    type MockInstance,
+} from "vitest";
 import { UpdateDatasetPropertiesCommand } from "./UpdateDatasetPropertiesCommand";
 import * as domoClient from "../api/clients/domoClient";
 import * as logger from "../utils/logger";
@@ -11,8 +19,8 @@ vi.mock("fs/promises");
 
 describe("UpdateDatasetPropertiesCommand", () => {
     let command: UpdateDatasetPropertiesCommand;
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: MockInstance;
+    let consoleErrorSpy: MockInstance;
 
     beforeEach(() => {
         command = new UpdateDatasetPropertiesCommand();

@@ -1,5 +1,6 @@
-import type { Command } from "../types/shellTypes";
+import type { Command, OutputOptions } from "../types/shellTypes";
 import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
+import { writeJsonToFile } from "../utils/FileOutputWriter";
 
 /**
  * Base class for all shell commands
@@ -46,12 +47,31 @@ export abstract class BaseCommand implements Command {
      * Output data in JSON format if requested, otherwise use default formatting
      * @param jsonData - Data to output as JSON
      * @param defaultOutput - Function to call for default output
+     * @param outputOptions - Optional file output options
      */
     protected async outputData<T>(
         jsonData: T,
         defaultOutput: () => void | Promise<void>,
+        outputOptions?: OutputOptions,
     ): Promise<void> {
-        if (this.isJsonOutput) {
+        // If output options are provided, write to file
+        if (outputOptions) {
+            const result = await writeJsonToFile(jsonData, outputOptions.path);
+            // Output success message in appropriate format
+            if (this.isJsonOutput) {
+                console.log(
+                    JsonOutputFormatter.success(this.name, {
+                        success: true,
+                        filePath: result.filePath,
+                        bytesWritten: result.bytesWritten,
+                    }),
+                );
+            } else {
+                console.log(
+                    `Output written to: ${result.filePath} (${result.bytesWritten} bytes)`,
+                );
+            }
+        } else if (this.isJsonOutput) {
             console.log(JsonOutputFormatter.success(this.name, jsonData));
         } else {
             await defaultOutput();

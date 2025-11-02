@@ -9,6 +9,14 @@ export interface SaveOptions {
 }
 
 /**
+ * Represents options for writing command output to a file
+ */
+export interface OutputOptions {
+    format: "json";
+    path: string;
+}
+
+/**
  * Command interface representing a shell command
  */
 export interface Command {

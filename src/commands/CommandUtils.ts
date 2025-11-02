@@ -1,7 +1,7 @@
 import { domoConfig } from "../config";
 import { parseSaveOptions } from "../shellUtils";
-import type { SaveOptions } from "../types/shellTypes";
-export type { SaveOptions };
+import type { OutputOptions, SaveOptions } from "../types/shellTypes";
+export type { OutputOptions, SaveOptions };
 import { log } from "../utils/logger";
 import {
     ensureExportDir,
@@ -30,6 +30,10 @@ export interface ParsedArgs {
      * Save options if present
      */
     saveOptions: SaveOptions | null;
+    /**
+     * Output options if present
+     */
+    outputOptions: OutputOptions | null;
     /**
      * Output format if specified (e.g., json)
      */
@@ -110,6 +114,49 @@ export class CommandUtils {
     }
 
     /**
+     * Parse command arguments for output options
+     * @param args - Command arguments
+     * @returns Tuple of [remaining args, output options]
+     */
+    public static parseOutputOptions(
+        args?: string[],
+    ): [string[], OutputOptions | null] {
+        if (!args || args.length === 0) {
+            return [[], null];
+        }
+
+        let outputOptions: OutputOptions | null = null;
+        const remainingArgs: string[] = [];
+
+        for (let i = 0; i < args.length; i++) {
+            const arg = args[i];
+
+            if (arg.startsWith("--output=")) {
+                // --output=/path/to/file.json format
+                const filePath = arg.slice(9);
+                if (filePath) {
+                    outputOptions = { format: "json", path: filePath };
+                } else {
+                    log.warn("--output flag requires a file path");
+                }
+            } else if (arg === "--output") {
+                // --output /path/to/file.json format
+                if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+                    outputOptions = { format: "json", path: args[i + 1] };
+                    i++; // Skip the next argument as we've consumed it
+                } else {
+                    log.warn("--output flag requires a file path argument");
+                }
+            } else {
+                // Not an output option, keep as a regular argument
+                remainingArgs.push(arg);
+            }
+        }
+
+        return [remainingArgs, outputOptions];
+    }
+
+    /**
      * Export data to files based on save options
      * @param data - Data to export
      * @param title - Title for markdown export
@@ -185,6 +232,7 @@ export class CommandUtils {
                 params: {},
                 flags: new Set(),
                 saveOptions: null,
+                outputOptions: null,
             };
         }
 
@@ -193,11 +241,18 @@ export class CommandUtils {
             params: {},
             flags: new Set(),
             saveOptions: null,
+            outputOptions: null,
         };
 
         // First, extract save options
-        const [remainingArgs, saveOptions] = this.parseSaveOptions(args);
+        let [remainingArgs, saveOptions] = this.parseSaveOptions(args);
         result.saveOptions = saveOptions;
+
+        // Then, extract output options
+        const [finalArgs, outputOptions] =
+            this.parseOutputOptions(remainingArgs);
+        result.outputOptions = outputOptions;
+        remainingArgs = finalArgs;
 
         // Parse remaining arguments
         let i = 0;

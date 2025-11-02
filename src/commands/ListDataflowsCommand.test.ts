@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
+    type MockInstance,
+} from "vitest";
 import * as dataflowApi from "../api/clients/dataflowApi";
 import { resetCacheManager } from "../core/cache/CacheManager";
 import { ListDataflowsCommand } from "./ListDataflowsCommand";
@@ -8,7 +16,7 @@ vi.mock("../api/clients/dataflowApi");
 
 describe("ListDataflowsCommand with Cache", () => {
     let command: ListDataflowsCommand;
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: MockInstance;
 
     const mockDataflows = [
         {

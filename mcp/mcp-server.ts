@@ -69,6 +69,11 @@ const tools: Tool[] = [
                     description:
                         "Number of results to skip for pagination (default: 0)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
         },
     },
@@ -94,6 +99,11 @@ const tools: Tool[] = [
                     description:
                         "Number of results to skip for pagination (default: 0)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
         },
     },
@@ -113,6 +123,11 @@ const tools: Tool[] = [
                     type: "number",
                     description:
                         "Number of results to skip for pagination (default: 0)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
         },
@@ -134,6 +149,11 @@ const tools: Tool[] = [
                     description:
                         "Number of results to skip for pagination (default: 0)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
         },
     },
@@ -147,6 +167,11 @@ const tools: Tool[] = [
                 id: {
                     type: "string",
                     description: "Dataflow ID (numeric or string)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["id"],
@@ -168,6 +193,11 @@ const tools: Tool[] = [
                     description:
                         "Force refresh from API and update local DB (bypass cached database entry)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
             required: ["id"],
         },
@@ -182,6 +212,11 @@ const tools: Tool[] = [
                 id: {
                     type: "string",
                     description: "Card ID (numeric or string)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["id"],
@@ -203,6 +238,11 @@ const tools: Tool[] = [
                     enum: ["text", "mermaid", "json"],
                     description:
                         "Output format: text (tree view), mermaid (diagram), or json (default: text)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["datasetId"],
@@ -234,6 +274,11 @@ const tools: Tool[] = [
                     description:
                         "Comma-separated entity types to include in the response (default: DATA_SOURCE,DATAFLOW,CARD). Options: DATA_SOURCE, DATAFLOW, CARD, ALERT",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
             required: ["datasetId"],
         },
@@ -249,6 +294,11 @@ const tools: Tool[] = [
                     type: "string",
                     description: "Dataset ID (GUID format)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
             required: ["datasetId"],
         },
@@ -263,6 +313,11 @@ const tools: Tool[] = [
                 datasetId: {
                     type: "string",
                     description: "Dataset ID (GUID format)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["datasetId"],
@@ -294,6 +349,11 @@ const tools: Tool[] = [
                     description:
                         "Comma-separated entity types to include in the response (default: DATA_SOURCE,DATAFLOW,CARD). Options: DATA_SOURCE, DATAFLOW, CARD, ALERT",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
             required: ["dataflowId"],
         },
@@ -319,7 +379,13 @@ const tools: Tool[] = [
             "Show the status of the local cache including entry counts, memory usage, and cache hit rates.",
         inputSchema: {
             type: "object",
-            properties: {},
+            properties: {
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
+            },
         },
     },
     {
@@ -343,6 +409,11 @@ const tools: Tool[] = [
                     enum: ["markdown", "json"],
                     description:
                         "Output format: markdown (human-readable) or json (machine-parseable) (default: markdown)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
         },
@@ -395,6 +466,11 @@ const tools: Tool[] = [
                     description:
                         "Number of results to skip for pagination (default: 0)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
             required: ["dataflowId"],
         },
@@ -413,6 +489,11 @@ const tools: Tool[] = [
                 executionId: {
                     type: "string",
                     description: "Execution ID",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["dataflowId", "executionId"],
@@ -443,6 +524,11 @@ const tools: Tool[] = [
                     type: "number",
                     description: "Scale factor for image (default: 1)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results (metadata only, not the image) to instead of returning in response",
+                },
             },
             required: ["cardId"],
         },
@@ -453,7 +539,13 @@ const tools: Tool[] = [
             "Show the status of the local persistent database including collection counts and sync timestamps.",
         inputSchema: {
             type: "object",
-            properties: {},
+            properties: {
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
+            },
         },
     },
     {
@@ -556,6 +648,11 @@ const tools: Tool[] = [
                     description:
                         "For chunked sections, the chunk index to retrieve (0-based)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
             required: ["id", "section"],
         },
@@ -587,6 +684,11 @@ const tools: Tool[] = [
                     description:
                         "Number of results to skip for pagination (default: 0)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
         },
     },
@@ -605,6 +707,11 @@ const tools: Tool[] = [
                     type: "boolean",
                     description:
                         "Force refresh from API and update local DB (bypass cached database entry)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["id"],
@@ -637,6 +744,11 @@ const tools: Tool[] = [
                     description:
                         "Number of results to skip for pagination (default: 0)",
                 },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
             },
         },
     },
@@ -655,6 +767,11 @@ const tools: Tool[] = [
                     type: "boolean",
                     description:
                         "Force refresh from API and update local DB (bypass cached database entry)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
                 },
             },
             required: ["id"],
@@ -966,6 +1083,11 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
 
             default:
                 throw new Error(`Unknown tool: ${name}`);
+        }
+
+        // Add outputPath parameter if provided
+        if (args.outputPath) {
+            commandArgs.push("--output", args.outputPath as string);
         }
 
         // Capture output

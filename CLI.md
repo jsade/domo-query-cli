@@ -814,6 +814,74 @@ domo-query-cli --command "list-datasets" --format json
 domo-query-cli list-datasets
 ```
 
+### File-Based Output
+
+All read-only commands support the `--output` flag to write JSON results to a local file instead of returning them to stdout. This is especially useful for:
+- Processing large datasets without terminal output limitations
+- Building batch processing workflows
+- Persisting results for later analysis
+- Reducing context usage when working with multiple objects
+
+**Basic Usage:**
+```bash
+# Write output to a file
+domo-query-cli list-datasets --limit 100 --output /tmp/datasets.json
+
+# The command returns file metadata instead of full data
+# Output: "Output written to: /tmp/datasets.json (52480 bytes)"
+```
+
+**Path Handling:**
+```bash
+# Absolute paths
+domo-query-cli get-dataset abc-123 --output /tmp/dataset.json
+
+# Relative paths (relative to current directory)
+domo-query-cli get-dataset abc-123 --output ./exports/dataset.json
+
+# Automatic directory creation (parent directories are created if needed)
+domo-query-cli get-dataset abc-123 --output /tmp/domo/exports/2024/dataset.json
+```
+
+**Combining with Other Flags:**
+```bash
+# File output works seamlessly with all other parameters
+domo-query-cli list-datasets "sales" --limit 50 --format json --output /tmp/sales.json
+
+# Force sync to API and save to file
+domo-query-cli get-dataset abc-123 --sync --output /tmp/dataset_fresh.json
+
+# Get lineage and save to file
+domo-query-cli get-dataset-lineage abc-123 --traverse-up=true --traverse-down=true --output /tmp/lineage.json
+```
+
+**Processing Saved Output:**
+```bash
+# Save multiple datasets to files
+for id in abc-123 def-456 ghi-789; do
+  domo-query-cli get-dataset "$id" --output "/tmp/dataset_${id}.json"
+done
+
+# Process saved files with jq
+for file in /tmp/dataset_*.json; do
+  jq '.data.dataset | {name, rows, columns}' "$file"
+done
+
+# Combine saved results
+jq -s '.' /tmp/dataset_*.json > /tmp/all_datasets.json
+```
+
+**Supported Commands:**
+The `--output` flag is available on all read-only commands including:
+- `list-datasets`, `list-dataflows`, `list-cards`, `list-pages`
+- `get-dataset`, `get-dataflow`, `get-card`
+- `show-lineage`, `get-dataset-lineage`, `get-dataset-parents`, `get-dataset-children`, `get-dataflow-lineage`
+- `generate-lineage-report`
+- `list-dataflow-executions`, `get-dataflow-execution`
+- `render-card` (saves metadata only, not the image)
+- `cache-status`, `db-status`
+- `list-users`, `get-user`, `list-groups`, `get-group`
+
 ## Filtering and Pagination
 
 ```bash
@@ -1347,6 +1415,103 @@ find . -name "auto_backup_*.json" -mtime +7 -delete
 echo "Old backups cleaned" >> "$LOG_FILE"
 
 echo "Maintenance completed - $(date)" >> "$LOG_FILE"
+```
+
+### Batch Dataset Analysis with File Output
+```bash
+#!/bin/bash
+# Analyze multiple datasets efficiently using file-based output
+
+OUTPUT_DIR="/tmp/domo_analysis"
+mkdir -p "$OUTPUT_DIR"
+
+echo "Fetching dataset list..."
+domo-query-cli list-datasets --limit 100 --output "$OUTPUT_DIR/all_datasets.json"
+
+# Extract dataset IDs from the saved file
+DATASET_IDS=$(jq -r '.data.datasets[].id' "$OUTPUT_DIR/all_datasets.json")
+
+echo "Fetching details for each dataset..."
+for id in $DATASET_IDS; do
+  echo "  Processing dataset: $id"
+  domo-query-cli get-dataset "$id" --output "$OUTPUT_DIR/dataset_${id}.json"
+done
+
+# Analyze saved datasets without hitting the API again
+echo "Generating analysis report..."
+jq -s '[.[] | .data.dataset | {
+  id,
+  name,
+  rows,
+  columns,
+  sizeInBytes: (.rows * .columns * 100)
+}] | sort_by(.sizeInBytes) | reverse | .[0:10]' \
+  "$OUTPUT_DIR"/dataset_*.json > "$OUTPUT_DIR/top_10_largest.json"
+
+echo "Analysis complete!"
+echo "  - Dataset list: $OUTPUT_DIR/all_datasets.json"
+echo "  - Individual details: $OUTPUT_DIR/dataset_*.json"
+echo "  - Top 10 largest: $OUTPUT_DIR/top_10_largest.json"
+
+# Generate a summary report
+cat > "$OUTPUT_DIR/summary.txt" <<EOF
+Dataset Analysis Report
+Generated: $(date)
+
+Total Datasets Analyzed: $(echo "$DATASET_IDS" | wc -w)
+
+Top 10 Largest Datasets:
+$(jq -r '.[] | "\(.name): \(.rows) rows x \(.columns) columns"' "$OUTPUT_DIR/top_10_largest.json")
+EOF
+
+echo "Summary report: $OUTPUT_DIR/summary.txt"
+```
+
+### Lineage Export for Multiple Datasets
+```bash
+#!/bin/bash
+# Export lineage information for multiple datasets to files
+
+DATASETS=(
+  "abc-123-def-456"
+  "def-456-ghi-789"
+  "ghi-789-jkl-012"
+)
+
+LINEAGE_DIR="/tmp/lineage_exports"
+mkdir -p "$LINEAGE_DIR"
+
+echo "Exporting lineage for ${#DATASETS[@]} datasets..."
+
+for dataset_id in "${DATASETS[@]}"; do
+  echo "  Exporting lineage for: $dataset_id"
+
+  # Get full lineage and save to file
+  domo-query-cli get-dataset-lineage "$dataset_id" \
+    --traverse-up=true \
+    --traverse-down=true \
+    --output "$LINEAGE_DIR/lineage_${dataset_id}.json"
+
+  # Get just parents and save separately
+  domo-query-cli get-dataset-parents "$dataset_id" \
+    --output "$LINEAGE_DIR/parents_${dataset_id}.json"
+
+  # Get just children and save separately
+  domo-query-cli get-dataset-children "$dataset_id" \
+    --output "$LINEAGE_DIR/children_${dataset_id}.json"
+done
+
+echo "Lineage export complete!"
+echo "Files saved to: $LINEAGE_DIR"
+
+# Generate a lineage summary
+echo "Generating lineage summary..."
+for dataset_id in "${DATASETS[@]}"; do
+  PARENT_COUNT=$(jq '.data.parents | length' "$LINEAGE_DIR/parents_${dataset_id}.json")
+  CHILD_COUNT=$(jq '.data.children | length' "$LINEAGE_DIR/children_${dataset_id}.json")
+
+  echo "Dataset $dataset_id: $PARENT_COUNT parents, $CHILD_COUNT children"
+done
 ```
 
 ## Troubleshooting
