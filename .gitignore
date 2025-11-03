@@ -15,6 +15,7 @@ AGENTS.md
 CLAUDE.md
 .claude
 .specify
+CLI_LLM.md
 
 # Runtime data
 pids
