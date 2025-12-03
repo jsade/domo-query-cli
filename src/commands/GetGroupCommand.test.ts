@@ -10,7 +10,6 @@ import {
 import * as domoClient from "../api/clients/domoClient";
 import type { DomoGroup } from "../api/clients/domoClient";
 import * as logger from "../utils/logger";
-import * as CommandUtils from "./CommandUtils";
 import * as database from "../core/database/JsonDatabase";
 import { GetGroupCommand } from "./GetGroupCommand";
 
@@ -27,14 +26,6 @@ vi.mock("../utils/logger", () => ({
     },
 }));
 
-vi.mock("./CommandUtils", () => ({
-    CommandUtils: {
-        parseSaveOptions: vi.fn(),
-        exportData: vi.fn(),
-        parseCommandArgs: vi.fn(),
-    },
-}));
-
 vi.mock("../core/database/JsonDatabase", () => ({
     getDatabase: vi.fn(),
 }));
@@ -43,9 +34,6 @@ describe("GetGroupCommand", () => {
     let command: GetGroupCommand;
     let consoleLogSpy: MockInstance;
     const mockedGetGroup = domoClient.getGroup as Mock;
-    const mockedExportData = CommandUtils.CommandUtils.exportData as Mock;
-    const mockedParseCommandArgs = CommandUtils.CommandUtils
-        .parseCommandArgs as Mock;
     const mockedGetDatabase = vi.mocked(database.getDatabase);
 
     const mockDatabase = {
@@ -98,12 +86,6 @@ describe("GetGroupCommand", () => {
         };
 
         it("should display group details when group ID is provided", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetGroup.mockResolvedValue(mockGroup);
 
             await command.execute(["1324037627"]);
@@ -121,13 +103,6 @@ describe("GetGroupCommand", () => {
         });
 
         it("should handle missing group ID", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: [],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-
             await command.execute([]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -137,12 +112,6 @@ describe("GetGroupCommand", () => {
         });
 
         it("should display group members when available", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetGroup.mockResolvedValue(mockGroup);
 
             await command.execute(["1324037627"]);
@@ -164,12 +133,6 @@ describe("GetGroupCommand", () => {
                 name: "Minimal Group",
             };
 
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetGroup.mockResolvedValue(minimalGroup);
 
             await command.execute(["1324037627"]);
@@ -182,34 +145,7 @@ describe("GetGroupCommand", () => {
             );
         });
 
-        it("should export data when save options are provided", async () => {
-            const saveOptions = { format: "json" as const, path: null };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: saveOptions,
-            });
-            mockedGetGroup.mockResolvedValue(mockGroup);
-
-            await command.execute(["1324037627", "--save-json"]);
-
-            expect(mockedExportData).toHaveBeenCalledWith(
-                [mockGroup],
-                "Group",
-                "group_1324037627",
-                saveOptions,
-                false,
-            );
-        });
-
         it("should handle group not found", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["999999999"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetGroup.mockRejectedValue(
                 new Error("Group 999999999 not found"),
             );
@@ -221,12 +157,6 @@ describe("GetGroupCommand", () => {
 
         it("should handle API errors gracefully", async () => {
             const error = new Error("API Error");
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetGroup.mockRejectedValue(error);
 
             await command.execute(["1324037627"]);
@@ -244,12 +174,6 @@ describe("GetGroupCommand", () => {
                 groupType: "user",
             };
 
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(["offline"]),
-                saveOptions: null,
-            });
             mockDatabase.get.mockResolvedValue({
                 ...cachedGroup,
                 id: "1324037627",
@@ -264,12 +188,6 @@ describe("GetGroupCommand", () => {
         });
 
         it("should force sync with --sync flag", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(["sync"]),
-                saveOptions: null,
-            });
             mockedGetGroup.mockResolvedValue(mockGroup);
 
             await command.execute(["1324037627", "--sync"]);
@@ -279,17 +197,10 @@ describe("GetGroupCommand", () => {
         });
 
         it("should output JSON format when requested", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-                format: "json",
-            });
             mockDatabase.get.mockResolvedValue(null);
             mockedGetGroup.mockResolvedValue(mockGroup);
 
-            await command.execute(["1324037627", "--format", "json"]);
+            await command.execute(["1324037627", "--format=json"]);
 
             expect(mockedGetGroup).toHaveBeenCalledWith("1324037627");
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -304,12 +215,6 @@ describe("GetGroupCommand", () => {
                 memberCount: 0,
             };
 
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["1324037627"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetGroup.mockResolvedValue(groupNoMembers);
 
             await command.execute(["1324037627"]);
@@ -347,8 +252,9 @@ describe("GetGroupCommand", () => {
             const results = command.autocomplete("--");
             expect(results).toContain("--sync");
             expect(results).toContain("--offline");
-            expect(results).toContain("--format");
+            expect(results).toContain("--format=json");
             expect(results).toContain("--save");
+            expect(results).toContain("--export");
         });
 
         it("should filter flags based on partial input", () => {

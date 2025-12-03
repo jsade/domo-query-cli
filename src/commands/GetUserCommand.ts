@@ -1,14 +1,13 @@
 import { getUser, type DomoUser } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { getDatabase } from "../core/database/JsonDatabase";
 import {
     UserRepository,
     UserEntity,
 } from "../core/database/repositories/UserRepository";
 import chalk from "chalk";
+import { TerminalFormatter } from "../utils/terminalFormatter";
 
 /**
  * Gets detailed information about a specific user
@@ -24,34 +23,26 @@ export class GetUserCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const userId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const userId = parsed.positional[0];
 
             // Check for database options
-            const forceSync = parsedArgs.flags?.has("sync") || false;
-            const offlineMode = parsedArgs.flags?.has("offline") || false;
+            const forceSync = parsed.flags.has("sync");
+            const offlineMode = parsed.flags.has("offline");
 
             if (!userId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No user ID provided",
-                            "MISSING_USER_ID",
-                        ),
-                    );
-                } else {
-                    console.log("Error: User ID is required");
-                    this.showHelp();
-                }
+                this.outputErrorResult(
+                    {
+                        message: "No user ID provided",
+                        code: "MISSING_USER_ID",
+                    },
+                    () => {
+                        console.log("Error: User ID is required");
+                        this.showHelp();
+                    },
+                );
                 return;
             }
 
@@ -74,7 +65,7 @@ export class GetUserCommand extends BaseCommand {
                             id: Number(cachedUser.id),
                         } as DomoUser;
                         source = "database";
-                        if (!this.isJsonOutput && !offlineMode) {
+                        if (config.displayFormat !== "json" && !offlineMode) {
                             console.log(
                                 chalk.gray(
                                     "(Using cached data. Use --sync to refresh from API)",
@@ -94,21 +85,20 @@ export class GetUserCommand extends BaseCommand {
                         }
                     } else {
                         // Offline mode and user not in database
-                        if (this.isJsonOutput) {
-                            console.log(
-                                JsonOutputFormatter.error(
-                                    this.name,
+                        this.outputErrorResult(
+                            {
+                                message:
                                     "User not found in local database (offline mode)",
-                                    "NOT_FOUND_OFFLINE",
-                                ),
-                            );
-                        } else {
-                            console.log(
-                                chalk.yellow(
-                                    "User not found in local database (offline mode)",
-                                ),
-                            );
-                        }
+                                code: "NOT_FOUND_OFFLINE",
+                            },
+                            () => {
+                                console.log(
+                                    chalk.yellow(
+                                        "User not found in local database (offline mode)",
+                                    ),
+                                );
+                            },
+                        );
                         return;
                     }
                 } catch (dbError) {
@@ -136,7 +126,7 @@ export class GetUserCommand extends BaseCommand {
                             ...user,
                             id: String(user.id),
                         } as UserEntity);
-                        if (!this.isJsonOutput) {
+                        if (config.displayFormat !== "json") {
                             console.log(chalk.gray("(Updated local database)"));
                         }
                     }
@@ -146,83 +136,75 @@ export class GetUserCommand extends BaseCommand {
             }
 
             if (user) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { user },
-                            { entityType: "user", source },
-                        ),
-                    );
-                } else {
-                    console.log(chalk.cyan("\nUser Details:"));
-                    console.log("-------------");
-                    console.log(`User: ${user.name} (${user.id})`);
-                    console.log(`Email: ${user.email}`);
-                    console.log(`Role: ${user.role}`);
-
-                    if (user.title) {
-                        console.log(`Title: ${user.title}`);
-                    }
-                    if (user.phone) {
-                        console.log(`Phone: ${user.phone}`);
-                    }
-                    if (user.location) {
-                        console.log(`Location: ${user.location}`);
-                    }
-                    if (user.employeeNumber) {
-                        console.log(`Employee Number: ${user.employeeNumber}`);
-                    }
-
-                    if (user.groups && user.groups.length > 0) {
-                        console.log(
-                            chalk.cyan(`\nGroups (${user.groups.length}):`),
-                        );
-                        user.groups.forEach(g => {
-                            const groupId = g.groupId || g.id;
-                            console.log(`  - ${g.name} (${groupId})`);
-                        });
-                    }
-
-                    // Handle save options
-                    if (saveOptions) {
-                        await CommandUtils.exportData(
-                            [user],
-                            "User",
-                            `user_${userId}`,
-                            saveOptions,
-                            this.isJsonOutput,
-                        );
-                    }
-                }
+                await this.output(
+                    {
+                        success: true,
+                        data: { user },
+                        metadata: { entityType: "user", source },
+                    },
+                    () => this.displayUser(user),
+                    `user_${userId}`,
+                );
             } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            `User ${userId} not found`,
-                            "USER_NOT_FOUND",
-                        ),
-                    );
-                } else {
-                    console.log(`User ${userId} not found`);
-                }
+                this.outputErrorResult(
+                    {
+                        message: `User ${userId} not found`,
+                        code: "USER_NOT_FOUND",
+                    },
+                    () => {
+                        console.log(`User ${userId} not found`);
+                    },
+                );
             }
         } catch (error) {
             log.error("Error fetching user:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch user";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
-                console.error("Failed to fetch user.");
-                if (error instanceof Error) {
-                    console.error("Error details:", error.message);
-                }
-                console.error("Check your authentication and try again.");
-            }
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch user",
+                },
+                () => {
+                    console.error("Failed to fetch user.");
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                    console.error("Check your authentication and try again.");
+                },
+            );
+        }
+    }
+
+    /**
+     * Display user details in table format
+     */
+    private displayUser(user: DomoUser): void {
+        console.log(chalk.cyan("\nUser Details:"));
+        console.log("-------------");
+        console.log(`User: ${user.name} (${user.id})`);
+        console.log(`Email: ${user.email}`);
+        console.log(`Role: ${user.role}`);
+
+        if (user.title) {
+            console.log(`Title: ${user.title}`);
+        }
+        if (user.phone) {
+            console.log(`Phone: ${user.phone}`);
+        }
+        if (user.location) {
+            console.log(`Location: ${user.location}`);
+        }
+        if (user.employeeNumber) {
+            console.log(`Employee Number: ${user.employeeNumber}`);
+        }
+
+        if (user.groups && user.groups.length > 0) {
+            console.log(chalk.cyan(`\nGroups (${user.groups.length}):`));
+            user.groups.forEach(g => {
+                const groupId = g.groupId || g.id;
+                console.log(`  - ${g.name} (${groupId})`);
+            });
         }
     }
 
@@ -236,24 +218,73 @@ export class GetUserCommand extends BaseCommand {
         console.log(chalk.cyan("\nArguments:"));
         console.log("  user_id (required): User ID");
 
-        console.log(chalk.cyan("\nOptions:"));
+        console.log(chalk.cyan("\nDatabase Options:"));
         console.log("  --sync         Force sync from API (bypass cache)");
         console.log("  --offline      Use cached data only (no API calls)");
-        console.log("  --format json  Output as JSON");
-        console.log("  --save         Save to file");
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
         console.log("  get-user 871428330");
-        console.log("  get-user 871428330 --format json");
+        console.log("  get-user 871428330 --format=json");
         console.log("  get-user 871428330 --offline");
         console.log("  get-user 871428330 --sync");
+        console.log("  get-user 871428330 --export=md");
     }
 
     /**
      * Autocomplete support for command flags
      */
     public autocomplete(partial: string): string[] {
-        const flags = ["--sync", "--offline", "--format", "--save"];
+        const flags = [
+            "--sync",
+            "--offline",
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
         return flags.filter(flag => flag.startsWith(partial));
     }
 }

@@ -2,14 +2,13 @@ import { getDataset, DomoDataset } from "../api/clients/domoClient";
 import { ApiResponseMerger } from "../utils/apiResponseMerger";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { getDatabase } from "../core/database/JsonDatabase";
 import {
     DatasetRepository,
     DatasetEntity,
 } from "../core/database/repositories/DatasetRepository";
 import chalk from "chalk";
+import { TerminalFormatter } from "../utils/terminalFormatter";
 
 /**
  * Gets detailed information about a specific dataset
@@ -25,33 +24,20 @@ export class GetDatasetCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const datasetId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const datasetId = parsed.positional[0];
 
             // Check for database options
-            const forceSync = args?.includes("--sync");
-            const offlineMode = args?.includes("--offline");
+            const forceSync = parsed.flags.has("sync");
+            const offlineMode = parsed.flags.has("offline");
 
             if (!datasetId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataset ID provided",
-                            "MISSING_DATASET_ID",
-                        ),
-                    );
-                } else {
-                    console.log("No dataset selected.");
-                }
+                this.outputErrorResult({
+                    message: "No dataset ID provided",
+                    code: "MISSING_DATASET_ID",
+                });
                 return;
             }
 
@@ -70,7 +56,7 @@ export class GetDatasetCommand extends BaseCommand {
 
                     if (dataset) {
                         source = "database";
-                        if (!this.isJsonOutput && !offlineMode) {
+                        if (config.displayFormat !== "json" && !offlineMode) {
                             console.log(
                                 chalk.gray(
                                     "(Using cached data. Use --sync to refresh from API)",
@@ -90,21 +76,11 @@ export class GetDatasetCommand extends BaseCommand {
                         }
                     } else {
                         // Offline mode and dataset not in database
-                        if (this.isJsonOutput) {
-                            console.log(
-                                JsonOutputFormatter.error(
-                                    this.name,
-                                    "Dataset not found in local database (offline mode)",
-                                    "NOT_FOUND_OFFLINE",
-                                ),
-                            );
-                        } else {
-                            console.log(
-                                chalk.yellow(
-                                    "Dataset not found in local database (offline mode)",
-                                ),
-                            );
-                        }
+                        this.outputErrorResult({
+                            message:
+                                "Dataset not found in local database (offline mode)",
+                            code: "NOT_FOUND_OFFLINE",
+                        });
                         return;
                     }
                 } catch (dbError) {
@@ -132,7 +108,7 @@ export class GetDatasetCommand extends BaseCommand {
                     ) as DomoDataset;
                     if (apiDataset) {
                         await datasetRepo.save(apiDataset as DatasetEntity);
-                        if (!this.isJsonOutput) {
+                        if (config.displayFormat !== "json") {
                             console.log(chalk.gray("(Updated local database)"));
                         }
                     }
@@ -149,160 +125,146 @@ export class GetDatasetCommand extends BaseCommand {
             }
 
             if (dataset) {
-                if (this.isJsonOutput) {
-                    // For JSON output, return complete v1, v3, and merged data if available
-                    const formattedOutput = datasetResponse
-                        ? ApiResponseMerger.formatForOutput(datasetResponse)
-                        : { merged: dataset, source };
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { dataset: formattedOutput },
-                            { entityType: "dataset", source },
-                        ),
-                    );
-                } else {
-                    console.log(chalk.cyan("\nDataset Details:"));
-                    console.log("----------------");
-                    console.log(`ID: ${dataset.id}`);
-                    console.log(`Name: ${dataset.name}`);
-                    console.log(`Description: ${dataset.description || "N/A"}`);
-                    console.log(`Rows: ${dataset.rows.toLocaleString()}`);
-                    console.log(`Columns: ${dataset.columns}`);
-                    console.log(
-                        `Created: ${new Date(dataset.createdAt).toLocaleString()}`,
-                    );
-                    console.log(
-                        `Updated: ${new Date(dataset.updatedAt).toLocaleString()}`,
-                    );
-                    console.log(
-                        `Data Current At: ${dataset.dataCurrentAt ? new Date(dataset.dataCurrentAt).toLocaleString() : "N/A"}`,
-                    );
-                    const ownerDisplay =
-                        typeof dataset.owner === "object" && dataset.owner
-                            ? (
-                                  dataset.owner as {
-                                      displayName?: string;
-                                      name?: string;
-                                  }
-                              ).displayName ||
-                              (
-                                  dataset.owner as {
-                                      displayName?: string;
-                                      name?: string;
-                                  }
-                              ).name ||
-                              JSON.stringify(dataset.owner)
-                            : dataset.owner || "N/A";
-                    console.log(`Owner: ${ownerDisplay}`);
-                    console.log(
-                        `PDP Enabled: ${dataset.pdpEnabled !== undefined ? dataset.pdpEnabled.toString() : "N/A"}`,
-                    );
+                // For JSON output, return complete v1, v3, and merged data if available
+                const formattedOutput = datasetResponse
+                    ? ApiResponseMerger.formatForOutput(datasetResponse)
+                    : { merged: dataset, source };
 
-                    // Display certification status if available
-                    if (dataset.certification) {
-                        console.log(chalk.cyan("\nCertification:"));
-                        console.log("--------------");
-                        console.log(
-                            `State: ${dataset.certification.state || "N/A"}`,
-                        );
-                        if (dataset.certification.certifiedBy) {
-                            console.log(
-                                `Certified By: ${dataset.certification.certifiedBy}`,
-                            );
-                        }
-                        if (dataset.certification.certifiedAt) {
-                            console.log(
-                                `Certified At: ${new Date(dataset.certification.certifiedAt).toLocaleString()}`,
-                            );
-                        }
-                    }
-
-                    // Display schema if available
-                    if (dataset.schema && dataset.schema.length > 0) {
-                        console.log(chalk.cyan("\nSchema:"));
-                        console.log("-------");
-                        const maxNameLength = Math.max(
-                            ...dataset.schema.map(col => col.name.length),
-                        );
-                        dataset.schema.forEach(column => {
-                            const name = column.name.padEnd(maxNameLength);
-                            const type = column.type.padEnd(10);
-                            const visible =
-                                column.visible !== undefined
-                                    ? column.visible
-                                        ? "visible"
-                                        : "hidden"
-                                    : "";
-                            console.log(`  ${name} ${type} ${visible}`.trim());
-                        });
-                    }
-
-                    // Display policies if available and PDP is enabled
-                    if (
-                        dataset.pdpEnabled &&
-                        dataset.policies &&
-                        dataset.policies.length > 0
-                    ) {
-                        console.log(chalk.cyan("\nPDP Policies:"));
-                        console.log("-------------");
-                        dataset.policies.forEach(policy => {
-                            console.log(
-                                `  - ${policy.name || "Unnamed"} (${policy.type || "unknown"})`,
-                            );
-                            if (policy.filters && policy.filters.length > 0) {
-                                policy.filters.forEach(filter => {
-                                    const notPrefix = filter.not ? "NOT " : "";
-                                    console.log(
-                                        `    ${notPrefix}${filter.column} ${filter.operator} [${filter.values.join(", ")}]`,
-                                    );
-                                });
-                            }
-                        });
-                    }
-
-                    // Display tags if available
-                    if (dataset.tags && dataset.tags.length > 0) {
-                        console.log(chalk.cyan("\nTags:"));
-                        console.log("-----");
-                        console.log(`  ${dataset.tags.join(", ")}`);
-                    }
-
-                    await CommandUtils.exportData(
-                        [dataset],
-                        `Domo Dataset ${dataset.name}`,
-                        "dataset",
-                        saveOptions,
-                    );
-
-                    console.log("");
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Dataset not found",
-                            "DATASET_NOT_FOUND",
-                        ),
-                    );
-                } else {
-                    console.log("No dataset found.");
-                }
-            }
-        } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        error instanceof Error ? error.message : String(error),
-                        "FETCH_ERROR",
-                    ),
+                await this.output(
+                    {
+                        success: true,
+                        data: { dataset: formattedOutput },
+                        metadata: { entityType: "dataset", source },
+                    },
+                    () => this.displayDataset(dataset, datasetResponse),
+                    "dataset",
                 );
             } else {
-                log.error("Error fetching dataset:", error);
+                this.outputErrorResult({
+                    message: "Dataset not found",
+                    code: "DATASET_NOT_FOUND",
+                });
+            }
+        } catch (error) {
+            log.error("Error fetching dataset:", error);
+            this.outputErrorResult({
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to fetch dataset",
+                code: "FETCH_ERROR",
+            });
+        }
+    }
+
+    /**
+     * Display dataset details in table format
+     */
+    private displayDataset(
+        dataset: DomoDataset,
+        _datasetResponse: unknown,
+    ): void {
+        console.log(chalk.cyan("\nDataset Details:"));
+        console.log("----------------");
+        console.log(`ID: ${dataset.id}`);
+        console.log(`Name: ${dataset.name}`);
+        console.log(`Description: ${dataset.description || "N/A"}`);
+        console.log(`Rows: ${dataset.rows.toLocaleString()}`);
+        console.log(`Columns: ${dataset.columns}`);
+        console.log(`Created: ${new Date(dataset.createdAt).toLocaleString()}`);
+        console.log(`Updated: ${new Date(dataset.updatedAt).toLocaleString()}`);
+        console.log(
+            `Data Current At: ${dataset.dataCurrentAt ? new Date(dataset.dataCurrentAt).toLocaleString() : "N/A"}`,
+        );
+        const ownerDisplay =
+            typeof dataset.owner === "object" && dataset.owner
+                ? (
+                      dataset.owner as {
+                          displayName?: string;
+                          name?: string;
+                      }
+                  ).displayName ||
+                  (
+                      dataset.owner as {
+                          displayName?: string;
+                          name?: string;
+                      }
+                  ).name ||
+                  JSON.stringify(dataset.owner)
+                : dataset.owner || "N/A";
+        console.log(`Owner: ${ownerDisplay}`);
+        console.log(
+            `PDP Enabled: ${dataset.pdpEnabled !== undefined ? dataset.pdpEnabled.toString() : "N/A"}`,
+        );
+
+        // Display certification status if available
+        if (dataset.certification) {
+            console.log(chalk.cyan("\nCertification:"));
+            console.log("--------------");
+            console.log(`State: ${dataset.certification.state || "N/A"}`);
+            if (dataset.certification.certifiedBy) {
+                console.log(
+                    `Certified By: ${dataset.certification.certifiedBy}`,
+                );
+            }
+            if (dataset.certification.certifiedAt) {
+                console.log(
+                    `Certified At: ${new Date(dataset.certification.certifiedAt).toLocaleString()}`,
+                );
             }
         }
+
+        // Display schema if available
+        if (dataset.schema && dataset.schema.length > 0) {
+            console.log(chalk.cyan("\nSchema:"));
+            console.log("-------");
+            const maxNameLength = Math.max(
+                ...dataset.schema.map(col => col.name.length),
+            );
+            dataset.schema.forEach(column => {
+                const name = column.name.padEnd(maxNameLength);
+                const type = column.type.padEnd(10);
+                const visible =
+                    column.visible !== undefined
+                        ? column.visible
+                            ? "visible"
+                            : "hidden"
+                        : "";
+                console.log(`  ${name} ${type} ${visible}`.trim());
+            });
+        }
+
+        // Display policies if available and PDP is enabled
+        if (
+            dataset.pdpEnabled &&
+            dataset.policies &&
+            dataset.policies.length > 0
+        ) {
+            console.log(chalk.cyan("\nPDP Policies:"));
+            console.log("-------------");
+            dataset.policies.forEach(policy => {
+                console.log(
+                    `  - ${policy.name || "Unnamed"} (${policy.type || "unknown"})`,
+                );
+                if (policy.filters && policy.filters.length > 0) {
+                    policy.filters.forEach(filter => {
+                        const notPrefix = filter.not ? "NOT " : "";
+                        console.log(
+                            `    ${notPrefix}${filter.column} ${filter.operator} [${filter.values.join(", ")}]`,
+                        );
+                    });
+                }
+            });
+        }
+
+        // Display tags if available
+        if (dataset.tags && dataset.tags.length > 0) {
+            console.log(chalk.cyan("\nTags:"));
+            console.log("-----");
+            console.log(`  ${dataset.tags.join(", ")}`);
+        }
+
+        console.log("");
     }
 
     /**
@@ -311,21 +273,59 @@ export class GetDatasetCommand extends BaseCommand {
     public showHelp(): void {
         console.log("Gets detailed information about a specific dataset");
         console.log("Usage: get-dataset [dataset_id] [options]");
+
         console.log(chalk.cyan("\nParameters:"));
         console.log(
             "  dataset_id          Optional dataset ID to view. If not provided, you will be prompted to select a dataset",
         );
-        console.log(chalk.cyan("\nOptions:"));
-        console.log(
-            "  --save              Save results to JSON file (default)",
-        );
-        console.log("  --save-json         Save results to JSON file");
-        console.log("  --save-md           Save results to Markdown file");
-        console.log(
-            "  --save-both         Save results to both JSON and Markdown files",
-        );
-        console.log("  --path=<directory>  Specify custom export directory");
-        console.log("  --format=json       Output results in JSON format");
+
+        console.log(chalk.cyan("\nDatabase Options:"));
+        const databaseData = [
+            {
+                Option: "--sync",
+                Description: "Force refresh from API, update local cache",
+            },
+            {
+                Option: "--offline",
+                Description: "Use only cached data, no API calls",
+            },
+        ];
+        console.log(TerminalFormatter.table(databaseData));
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
+
         console.log(chalk.cyan("\nInfo Displayed:"));
         console.log(
             "  - Basic dataset properties: ID, Name, Description, Row/Column counts",
@@ -337,19 +337,58 @@ export class GetDatasetCommand extends BaseCommand {
             "  - PDP (Personalized Data Permissions) policies if enabled",
         );
         console.log("  - Associated tags");
+
         console.log(chalk.cyan("\nExamples:"));
-        console.log(
-            "  get-dataset                     Prompt for dataset selection",
-        );
-        console.log(
-            "  get-dataset abc-123-def         Get details for dataset with ID abc-123-def",
-        );
-        console.log(
-            "  get-dataset abc-123 --save-md   Get details and save to markdown",
-        );
-        console.log(
-            "  get-dataset abc-123 --format=json  Get details in JSON format",
-        );
-        console.log("");
+        const examplesData = [
+            {
+                Command: "get-dataset abc-123-def",
+                Description: "Get details for dataset with ID",
+            },
+            {
+                Command: "get-dataset abc-123 --sync",
+                Description: "Force refresh from API",
+            },
+            {
+                Command: "get-dataset abc-123 --offline",
+                Description: "Use cached data only",
+            },
+            {
+                Command: "get-dataset abc-123 --export=md",
+                Description: "Get details and export to markdown",
+            },
+            {
+                Command: "get-dataset abc-123 --format=json",
+                Description: "Output in JSON format",
+            },
+            {
+                Command: "get-dataset abc-123 --format=json --export",
+                Description: "JSON to stdout AND save to file",
+            },
+        ];
+        console.log(TerminalFormatter.table(examplesData));
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--sync",
+            "--offline",
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

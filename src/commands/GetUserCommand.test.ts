@@ -10,7 +10,6 @@ import {
 import * as domoClient from "../api/clients/domoClient";
 import type { DomoUser } from "../api/clients/domoClient";
 import * as logger from "../utils/logger";
-import * as CommandUtils from "./CommandUtils";
 import * as database from "../core/database/JsonDatabase";
 import { GetUserCommand } from "./GetUserCommand";
 
@@ -27,14 +26,6 @@ vi.mock("../utils/logger", () => ({
     },
 }));
 
-vi.mock("./CommandUtils", () => ({
-    CommandUtils: {
-        parseSaveOptions: vi.fn(),
-        exportData: vi.fn(),
-        parseCommandArgs: vi.fn(),
-    },
-}));
-
 vi.mock("../core/database/JsonDatabase", () => ({
     getDatabase: vi.fn(),
 }));
@@ -43,9 +34,6 @@ describe("GetUserCommand", () => {
     let command: GetUserCommand;
     let consoleLogSpy: MockInstance;
     const mockedGetUser = domoClient.getUser as Mock;
-    const mockedExportData = CommandUtils.CommandUtils.exportData as Mock;
-    const mockedParseCommandArgs = CommandUtils.CommandUtils
-        .parseCommandArgs as Mock;
     const mockedGetDatabase = vi.mocked(database.getDatabase);
 
     const mockDatabase = {
@@ -98,12 +86,6 @@ describe("GetUserCommand", () => {
         };
 
         it("should display user details when user ID is provided", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetUser.mockResolvedValue(mockUser);
 
             await command.execute(["871428330"]);
@@ -121,13 +103,6 @@ describe("GetUserCommand", () => {
         });
 
         it("should handle missing user ID", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: [],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-
             await command.execute([]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -137,12 +112,6 @@ describe("GetUserCommand", () => {
         });
 
         it("should display user groups when available", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetUser.mockResolvedValue(mockUser);
 
             await command.execute(["871428330"]);
@@ -166,12 +135,6 @@ describe("GetUserCommand", () => {
                 role: "Participant",
             };
 
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetUser.mockResolvedValue(minimalUser);
 
             await command.execute(["871428330"]);
@@ -187,34 +150,7 @@ describe("GetUserCommand", () => {
             );
         });
 
-        it("should export data when save options are provided", async () => {
-            const saveOptions = { format: "json" as const, path: null };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: saveOptions,
-            });
-            mockedGetUser.mockResolvedValue(mockUser);
-
-            await command.execute(["871428330", "--save-json"]);
-
-            expect(mockedExportData).toHaveBeenCalledWith(
-                [mockUser],
-                "User",
-                "user_871428330",
-                saveOptions,
-                false,
-            );
-        });
-
         it("should handle user not found", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["999999999"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetUser.mockRejectedValue(
                 new Error("User 999999999 not found"),
             );
@@ -226,12 +162,6 @@ describe("GetUserCommand", () => {
 
         it("should handle API errors gracefully", async () => {
             const error = new Error("API Error");
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetUser.mockRejectedValue(error);
 
             await command.execute(["871428330"]);
@@ -250,12 +180,6 @@ describe("GetUserCommand", () => {
                 role: "Admin",
             };
 
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(["offline"]),
-                saveOptions: null,
-            });
             mockDatabase.get.mockResolvedValue({
                 ...cachedUser,
                 id: "871428330",
@@ -270,12 +194,6 @@ describe("GetUserCommand", () => {
         });
 
         it("should force sync with --sync flag", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(["sync"]),
-                saveOptions: null,
-            });
             mockedGetUser.mockResolvedValue(mockUser);
 
             await command.execute(["871428330", "--sync"]);
@@ -285,17 +203,10 @@ describe("GetUserCommand", () => {
         });
 
         it("should output JSON format when requested", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-                format: "json",
-            });
             mockDatabase.get.mockResolvedValue(null);
             mockedGetUser.mockResolvedValue(mockUser);
 
-            await command.execute(["871428330", "--format", "json"]);
+            await command.execute(["871428330", "--format=json"]);
 
             expect(mockedGetUser).toHaveBeenCalledWith("871428330");
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -309,12 +220,6 @@ describe("GetUserCommand", () => {
                 groups: [],
             };
 
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["871428330"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedGetUser.mockResolvedValue(userNoGroups);
 
             await command.execute(["871428330"]);
@@ -352,8 +257,9 @@ describe("GetUserCommand", () => {
             const results = command.autocomplete("--");
             expect(results).toContain("--sync");
             expect(results).toContain("--offline");
-            expect(results).toContain("--format");
+            expect(results).toContain("--format=json");
             expect(results).toContain("--save");
+            expect(results).toContain("--export");
         });
 
         it("should filter flags based on partial input", () => {

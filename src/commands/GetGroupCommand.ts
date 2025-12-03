@@ -1,8 +1,6 @@
 import { getGroup, type DomoGroup } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { TerminalFormatter } from "../utils/terminalFormatter";
 import { getDatabase } from "../core/database/JsonDatabase";
 import {
@@ -25,34 +23,26 @@ export class GetGroupCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const groupId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const groupId = parsed.positional[0];
 
             // Check for database options
-            const forceSync = parsedArgs.flags?.has("sync") || false;
-            const offlineMode = parsedArgs.flags?.has("offline") || false;
+            const forceSync = parsed.flags.has("sync");
+            const offlineMode = parsed.flags.has("offline");
 
             if (!groupId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No group ID provided",
-                            "MISSING_GROUP_ID",
-                        ),
-                    );
-                } else {
-                    console.log("Error: Group ID is required");
-                    this.showHelp();
-                }
+                this.outputErrorResult(
+                    {
+                        message: "No group ID provided",
+                        code: "MISSING_GROUP_ID",
+                    },
+                    () => {
+                        console.log("Error: Group ID is required");
+                        this.showHelp();
+                    },
+                );
                 return;
             }
 
@@ -77,7 +67,7 @@ export class GetGroupCommand extends BaseCommand {
                             id: Number(stringId),
                         } as DomoGroup;
                         source = "database";
-                        if (!this.isJsonOutput && !offlineMode) {
+                        if (config.displayFormat !== "json" && !offlineMode) {
                             console.log(
                                 chalk.gray(
                                     "(Using cached data. Use --sync to refresh from API)",
@@ -97,21 +87,20 @@ export class GetGroupCommand extends BaseCommand {
                         }
                     } else {
                         // Offline mode and group not in database
-                        if (this.isJsonOutput) {
-                            console.log(
-                                JsonOutputFormatter.error(
-                                    this.name,
+                        this.outputErrorResult(
+                            {
+                                message:
                                     "Group not found in local database (offline mode)",
-                                    "NOT_FOUND_OFFLINE",
-                                ),
-                            );
-                        } else {
-                            console.log(
-                                chalk.yellow(
-                                    "Group not found in local database (offline mode)",
-                                ),
-                            );
-                        }
+                                code: "NOT_FOUND_OFFLINE",
+                            },
+                            () => {
+                                console.log(
+                                    chalk.yellow(
+                                        "Group not found in local database (offline mode)",
+                                    ),
+                                );
+                            },
+                        );
                         return;
                     }
                 } catch (dbError) {
@@ -139,7 +128,7 @@ export class GetGroupCommand extends BaseCommand {
                             ...group,
                             id: String(group.groupId || group.id),
                         } as GroupEntity);
-                        if (!this.isJsonOutput) {
+                        if (config.displayFormat !== "json") {
                             console.log(chalk.gray("(Updated local database)"));
                         }
                     }
@@ -149,86 +138,78 @@ export class GetGroupCommand extends BaseCommand {
             }
 
             if (group) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { group },
-                            { entityType: "group", source },
-                        ),
-                    );
-                } else {
-                    const displayGroupId = group.groupId || group.id;
-                    console.log(chalk.cyan("\nGroup Details:"));
-                    console.log("-------------");
-                    console.log(`Group: ${group.name} (${displayGroupId})`);
-                    console.log(`Type: ${group.groupType || "-"}`);
-                    console.log(
-                        `Member Count: ${group.memberCount || group.groupMembers?.length || 0}`,
-                    );
-
-                    if (group.created) {
-                        console.log(`Created: ${group.created}`);
-                    }
-
-                    if (group.groupMembers && group.groupMembers.length > 0) {
-                        console.log(
-                            chalk.cyan(
-                                `\nGroup Members (${group.groupMembers.length}):`,
-                            ),
-                        );
-
-                        // Display members in table format
-                        const membersData = group.groupMembers.map(member => ({
-                            ID: member.id,
-                            Name: member.displayName || member.name,
-                            Email: member.email || "-",
-                        }));
-
-                        console.log(TerminalFormatter.table(membersData));
-                    } else {
-                        console.log(chalk.gray("\nNo members in this group"));
-                    }
-
-                    // Handle save options
-                    if (saveOptions) {
-                        await CommandUtils.exportData(
-                            [group],
-                            "Group",
-                            `group_${groupId}`,
-                            saveOptions,
-                            this.isJsonOutput,
-                        );
-                    }
-                }
+                await this.output(
+                    {
+                        success: true,
+                        data: { group },
+                        metadata: { entityType: "group", source },
+                    },
+                    () => this.displayGroup(group!, groupId),
+                    `group_${groupId}`,
+                );
             } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            `Group ${groupId} not found`,
-                            "GROUP_NOT_FOUND",
-                        ),
-                    );
-                } else {
-                    console.log(`Group ${groupId} not found`);
-                }
+                this.outputErrorResult(
+                    {
+                        message: `Group ${groupId} not found`,
+                        code: "GROUP_NOT_FOUND",
+                    },
+                    () => {
+                        console.log(`Group ${groupId} not found`);
+                    },
+                );
             }
         } catch (error) {
             log.error("Error fetching group:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch group";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
-                console.error("Failed to fetch group.");
-                if (error instanceof Error) {
-                    console.error("Error details:", error.message);
-                }
-                console.error("Check your authentication and try again.");
-            }
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch group",
+                },
+                () => {
+                    console.error("Failed to fetch group.");
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                    console.error("Check your authentication and try again.");
+                },
+            );
+        }
+    }
+
+    /**
+     * Display group details in table format
+     */
+    private displayGroup(group: DomoGroup, _groupId: string): void {
+        const displayGroupId = group.groupId || group.id;
+        console.log(chalk.cyan("\nGroup Details:"));
+        console.log("-------------");
+        console.log(`Group: ${group.name} (${displayGroupId})`);
+        console.log(`Type: ${group.groupType || "-"}`);
+        console.log(
+            `Member Count: ${group.memberCount || group.groupMembers?.length || 0}`,
+        );
+
+        if (group.created) {
+            console.log(`Created: ${group.created}`);
+        }
+
+        if (group.groupMembers && group.groupMembers.length > 0) {
+            console.log(
+                chalk.cyan(`\nGroup Members (${group.groupMembers.length}):`),
+            );
+
+            // Display members in table format
+            const membersData = group.groupMembers.map(member => ({
+                ID: member.id,
+                Name: member.displayName || member.name,
+                Email: member.email || "-",
+            }));
+
+            console.log(TerminalFormatter.table(membersData));
+        } else {
+            console.log(chalk.gray("\nNo members in this group"));
         }
     }
 
@@ -242,24 +223,73 @@ export class GetGroupCommand extends BaseCommand {
         console.log(chalk.cyan("\nArguments:"));
         console.log("  group_id (required): Group ID");
 
-        console.log(chalk.cyan("\nOptions:"));
+        console.log(chalk.cyan("\nDatabase Options:"));
         console.log("  --sync         Force sync from API (bypass cache)");
         console.log("  --offline      Use cached data only (no API calls)");
-        console.log("  --format json  Output as JSON");
-        console.log("  --save         Save to file");
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
         console.log("  get-group 1324037627");
-        console.log("  get-group 1324037627 --format json");
+        console.log("  get-group 1324037627 --format=json");
         console.log("  get-group 1324037627 --offline");
         console.log("  get-group 1324037627 --sync");
+        console.log("  get-group 1324037627 --export=md");
     }
 
     /**
      * Autocomplete support for command flags
      */
     public autocomplete(partial: string): string[] {
-        const flags = ["--sync", "--offline", "--format", "--save"];
+        const flags = [
+            "--sync",
+            "--offline",
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
         return flags.filter(flag => flag.startsWith(partial));
     }
 }

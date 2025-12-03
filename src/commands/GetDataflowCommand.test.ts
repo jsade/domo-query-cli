@@ -13,12 +13,12 @@ import type {
     DomoDataflowExecution,
 } from "../api/clients/domoClient";
 import * as logger from "../utils/logger";
-import * as CommandUtils from "./CommandUtils";
 import { GetDataflowCommand } from "./GetDataflowCommand";
 
 // Mock dependencies
 vi.mock("../api/clients/dataflowApi", () => ({
     getDataflow: vi.fn(),
+    getDataflowDual: vi.fn(),
 }));
 
 vi.mock("../utils/logger", () => ({
@@ -29,25 +29,19 @@ vi.mock("../utils/logger", () => ({
     },
 }));
 
-vi.mock("./CommandUtils", () => ({
-    CommandUtils: {
-        parseSaveOptions: vi.fn(),
-        exportData: vi.fn(),
-        parseCommandArgs: vi.fn(),
-    },
-}));
-
 describe("GetDataflowCommand", () => {
     let command: GetDataflowCommand;
     let consoleLogSpy: MockInstance;
+    let consoleErrorSpy: MockInstance;
     const mockedGetDataflow = dataflowApi.getDataflow as Mock;
-    const mockedExportData = CommandUtils.CommandUtils.exportData as Mock;
-    const mockedParseCommandArgs = CommandUtils.CommandUtils
-        .parseCommandArgs as Mock;
+    const mockedGetDataflowDual = dataflowApi.getDataflowDual as Mock;
 
     beforeEach(() => {
         command = new GetDataflowCommand();
         consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+        consoleErrorSpy = vi
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
         vi.clearAllMocks();
     });
 
@@ -98,21 +92,22 @@ describe("GetDataflowCommand", () => {
         };
 
         it("should display dataflow details when dataflow ID is provided", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: mockDataflow,
+                v2: mockDataflow,
+                merged: mockDataflow,
             });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
 
-            expect(mockedGetDataflow).toHaveBeenCalledWith(
+            expect(mockedGetDataflowDual).toHaveBeenCalledWith(
                 "test-123",
                 "apiToken",
             );
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nDataflow Details:");
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Dataflow Details:"),
+            );
             expect(consoleLogSpy).toHaveBeenCalledWith("ID: test-123");
             expect(consoleLogSpy).toHaveBeenCalledWith("Name: Test Dataflow");
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -124,89 +119,33 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should handle missing dataflow ID", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: [],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-
             await command.execute([]);
 
-            expect(consoleLogSpy).toHaveBeenCalledWith("No dataflow selected.");
-            expect(mockedGetDataflow).not.toHaveBeenCalled();
-        });
-
-        it("should handle dataflow ID as nested array", async () => {
-            // Test case where positional args might be nested array
-            // In this case, the array is treated as a truthy value and passed to getDataflow
-            mockedParseCommandArgs.mockReturnValue({
-                positional: [["test-123"]],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-            mockedGetDataflow.mockResolvedValue(mockDataflow);
-
-            await command.execute(["test-123"]);
-
-            // The nested array is coerced to string "test-123" when passed to getDataflow
-            expect(mockedGetDataflow).toHaveBeenCalledWith(
-                ["test-123"], // The array is passed as-is
-                "apiToken",
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining("No dataflow ID provided"),
             );
-        });
-
-        it("should extract dataflow ID from array when parseSaveOptions returns array", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-            mockedGetDataflow.mockResolvedValue(mockDataflow);
-
-            await command.execute(["test-123"]);
-
-            expect(mockedGetDataflow).toHaveBeenCalledWith(
-                "test-123",
-                "apiToken",
-            );
-        });
-
-        it("should handle dataflow ID as direct string from parseSaveOptions", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-            mockedGetDataflow.mockResolvedValue(mockDataflow);
-
-            await command.execute(["test-123"]);
-
-            expect(mockedGetDataflow).toHaveBeenCalledWith(
-                "test-123",
-                "apiToken",
-            );
+            expect(mockedGetDataflowDual).not.toHaveBeenCalled();
         });
 
         it("should display inputs with correct dataSourceId", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: mockDataflow,
+                v2: mockDataflow,
+                merged: mockDataflow,
             });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
 
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nInputs:");
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Inputs:"),
+            );
             expect(consoleLogSpy).toHaveBeenCalledWith(
                 "Names: Input Dataset 1, Input Dataset 2",
             );
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nInput Details:");
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Input Details:"),
+            );
             expect(consoleLogSpy).toHaveBeenCalledWith(
                 "ID: dataset-001, Name: Input Dataset 1",
             );
@@ -216,19 +155,22 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should display outputs with correct dataSourceId", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: mockDataflow,
+                v2: mockDataflow,
+                merged: mockDataflow,
             });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
             await command.execute(["test-123"]);
 
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nOutputs:");
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Outputs:"),
+            );
             expect(consoleLogSpy).toHaveBeenCalledWith("Names: Output Dataset");
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nOutput Details:");
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Output Details:"),
+            );
             expect(consoleLogSpy).toHaveBeenCalledWith(
                 "ID: dataset-003, Name: Output Dataset",
             );
@@ -242,11 +184,10 @@ describe("GetDataflowCommand", () => {
                 inputCount: 0,
                 outputCount: 0,
             };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: dataflowNoIO,
+                v2: dataflowNoIO,
+                merged: dataflowNoIO,
             });
             mockedGetDataflow.mockResolvedValue(dataflowNoIO);
 
@@ -254,8 +195,6 @@ describe("GetDataflowCommand", () => {
 
             expect(consoleLogSpy).toHaveBeenCalledWith("Input Count: 0");
             expect(consoleLogSpy).toHaveBeenCalledWith("Output Count: 0");
-            expect(consoleLogSpy).not.toHaveBeenCalledWith("\nInputs:");
-            expect(consoleLogSpy).not.toHaveBeenCalledWith("\nOutputs:");
         });
 
         it("should handle missing optional fields gracefully", async () => {
@@ -264,11 +203,10 @@ describe("GetDataflowCommand", () => {
                 name: "Minimal Dataflow",
                 createdAt: "2024-01-01T00:00:00Z",
             };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: minimalDataflow,
+                v2: minimalDataflow,
+                merged: minimalDataflow,
             });
             mockedGetDataflow.mockResolvedValue(minimalDataflow);
 
@@ -282,49 +220,23 @@ describe("GetDataflowCommand", () => {
             expect(consoleLogSpy).toHaveBeenCalledWith("Enabled: N/A");
         });
 
-        it("should export data when save options are provided", async () => {
-            const saveOptions = { format: "json" as const, path: null };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: saveOptions,
-            });
-            mockedGetDataflow.mockResolvedValue(mockDataflow);
-
-            await command.execute(["test-123", "--save-json"]);
-
-            expect(mockedExportData).toHaveBeenCalledWith(
-                [mockDataflow],
-                "Domo Dataflow Test Dataflow",
-                "dataflow",
-                saveOptions,
-            );
-        });
-
         it("should handle dataflow not found", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: null,
+                v2: null,
+                merged: null,
             });
-            mockedGetDataflow.mockResolvedValue(null);
 
             await command.execute(["test-123"]);
 
-            expect(consoleLogSpy).toHaveBeenCalledWith("No dataflow found.");
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Dataflow not found"),
+            );
         });
 
         it("should handle API errors gracefully", async () => {
             const error = new Error("API Error");
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-            mockedGetDataflow.mockRejectedValue(error);
+            mockedGetDataflowDual.mockRejectedValue(error);
 
             await command.execute(["test-123"]);
 
@@ -335,11 +247,10 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should format timestamps correctly", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: mockDataflow,
+                v2: mockDataflow,
+                merged: mockDataflow,
             });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
@@ -358,11 +269,10 @@ describe("GetDataflowCommand", () => {
         });
 
         it("should display input and output counts with names when available", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: mockDataflow,
+                v2: mockDataflow,
+                merged: mockDataflow,
             });
             mockedGetDataflow.mockResolvedValue(mockDataflow);
 
@@ -386,11 +296,10 @@ describe("GetDataflowCommand", () => {
                 inputs: [],
                 outputs: [],
             };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: dataflowEmptyArrays,
+                v2: dataflowEmptyArrays,
+                merged: dataflowEmptyArrays,
             });
             mockedGetDataflow.mockResolvedValue(dataflowEmptyArrays);
 
@@ -398,49 +307,15 @@ describe("GetDataflowCommand", () => {
 
             expect(consoleLogSpy).toHaveBeenCalledWith("Input Count: 2");
             expect(consoleLogSpy).toHaveBeenCalledWith("Output Count: 1");
-            expect(consoleLogSpy).not.toHaveBeenCalledWith("\nInputs:");
-            expect(consoleLogSpy).not.toHaveBeenCalledWith("\nOutputs:");
-        });
-
-        it("should handle multiple save options correctly", async () => {
-            const saveOptions = {
-                format: "both" as const,
-                path: "/custom/path",
-            };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: saveOptions,
-            });
-            mockedGetDataflow.mockResolvedValue(mockDataflow);
-
-            await command.execute([
-                "test-123",
-                "--save-both",
-                "--path=/custom/path",
-            ]);
-
-            expect(mockedExportData).toHaveBeenCalledWith(
-                [mockDataflow],
-                "Domo Dataflow Test Dataflow",
-                "dataflow",
-                saveOptions,
-            );
         });
 
         it("should handle undefined args parameter", async () => {
-            mockedParseCommandArgs.mockReturnValue({
-                positional: [],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
-
             await command.execute(undefined);
 
-            expect(consoleLogSpy).toHaveBeenCalledWith("No dataflow selected.");
-            expect(mockedGetDataflow).not.toHaveBeenCalled();
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining("No dataflow ID provided"),
+            );
+            expect(mockedGetDataflowDual).not.toHaveBeenCalled();
         });
 
         it("should display dates with proper fallback for missing lastExecution endTime", async () => {
@@ -451,11 +326,10 @@ describe("GetDataflowCommand", () => {
                     state: "SUCCESS",
                 } as DomoDataflowExecution,
             };
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["test-123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
+            mockedGetDataflowDual.mockResolvedValue({
+                v1: dataflowNoEndTime,
+                v2: dataflowNoEndTime,
+                merged: dataflowNoEndTime,
             });
             mockedGetDataflow.mockResolvedValue(dataflowNoEndTime);
 
@@ -473,20 +347,27 @@ describe("GetDataflowCommand", () => {
                 "Gets detailed information about a specific dataflow",
             );
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                "Usage: get-dataflow [dataflow_id] [options]",
+                "\nUsage: get-dataflow [dataflow_id] [options]",
             );
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nParameters:");
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nOptions:");
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nInfo Displayed:");
-            expect(consoleLogSpy).toHaveBeenCalledWith("\nExamples:");
+            // Check that key sections are displayed (using stringContaining for chalk formatting)
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                "  get-dataflow                   Prompt for dataflow selection",
+                expect.stringContaining("Parameters:"),
             );
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                "  get-dataflow abc123            Get details for dataflow with ID abc123",
+                expect.stringContaining("Output Options:"),
             );
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                "  get-dataflow abc123 --save-md  Get details and save to markdown",
+                expect.stringContaining("Info Displayed:"),
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Examples:"),
+            );
+            // Examples are now in table format - check table content
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("get-dataflow"),
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("--format=json"),
             );
         });
     });

@@ -1,8 +1,7 @@
 import { getDatasetV3, V3DatasetResponse } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
+import { TerminalFormatter } from "../utils/terminalFormatter";
 import chalk from "chalk";
 
 /**
@@ -20,29 +19,16 @@ export class GetDatasetV3Command extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const datasetId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const datasetId = parsed.positional[0];
 
             if (!datasetId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataset ID provided",
-                            "MISSING_DATASET_ID",
-                        ),
-                    );
-                } else {
-                    console.log("No dataset ID provided.");
-                }
+                this.outputErrorResult({
+                    message: "No dataset ID provided",
+                    code: "MISSING_DATASET_ID",
+                });
                 return;
             }
 
@@ -50,51 +36,30 @@ export class GetDatasetV3Command extends BaseCommand {
             const dataset = await getDatasetV3(datasetId);
 
             if (dataset) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { dataset },
-                            { entityType: "dataset", apiVersion: "v3" },
-                        ),
-                    );
-                } else {
-                    this.displayDataset(dataset);
-
-                    await CommandUtils.exportData(
-                        [dataset],
-                        `Domo Dataset V3 ${dataset.name || datasetId}`,
-                        "dataset-v3",
-                        saveOptions,
-                    );
-
-                    console.log("");
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Dataset not found",
-                            "DATASET_NOT_FOUND",
-                        ),
-                    );
-                } else {
-                    console.log("No dataset found.");
-                }
-            }
-        } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        error instanceof Error ? error.message : String(error),
-                        "FETCH_ERROR",
-                    ),
+                await this.output(
+                    {
+                        success: true,
+                        data: { dataset },
+                        metadata: { entityType: "dataset", apiVersion: "v3" },
+                    },
+                    () => this.displayDataset(dataset),
+                    "dataset-v3",
                 );
             } else {
-                log.error("Error fetching dataset:", error);
+                this.outputErrorResult({
+                    message: "Dataset not found",
+                    code: "DATASET_NOT_FOUND",
+                });
             }
+        } catch (error) {
+            log.error("Error fetching dataset:", error);
+            this.outputErrorResult({
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to fetch dataset",
+                code: "FETCH_ERROR",
+            });
         }
     }
 
@@ -268,17 +233,41 @@ export class GetDatasetV3Command extends BaseCommand {
         );
         console.log(chalk.cyan("\nParameters:"));
         console.log("  dataset_id          Dataset ID (GUID format)");
-        console.log(chalk.cyan("\nOptions:"));
-        console.log(
-            "  --save              Save results to JSON file (default)",
-        );
-        console.log("  --save-json         Save results to JSON file");
-        console.log("  --save-md           Save results to Markdown file");
-        console.log(
-            "  --save-both         Save results to both JSON and Markdown files",
-        );
-        console.log("  --path=<directory>  Specify custom export directory");
-        console.log("  --format=json       Output results in JSON format");
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
+
         console.log(chalk.cyan("\nV3-Specific Fields:"));
         console.log(
             "  - Cloud/Connector info: cloudId, cloudName, cloudEngine, streamId",
@@ -297,7 +286,29 @@ export class GetDatasetV3Command extends BaseCommand {
         );
         console.log("  get-dataset-v3 abc-123 --format=json   Output as JSON");
         console.log(
-            "  get-dataset-v3 abc-123 --save-md       Save to markdown file",
+            "  get-dataset-v3 abc-123 --export=md     Export to markdown file",
         );
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }
