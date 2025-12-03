@@ -3,11 +3,10 @@ import {
     DataflowLineageQueryParams,
     LineageEntity,
 } from "../api/clients/domoClient";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
+import { TerminalFormatter } from "../utils/terminalFormatter";
 
 /**
  * Gets lineage information for a specific dataset from the API
@@ -23,32 +22,16 @@ export class GetDatasetLineageCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const datasetId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const datasetId = parsed.positional[0];
 
             if (!datasetId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataset ID provided",
-                            "MISSING_DATASET_ID",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        "Usage: get-dataset-lineage <dataset-id> [options]",
-                    );
-                    console.log("No dataset ID provided.");
-                }
+                this.outputErrorResult({
+                    message: "No dataset ID provided",
+                    code: "MISSING_DATASET_ID",
+                });
                 return;
             }
 
@@ -57,32 +40,33 @@ export class GetDatasetLineageCommand extends BaseCommand {
 
             // Check for traverse options
             const traverseUp =
-                parsedArgs.params["traverse-up"] ||
-                parsedArgs.params.traverseUp;
-            if (traverseUp === "true" || traverseUp === true) {
-                queryParams.traverseUp = true;
+                parsed.params["traverse-up"] ?? parsed.params.traverseUp;
+            if (traverseUp !== undefined) {
+                queryParams.traverseUp =
+                    traverseUp === "true" || traverseUp === true;
             }
 
             const traverseDown =
-                parsedArgs.params["traverse-down"] ||
-                parsedArgs.params.traverseDown;
-            if (traverseDown === "true" || traverseDown === true) {
-                queryParams.traverseDown = true;
+                parsed.params["traverse-down"] ?? parsed.params.traverseDown;
+            if (traverseDown !== undefined) {
+                queryParams.traverseDown =
+                    traverseDown === "true" || traverseDown === true;
             }
 
             // Default to traversing both directions if neither is specified
             // This provides more useful data by default
-            if (
-                queryParams.traverseUp === undefined &&
-                queryParams.traverseDown === undefined
-            ) {
+            // Only apply defaults if BOTH are unspecified
+            const traverseUpSpecified = traverseUp !== undefined;
+            const traverseDownSpecified = traverseDown !== undefined;
+
+            if (!traverseUpSpecified && !traverseDownSpecified) {
                 queryParams.traverseUp = true;
                 queryParams.traverseDown = true;
             }
 
             // Check for entity types filter
             const entities =
-                parsedArgs.params.entities || parsedArgs.params.requestEntities;
+                parsed.params.entities ?? parsed.params.requestEntities;
             if (entities) {
                 queryParams.requestEntities = String(entities);
             } else {
@@ -90,7 +74,7 @@ export class GetDatasetLineageCommand extends BaseCommand {
                 queryParams.requestEntities = "DATA_SOURCE,DATAFLOW,CARD";
             }
 
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(
                     chalk.cyan(`\nFetching lineage for dataset: ${datasetId}`),
                 );
@@ -107,20 +91,11 @@ export class GetDatasetLineageCommand extends BaseCommand {
             );
 
             if (!lineageResponse) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Failed to fetch lineage. API token and DOMO_API_HOST configuration required.",
-                            "CONFIG_ERROR",
-                        ),
-                    );
-                } else {
-                    console.log(chalk.red("Failed to fetch lineage."));
-                    console.log(
-                        "This command requires API token and DOMO_API_HOST configuration.",
-                    );
-                }
+                this.outputErrorResult({
+                    message:
+                        "Failed to fetch lineage. API token and DOMO_API_HOST configuration required.",
+                    code: "CONFIG_ERROR",
+                });
                 return;
             }
 
@@ -130,101 +105,98 @@ export class GetDatasetLineageCommand extends BaseCommand {
             const lineageData = lineageResponse[datasetKey];
 
             if (!lineageData) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            `No lineage data found for dataset ${datasetId}`,
-                            "NO_LINEAGE_DATA",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        `No lineage data found for dataset ${datasetId}`,
-                    );
-                }
+                this.outputErrorResult({
+                    message: `No lineage data found for dataset ${datasetId}`,
+                    code: "NO_LINEAGE_DATA",
+                });
                 return;
             }
 
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.success(
-                        this.name,
-                        { lineage: lineageResponse },
-                        {
-                            datasetId,
-                            entityType: "dataset",
-                            note: "Lineage data from Domo API v1/lineage endpoint",
-                        },
-                    ),
-                );
-            } else {
-                // Display formatted output
-                console.log(chalk.cyan("Dataset Lineage Information:"));
-                console.log("============================");
-                console.log(`Type: ${lineageData.type}`);
-                console.log(`ID: ${lineageData.id}`);
-                console.log(`Complete: ${lineageData.complete}`);
-
-                // Display ancestor counts
-                if (Object.keys(lineageData.ancestorCounts).length > 0) {
-                    console.log(chalk.cyan("\nAncestor Counts:"));
-                    for (const [type, count] of Object.entries(
-                        lineageData.ancestorCounts,
-                    )) {
-                        console.log(`  ${type}: ${count}`);
-                    }
-                }
-
-                // Display descendant counts
-                if (Object.keys(lineageData.descendantCounts).length > 0) {
-                    console.log(chalk.cyan("\nDescendant Counts:"));
-                    for (const [type, count] of Object.entries(
-                        lineageData.descendantCounts,
-                    )) {
-                        console.log(`  ${type}: ${count}`);
-                    }
-                }
-
-                // Display parents
-                if (lineageData.parents && lineageData.parents.length > 0) {
-                    console.log(chalk.cyan("\nParent Entities:"));
-                    this.displayEntities(lineageData.parents, "  ");
-                }
-
-                // Display children
-                if (lineageData.children && lineageData.children.length > 0) {
-                    console.log(chalk.cyan("\nChild Entities:"));
-                    this.displayEntities(lineageData.children, "  ");
-                }
-
-                // Export data if requested
-                await CommandUtils.exportData(
-                    [lineageResponse],
-                    `Dataset Lineage for ${datasetId}`,
-                    "lineage",
-                    saveOptions,
-                );
-
-                console.log("");
-            }
+            // Use unified output system
+            await this.output(
+                {
+                    success: true,
+                    data: { lineage: lineageResponse },
+                    metadata: {
+                        datasetId,
+                        entityType: "dataset",
+                        traverseUp: queryParams.traverseUp,
+                        traverseDown: queryParams.traverseDown,
+                        requestEntities: queryParams.requestEntities,
+                        note: "Lineage data from Domo API v1/lineage endpoint",
+                    },
+                },
+                () => this.displayLineage(lineageData),
+                "lineage",
+            );
         } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
+            log.error("Error fetching dataset lineage:", error);
+            this.outputErrorResult(
+                {
+                    message:
                         error instanceof Error ? error.message : String(error),
-                        "FETCH_ERROR",
-                    ),
-                );
-            } else {
-                log.error("Error fetching dataset lineage:", error);
-                console.error(chalk.red("Failed to fetch dataset lineage."));
-                if (error instanceof Error) {
-                    console.error(error.message);
-                }
+                    code: "FETCH_ERROR",
+                },
+                () => {
+                    console.error(
+                        TerminalFormatter.error(
+                            "Failed to fetch dataset lineage.",
+                        ),
+                    );
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                    console.error(
+                        "Check your API token and DOMO_API_HOST configuration, then try again.",
+                    );
+                },
+            );
+        }
+    }
+
+    /**
+     * Display lineage data in table format
+     */
+    private displayLineage(lineageData: LineageEntity): void {
+        console.log(chalk.cyan("\nDataset Lineage Information:"));
+        console.log("============================");
+        console.log(`Type: ${lineageData.type}`);
+        console.log(`ID: ${lineageData.id}`);
+        console.log(`Complete: ${lineageData.complete}`);
+
+        // Display ancestor counts
+        if (Object.keys(lineageData.ancestorCounts).length > 0) {
+            console.log(chalk.cyan("\nAncestor Counts:"));
+            for (const [type, count] of Object.entries(
+                lineageData.ancestorCounts,
+            )) {
+                console.log(`  ${type}: ${count}`);
             }
         }
+
+        // Display descendant counts
+        if (Object.keys(lineageData.descendantCounts).length > 0) {
+            console.log(chalk.cyan("\nDescendant Counts:"));
+            for (const [type, count] of Object.entries(
+                lineageData.descendantCounts,
+            )) {
+                console.log(`  ${type}: ${count}`);
+            }
+        }
+
+        // Display parents
+        if (lineageData.parents && lineageData.parents.length > 0) {
+            console.log(chalk.cyan("\nParent Entities:"));
+            this.displayEntities(lineageData.parents, "  ");
+        }
+
+        // Display children
+        if (lineageData.children && lineageData.children.length > 0) {
+            console.log(chalk.cyan("\nChild Entities:"));
+            this.displayEntities(lineageData.children, "  ");
+        }
+
+        console.log("");
     }
 
     /**
@@ -268,54 +240,94 @@ export class GetDatasetLineageCommand extends BaseCommand {
             "  dataset-id          The ID of the dataset to get lineage for",
         );
 
-        console.log(chalk.cyan("\nOptions:"));
-        console.log(
-            "  --traverse-up=<true|false>    Traverse up the lineage graph (default: true)",
-        );
-        console.log(
-            "  --traverse-down=<true|false>  Traverse down the lineage graph (default: true)",
-        );
-        console.log(
-            "  --entities=<types>            Entity types to request (comma-separated)",
-        );
-        console.log(
-            "                                Default: DATA_SOURCE,DATAFLOW,CARD",
-        );
-        console.log(
-            "  --format=json                 Output results in JSON format",
-        );
-        console.log(
-            "  --save                        Save results to JSON file",
-        );
-        console.log(
-            "  --save-json                   Save results to JSON file",
-        );
-        console.log(
-            "  --save-md                     Save results to Markdown file",
-        );
-        console.log(
-            "  --save-both                   Save to both JSON and Markdown",
-        );
-        console.log(
-            "  --path=<directory>            Specify custom export directory",
-        );
+        console.log(chalk.cyan("\nLineage Options:"));
+        const lineageData = [
+            {
+                Option: "--traverse-up=<bool>",
+                Description: "Traverse up the lineage graph (default: true)",
+            },
+            {
+                Option: "--traverse-down=<bool>",
+                Description: "Traverse down the lineage graph (default: true)",
+            },
+            {
+                Option: "--entities=<types>",
+                Description:
+                    "Entity types to request (comma-separated, default: DATA_SOURCE,DATAFLOW,CARD)",
+            },
+        ];
+        console.log(TerminalFormatter.table(lineageData));
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
+
+        console.log(chalk.cyan("\nInfo Displayed:"));
+        console.log("  - Lineage entity type, ID, and completion status");
+        console.log("  - Ancestor counts by entity type (datasets, dataflows)");
+        console.log("  - Descendant counts by entity type (cards, datasets)");
+        console.log("  - Parent entities with nested hierarchy");
+        console.log("  - Child entities with nested hierarchy");
 
         console.log(chalk.cyan("\nExamples:"));
-        console.log("  get-dataset-lineage abc-123-def");
-        console.log("    Get basic lineage for dataset abc-123-def");
-        console.log("");
-        console.log(
-            "  get-dataset-lineage abc-123 --traverse-up=true --traverse-down=true",
-        );
-        console.log("    Get complete lineage traversing both directions");
-        console.log("");
-        console.log(
-            "  get-dataset-lineage abc-123 --entities=DATA_SOURCE,DATAFLOW",
-        );
-        console.log("    Get lineage for specific entity types only");
-        console.log("");
-        console.log("  get-dataset-lineage abc-123 --format=json");
-        console.log("    Output lineage in JSON format");
+        const examplesData = [
+            {
+                Command: "get-dataset-lineage abc-123-def",
+                Description: "Get complete lineage (both directions)",
+            },
+            {
+                Command: "get-dataset-lineage abc-123 --traverse-up=true",
+                Description: "Get upstream lineage only",
+            },
+            {
+                Command:
+                    "get-dataset-lineage abc-123 --entities=DATA_SOURCE,DATAFLOW",
+                Description: "Filter to specific entity types",
+            },
+            {
+                Command: "get-dataset-lineage abc-123 --format=json",
+                Description: "Output in JSON format",
+            },
+            {
+                Command: "get-dataset-lineage abc-123 --format=json --export",
+                Description: "JSON to stdout AND save to file",
+            },
+            {
+                Command: "get-dataset-lineage abc-123 --export=md",
+                Description: "Save lineage to Markdown file",
+            },
+        ];
+        console.log(TerminalFormatter.table(examplesData));
 
         console.log(chalk.cyan("\nNote:"));
         console.log(
@@ -324,13 +336,40 @@ export class GetDatasetLineageCommand extends BaseCommand {
         console.log("  configuration to access the v1 lineage endpoint.");
         console.log("");
         console.log(
-            "  Setting both --traverse-up and --traverse-down to true will",
+            "  Setting both --traverse-up and --traverse-down to true (default)",
         );
-        console.log("  return the complete lineage graph for the dataset.");
+        console.log(
+            "  will return the complete lineage graph for the dataset.",
+        );
         console.log("");
         console.log(
             "  The endpoint also works with dataflow IDs, showing the lineage",
         );
         console.log("  from a data source perspective.");
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--traverse-up",
+            "--traverse-down",
+            "--entities",
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

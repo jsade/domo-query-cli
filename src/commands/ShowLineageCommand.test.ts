@@ -15,9 +15,7 @@ import {
     type LineageGraph,
 } from "../managers/DataLineageBuilder";
 import * as logger from "../utils/logger";
-import * as CommandUtils from "./CommandUtils";
 import { ShowLineageCommand } from "./ShowLineageCommand";
-import type { SaveOptions } from "./CommandUtils";
 
 // Mock dependencies
 vi.mock("../api/clients/dataflowApi", () => ({
@@ -42,18 +40,19 @@ vi.mock("../utils/logger", () => ({
     },
 }));
 
-vi.mock("./CommandUtils", () => ({
-    CommandUtils: {
-        parseSaveOptions: vi.fn(),
-        exportData: vi.fn(),
-        parseCommandArgs: vi.fn(),
-    },
+// Mock file writer for export tests
+vi.mock("../utils/FileOutputWriter", () => ({
+    writeJsonToFile: vi.fn(),
+}));
+
+vi.mock("../utils/utils", () => ({
+    exportToJson: vi.fn(),
+    exportToMarkdown: vi.fn(),
 }));
 
 describe("ShowLineageCommand", () => {
     let command: ShowLineageCommand;
     let consoleLogSpy: MockInstance;
-    let consoleErrorSpy: MockInstance;
     let mockLineageBuilder: {
         buildLineageGraph: Mock;
         getDatasetDependencies: Mock;
@@ -61,11 +60,6 @@ describe("ShowLineageCommand", () => {
         exportForVisualization: Mock;
     };
     const mockedListDataflows = dataflowApi.listDataflows as Mock;
-    const mockedParseSaveOptions = CommandUtils.CommandUtils
-        .parseSaveOptions as Mock;
-    const mockedExportData = CommandUtils.CommandUtils.exportData as Mock;
-    const mockedParseCommandArgs = CommandUtils.CommandUtils
-        .parseCommandArgs as Mock;
 
     // Sample data
     const sampleDataflows: DomoDataflow[] = [
@@ -154,9 +148,7 @@ describe("ShowLineageCommand", () => {
         consoleLogSpy = vi
             .spyOn(console, "log")
             .mockImplementation(function () {});
-        consoleErrorSpy = vi
-            .spyOn(console, "error")
-            .mockImplementation(function () {});
+        vi.spyOn(console, "error").mockImplementation(function () {});
         vi.clearAllMocks();
 
         // Setup mock lineage builder
@@ -185,24 +177,10 @@ describe("ShowLineageCommand", () => {
         (DataLineageBuilder as unknown as Mock).mockImplementation(function () {
             return mockLineageBuilder;
         });
-
-        // Default mock implementations
-        mockedParseSaveOptions.mockImplementation(function () {
-            return [[], { format: null, path: "./output" }];
-        });
     });
 
     describe("execute", () => {
         it("should display usage when no entity ID is provided", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: [],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
-
             await command.execute([]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -214,14 +192,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should handle no dataflows found", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds1"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return [];
             });
@@ -234,14 +204,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should handle entity not found in graph", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["unknown-id"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -262,14 +224,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should display dataset dependencies by default", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds2"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -291,14 +245,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should display dataflow connections", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["df1"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -317,14 +263,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should generate diagram when --diagram option is used", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds2", "--diagram"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -342,14 +280,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should respect max depth option", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds2", "--diagram", "--max-depth=5"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -360,70 +290,33 @@ describe("ShowLineageCommand", () => {
             expect(allLogs).toContain("graph TD");
         });
 
-        it("should export data when save options are provided", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds2", "--save-json"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
+        it("should export data when --export flag is provided", async () => {
+            const { exportToJson } = await import("../utils/utils");
+            const mockedExportToJson = exportToJson as Mock;
+
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
-            mockedParseSaveOptions.mockImplementation(function () {
-                return [
-                    [], // remaining args after parsing save options
-                    { format: "json", path: "./output" },
-                ];
-            });
 
-            // Execute the command
-            await command.execute(["ds2", "--save-json"]);
+            // Execute the command with --export flag (new unified approach)
+            await command.execute(["ds2", "--export"]);
 
-            // Debug: Check what error was thrown
-            if ((logger.log.error as unknown as Mock).mock.calls.length > 0) {
-                console.log(
-                    "Error logged:",
-                    (logger.log.error as unknown as Mock).mock.calls[0],
-                );
-            }
-            if (consoleErrorSpy.mock.calls.length > 0) {
-                console.log("Console error:", consoleErrorSpy.mock.calls[0]);
-            }
-
-            expect(mockedParseSaveOptions).toHaveBeenCalledWith([
-                "--save-json",
-            ]);
-            expect(mockedExportData).toHaveBeenCalled();
-            const callArgs = mockedExportData.mock.calls[0];
-            expect(callArgs[0]).toEqual([
+            // Should have exported the data
+            expect(mockedExportToJson).toHaveBeenCalled();
+            const callArgs = mockedExportToJson.mock.calls[0];
+            expect(callArgs[0]).toEqual(
                 expect.objectContaining({
                     entity: expect.objectContaining({
                         id: "ds2",
                         type: "dataset",
                         name: "Processed Sales",
                     }),
-                    analysis: expect.objectContaining({
-                        dependencies: sampleDependencies,
-                    }),
                 }),
-            ]);
-            expect(callArgs[1]).toBe("Data Lineage for Processed Sales");
-            expect(callArgs[2]).toBe("lineage");
-            expect(callArgs[3]).toEqual({ format: "json", path: "./output" });
+            );
+            expect(callArgs[1]).toBe("lineage");
         });
 
         it("should handle errors gracefully", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds1"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             const error = new Error("API Error");
             mockedListDataflows.mockImplementation(async function () {
                 throw error;
@@ -441,14 +334,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should find upstream contributors correctly", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds3", "--diagram"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -461,14 +346,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should find downstream contributors for dataflows", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["df1", "--diagram"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -527,15 +404,6 @@ describe("ShowLineageCommand", () => {
                 },
             );
 
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["df3"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
-
             await command.execute(["df3"]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -583,15 +451,6 @@ describe("ShowLineageCommand", () => {
                 },
             );
 
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["df4"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
-
             await command.execute(["df4"]);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -600,14 +459,6 @@ describe("ShowLineageCommand", () => {
         });
 
         it("should display both dependencies and diagram when both options are used", async () => {
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds2", "--dependencies", "--diagram"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
             mockedListDataflows.mockImplementation(async function () {
                 return sampleDataflows;
             });
@@ -697,15 +548,6 @@ describe("ShowLineageCommand", () => {
                 },
             );
 
-            mockedParseCommandArgs.mockImplementation(function () {
-                return {
-                    positional: ["ds_c1", "--diagram", "--max-depth=10"],
-                    params: {},
-                    flags: new Set(),
-                    saveOptions: null,
-                };
-            });
-
             await command.execute(["ds_c1", "--diagram", "--max-depth=10"]);
 
             // Should not crash and should display diagram
@@ -730,75 +572,6 @@ describe("ShowLineageCommand", () => {
             expect(allLogs).toContain("--dependencies");
             expect(allLogs).toContain("--diagram");
             expect(allLogs).toContain("--max-depth");
-        });
-    });
-
-    describe("parseOptions", () => {
-        it("should parse save and display options correctly", () => {
-            const options = ["--save-json", "--diagram", "--dependencies"];
-            mockedParseSaveOptions.mockImplementation(function () {
-                return [["--save-json"], { format: "json", path: "./output" }];
-            });
-
-            const result = (
-                command as unknown as {
-                    parseOptions: (options: string[]) => {
-                        saveOptions: SaveOptions;
-                        displayOptions: string[];
-                    };
-                }
-            ).parseOptions(options);
-
-            expect(result.saveOptions).toEqual({
-                format: "json",
-                path: "./output",
-            });
-            expect(result.displayOptions).toEqual([
-                "--diagram",
-                "--dependencies",
-            ]);
-        });
-    });
-
-    describe("extractMaxDepth", () => {
-        it("should extract max depth from options", () => {
-            const options = ["--max-depth=5"];
-            const depth = (
-                command as unknown as {
-                    extractMaxDepth: (options: string[]) => number;
-                }
-            ).extractMaxDepth(options);
-            expect(depth).toBe(5);
-        });
-
-        it("should return default depth when not specified", () => {
-            const options = ["--diagram"];
-            const depth = (
-                command as unknown as {
-                    extractMaxDepth: (options: string[]) => number;
-                }
-            ).extractMaxDepth(options);
-            expect(depth).toBe(3);
-        });
-
-        it("should clamp depth between 1 and 10", () => {
-            const extractMaxDepth = (
-                command as unknown as {
-                    extractMaxDepth: (options: string[]) => number;
-                }
-            ).extractMaxDepth;
-            expect(extractMaxDepth.call(command, ["--max-depth=0"])).toBe(1);
-            expect(extractMaxDepth.call(command, ["--max-depth=15"])).toBe(10);
-        });
-
-        it("should handle invalid depth values", () => {
-            const options = ["--max-depth=invalid"];
-            const depth = (
-                command as unknown as {
-                    extractMaxDepth: (options: string[]) => number;
-                }
-            ).extractMaxDepth(options);
-            expect(depth).toBe(3);
         });
     });
 });

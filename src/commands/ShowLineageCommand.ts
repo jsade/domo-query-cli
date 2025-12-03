@@ -7,9 +7,7 @@ import {
 } from "../managers/DataLineageBuilder";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils, SaveOptions } from "./CommandUtils";
 import chalk from "chalk";
 
 /**
@@ -51,44 +49,44 @@ export class ShowLineageCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
+            // Parse unified output configuration
+            const { config, parsed } = this.parseOutputConfig(args);
 
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
-
-            const [entityId, ...options] = args || [];
+            // Extract entity ID from positional args
+            const entityId = parsed.positional[0];
 
             if (!entityId || typeof entityId !== "string") {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Entity ID is required",
-                            "MISSING_ENTITY_ID",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        "Usage: show-lineage <dataset-id|dataflow-id> [options]",
-                    );
-                    console.log(
-                        "Use 'help show-lineage' for more information.",
-                    );
-                }
+                this.outputErrorResult(
+                    {
+                        message: "Entity ID is required",
+                        code: "MISSING_ENTITY_ID",
+                    },
+                    () => {
+                        console.log(
+                            "Usage: show-lineage <dataset-id|dataflow-id> [options]",
+                        );
+                        console.log(
+                            "Use 'help show-lineage' for more information.",
+                        );
+                    },
+                );
                 return;
             }
 
-            // Parse options
-            const { saveOptions, displayOptions } = this.parseOptions(options);
-            const showDiagram = displayOptions.includes("--diagram");
+            // Extract custom display options from parsed flags and params
+            // (these are command-specific options that parseOutputConfig doesn't handle)
+            const showDiagram = parsed.flags.has("diagram");
             const showDependencies =
-                displayOptions.includes("--dependencies") ||
-                (!showDiagram && displayOptions.length === 0); // Default
-            const maxDepth = this.extractMaxDepth(displayOptions);
+                parsed.flags.has("dependencies") || !showDiagram; // Default when no diagram
+            const maxDepth =
+                typeof parsed.params["max-depth"] === "number"
+                    ? Math.max(
+                          1,
+                          Math.min(10, parsed.params["max-depth"] as number),
+                      )
+                    : 3;
 
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(`\nAnalyzing lineage for: ${entityId}`);
                 console.log("Loading dataflows... This may take a moment.");
             }
@@ -100,21 +98,21 @@ export class ShowLineageCommand extends BaseCommand {
             const dataflows = await listDataflows({ limit: 1000 }, authMethod);
 
             if (dataflows.length === 0) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataflows found. Unable to build lineage",
-                            "NO_DATAFLOWS",
-                        ),
-                    );
-                } else {
-                    console.log("No dataflows found. Unable to build lineage.");
-                }
+                this.outputErrorResult(
+                    {
+                        message: "No dataflows found. Unable to build lineage",
+                        code: "NO_DATAFLOWS",
+                    },
+                    () => {
+                        console.log(
+                            "No dataflows found. Unable to build lineage.",
+                        );
+                    },
+                );
                 return;
             }
 
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(
                     `Found ${dataflows.length} dataflows. Building lineage graph...`,
                 );
@@ -124,7 +122,7 @@ export class ShowLineageCommand extends BaseCommand {
             const builder = new DataLineageBuilder();
             const graph = builder.buildLineageGraph(dataflows);
 
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(
                     `Graph built with ${graph.nodes.size} nodes and ${graph.edges.length} edges.\n`,
                 );
@@ -133,27 +131,25 @@ export class ShowLineageCommand extends BaseCommand {
             // Check if the entity exists
             const node = graph.nodes.get(entityId);
             if (!node) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            `Entity '${entityId}' not found in the lineage graph`,
-                            "ENTITY_NOT_FOUND",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        `Entity '${entityId}' not found in the lineage graph.`,
-                    );
-                    console.log(
-                        "Make sure the ID is correct and that you have access to related dataflows.",
-                    );
-                }
+                this.outputErrorResult(
+                    {
+                        message: `Entity '${entityId}' not found in the lineage graph`,
+                        code: "ENTITY_NOT_FOUND",
+                    },
+                    () => {
+                        console.log(
+                            `Entity '${entityId}' not found in the lineage graph.`,
+                        );
+                        console.log(
+                            "Make sure the ID is correct and that you have access to related dataflows.",
+                        );
+                    },
+                );
                 return;
             }
 
-            // Prepare export data first (needed for both JSON and regular output)
-            const exportData: LineageExportData = {
+            // Prepare lineage data for both JSON output and export
+            const lineageData: LineageExportData = {
                 entity: {
                     id: entityId,
                     type: node.type,
@@ -163,45 +159,19 @@ export class ShowLineageCommand extends BaseCommand {
                 analysis: {},
             };
 
-            // Check if JSON output is requested before displaying
-            if (this.isJsonOutput) {
-                // Will output JSON after all data is collected
-            } else {
-                // Display entity information for regular output
-                console.log(`Entity Type: ${node.type}`);
-                console.log(`Name: ${node.name}`);
-                if (node.metadata) {
-                    if (node.metadata.status)
-                        console.log(`Status: ${node.metadata.status}`);
-                    if (node.metadata.owner)
-                        console.log(`Owner: ${node.metadata.owner}`);
-                    if (node.metadata.lastUpdated)
-                        console.log(
-                            `Last Updated: ${node.metadata.lastUpdated}`,
-                        );
-                }
-                console.log("");
-            }
-
-            // Show dependencies
+            // Collect dependencies data
             if (showDependencies) {
                 if (node.type === "dataset") {
                     const dependencies =
                         builder.getDatasetDependencies(entityId);
                     if (dependencies) {
-                        if (!this.isJsonOutput) {
-                            this.displayDatasetDependencies(dependencies);
-                        }
-                        exportData.analysis.dependencies = dependencies;
+                        lineageData.analysis.dependencies = dependencies;
                     }
                 } else {
                     // For dataflows, show input/output datasets
                     const dataflow = dataflows.find(df => df.id === entityId);
                     if (dataflow) {
-                        if (!this.isJsonOutput) {
-                            this.displayDataflowConnections(dataflow);
-                        }
-                        exportData.analysis.connections = {
+                        lineageData.analysis.connections = {
                             inputs: dataflow.inputs || [],
                             outputs: dataflow.outputs || [],
                         };
@@ -209,86 +179,143 @@ export class ShowLineageCommand extends BaseCommand {
                 }
             }
 
-            // Show lineage diagram
+            // Collect diagram data
             if (showDiagram) {
-                console.log("\n## Lineage Diagram (Mermaid)");
-                console.log("```mermaid");
                 const diagram = this.generateFocusedDiagram(
                     builder,
                     entityId,
                     maxDepth,
                 );
-                console.log(diagram);
-                console.log("```");
-                console.log(
-                    "\nNote: Copy the diagram above to view in a Mermaid-compatible viewer.",
-                );
-                exportData.analysis.diagram = diagram;
+                lineageData.analysis.diagram = diagram;
             }
 
-            // Show related dataflows
+            // Collect related dataflows
             if (node.type === "dataset") {
                 const relatedDataflows =
                     builder.getDataflowsUsingDataset(entityId);
                 if (relatedDataflows.length > 0) {
-                    console.log(
-                        `\n## Dataflows Using This Dataset (${relatedDataflows.length})`,
-                    );
-                    relatedDataflows.forEach(df => {
-                        console.log(`- ${df.name} (${df.id})`);
-                    });
-                    exportData.analysis.relatedDataflows = relatedDataflows.map(
-                        df => ({
+                    lineageData.analysis.relatedDataflows =
+                        relatedDataflows.map(df => ({
                             id: df.id,
                             name: df.name,
                             relationship: "uses",
-                        }),
-                    );
+                        }));
                 }
             }
 
-            // Output JSON if requested
-            if (this.isJsonOutput) {
-                const jsonData = {
-                    entity: exportData.entity,
-                    lineage: exportData.analysis,
-                    graph: {
-                        totalNodes: graph.nodes.size,
-                        totalEdges: graph.edges.length,
+            // Use unified output system
+            await this.output(
+                {
+                    success: true,
+                    data: {
+                        entity: lineageData.entity,
+                        lineage: lineageData.analysis,
+                        graph: {
+                            totalNodes: graph.nodes.size,
+                            totalEdges: graph.edges.length,
+                        },
                     },
-                };
-
-                console.log(
-                    JsonOutputFormatter.success(this.name, jsonData, {
+                    metadata: {
                         entityId,
                         entityType: node.type,
                         entityName: node.name,
-                    }),
-                );
-            } else {
-                // Export data if requested (for non-JSON output)
-                await CommandUtils.exportData(
-                    [exportData],
-                    `Data Lineage for ${node.name}`,
-                    "lineage",
-                    saveOptions,
-                );
-                console.log("");
-            }
+                    },
+                },
+                () =>
+                    this.displayLineage(
+                        node,
+                        lineageData,
+                        builder,
+                        dataflows,
+                        showDependencies,
+                        showDiagram,
+                    ),
+                "lineage",
+            );
         } catch (error) {
             log.error("Error analyzing lineage:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to analyze lineage";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
-                console.error(
-                    "Failed to analyze lineage. Check your authentication and try again.",
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to analyze lineage",
+                    code: "LINEAGE_ERROR",
+                },
+                () => {
+                    console.error(
+                        "Failed to analyze lineage. Check your authentication and try again.",
+                    );
+                },
+            );
+        }
+    }
+
+    /**
+     * Display lineage information in table format
+     */
+    private displayLineage(
+        node: {
+            id: string;
+            name: string;
+            type: string;
+            metadata?: Record<string, unknown>;
+        },
+        lineageData: LineageExportData,
+        _builder: DataLineageBuilder,
+        dataflows: DomoDataflow[],
+        showDependencies: boolean,
+        showDiagram: boolean,
+    ): void {
+        // Display entity information
+        console.log(`Entity Type: ${node.type}`);
+        console.log(`Name: ${node.name}`);
+        if (node.metadata) {
+            if (node.metadata.status)
+                console.log(`Status: ${node.metadata.status}`);
+            if (node.metadata.owner)
+                console.log(`Owner: ${node.metadata.owner}`);
+            if (node.metadata.lastUpdated)
+                console.log(`Last Updated: ${node.metadata.lastUpdated}`);
+        }
+        console.log("");
+
+        // Show dependencies
+        if (showDependencies) {
+            if (node.type === "dataset" && lineageData.analysis.dependencies) {
+                this.displayDatasetDependencies(
+                    lineageData.analysis.dependencies as DatasetDependencies,
                 );
+            } else if (lineageData.analysis.connections) {
+                const dataflow = dataflows.find(df => df.id === node.id);
+                if (dataflow) {
+                    this.displayDataflowConnections(dataflow);
+                }
             }
         }
+
+        // Show lineage diagram
+        if (showDiagram && lineageData.analysis.diagram) {
+            console.log("\n## Lineage Diagram (Mermaid)");
+            console.log("```mermaid");
+            console.log(lineageData.analysis.diagram);
+            console.log("```");
+            console.log(
+                "\nNote: Copy the diagram above to view in a Mermaid-compatible viewer.",
+            );
+        }
+
+        // Show related dataflows
+        if (lineageData.analysis.relatedDataflows) {
+            console.log(
+                `\n## Dataflows Using This Dataset (${lineageData.analysis.relatedDataflows.length})`,
+            );
+            lineageData.analysis.relatedDataflows.forEach(df => {
+                console.log(`- ${df.name} (${df.id})`);
+            });
+        }
+
+        console.log("");
     }
 
     /**
@@ -328,32 +355,56 @@ export class ShowLineageCommand extends BaseCommand {
         ];
         console.log(TerminalFormatter.table(displayData));
 
-        console.log(chalk.cyan("\nExport Options:"));
-        const exportData = [
-            {
-                Option: "--save",
-                Description: "Save results to JSON file (default)",
-            },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
-            },
-            {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
-            },
-            {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
-            },
+        console.log(chalk.cyan("\nOutput Options:"));
+        const outputData = [
             {
                 Option: "--format=json",
                 Description:
                     "Output results in JSON format for programmatic use",
             },
+            {
+                Option: "--export",
+                Description: "Export results to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export results to timestamped Markdown file",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export to both JSON and Markdown files",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom directory for exported files",
+            },
+            {
+                Option: "--output=<file>",
+                Description: "Write JSON output to specific file",
+            },
         ];
-        console.log(TerminalFormatter.table(exportData));
+        console.log(TerminalFormatter.table(outputData));
+
+        console.log(chalk.cyan("\nLegacy Options (deprecated):"));
+        const legacyData = [
+            {
+                Option: "--save, --save-json",
+                Description: "Use --export instead",
+            },
+            {
+                Option: "--save-md",
+                Description: "Use --export=md instead",
+            },
+            {
+                Option: "--save-both",
+                Description: "Use --export=both instead",
+            },
+            {
+                Option: "--path=<dir>",
+                Description: "Use --export-path instead",
+            },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
         const examplesData = [
@@ -366,43 +417,19 @@ export class ShowLineageCommand extends BaseCommand {
                 Description: "Show diagram for dataflow",
             },
             {
-                Command: "show-lineage ds789 --diagram --save-md",
-                Description: "Show and save as markdown",
+                Command: "show-lineage ds789 --diagram --export=md",
+                Description: "Show and export as markdown",
             },
             {
                 Command: "show-lineage ds123 --format=json",
                 Description: "Output lineage data as JSON",
             },
+            {
+                Command: "show-lineage ds123 --format=json --export",
+                Description: "Output as JSON and export to file",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
-    }
-
-    private parseOptions(options: string[]): {
-        saveOptions: SaveOptions | null;
-        displayOptions: string[];
-    } {
-        const saveOptionArgs: string[] = [];
-        const displayOptions: string[] = [];
-
-        for (const opt of options) {
-            if (opt.startsWith("--save") || opt.startsWith("--path=")) {
-                saveOptionArgs.push(opt);
-            } else {
-                displayOptions.push(opt);
-            }
-        }
-
-        const [, saveOptions] = CommandUtils.parseSaveOptions(saveOptionArgs);
-        return { saveOptions, displayOptions };
-    }
-
-    private extractMaxDepth(options: string[]): number {
-        const depthOption = options.find(opt => opt.startsWith("--max-depth="));
-        if (depthOption) {
-            const depth = parseInt(depthOption.split("=")[1], 10);
-            return isNaN(depth) ? 3 : Math.max(1, Math.min(10, depth));
-        }
-        return 3;
     }
 
     private displayDatasetDependencies(

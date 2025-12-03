@@ -483,6 +483,8 @@ export interface LineageEntity {
     type: string;
     id: string;
     complete: boolean;
+    ancestorCounts: Record<string, number>;
+    descendantCounts: Record<string, number>;
     children: LineageEntity[];
     parents: LineageEntity[];
 }

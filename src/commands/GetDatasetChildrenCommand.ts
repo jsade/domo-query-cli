@@ -6,10 +6,9 @@ import {
     getCard,
 } from "../api/clients/domoClient";
 import { getDataflow } from "../api/clients/dataflowApi";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { log } from "../utils/logger";
+import { TerminalFormatter } from "../utils/terminalFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
 
 /**
@@ -26,32 +25,16 @@ export class GetDatasetChildrenCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const datasetId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const datasetId = parsed.positional[0];
 
             if (!datasetId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataset ID provided",
-                            "MISSING_DATASET_ID",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        "Usage: get-dataset-children <dataset-id> [options]",
-                    );
-                    console.log("No dataset ID provided.");
-                }
+                this.outputErrorResult({
+                    message: "No dataset ID provided",
+                    code: "MISSING_DATASET_ID",
+                });
                 return;
             }
 
@@ -60,17 +43,15 @@ export class GetDatasetChildrenCommand extends BaseCommand {
 
             // Check for traverse options (default to downstream-only for this command)
             const traverseUp =
-                parsedArgs.params["traverse-up"] ||
-                parsedArgs.params.traverseUp;
-            if (traverseUp === "true" || traverseUp === true) {
-                queryParams.traverseUp = true;
+                parsed.params["traverse-up"] || parsed.params.traverseUp;
+            if (traverseUp !== undefined) {
+                queryParams.traverseUp = traverseUp === "true" || traverseUp === true;
             }
 
             const traverseDown =
-                parsedArgs.params["traverse-down"] ||
-                parsedArgs.params.traverseDown;
-            if (traverseDown === "true" || traverseDown === true) {
-                queryParams.traverseDown = true;
+                parsed.params["traverse-down"] || parsed.params.traverseDown;
+            if (traverseDown !== undefined) {
+                queryParams.traverseDown = traverseDown === "true" || traverseDown === true;
             }
 
             // If neither specified, default to downstream-only to minimize payload
@@ -84,7 +65,7 @@ export class GetDatasetChildrenCommand extends BaseCommand {
 
             // Check for entity types filter
             const entities =
-                parsedArgs.params.entities || parsedArgs.params.requestEntities;
+                parsed.params.entities || parsed.params.requestEntities;
             if (entities) {
                 queryParams.requestEntities = String(entities);
             } else {
@@ -92,7 +73,7 @@ export class GetDatasetChildrenCommand extends BaseCommand {
                 queryParams.requestEntities = "DATA_SOURCE,DATAFLOW,CARD";
             }
 
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(
                     chalk.cyan(`\nFetching children for dataset: ${datasetId}`),
                 );
@@ -109,20 +90,11 @@ export class GetDatasetChildrenCommand extends BaseCommand {
             );
 
             if (!lineageResponse) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Failed to fetch lineage. API token and DOMO_API_HOST configuration required.",
-                            "CONFIG_ERROR",
-                        ),
-                    );
-                } else {
-                    console.log(chalk.red("Failed to fetch dataset children."));
-                    console.log(
-                        "This command requires API token and DOMO_API_HOST configuration.",
-                    );
-                }
+                this.outputErrorResult({
+                    message:
+                        "Failed to fetch lineage. API token and DOMO_API_HOST configuration required.",
+                    code: "CONFIG_ERROR",
+                });
                 return;
             }
 
@@ -131,19 +103,10 @@ export class GetDatasetChildrenCommand extends BaseCommand {
             const lineageData = lineageResponse[datasetKey];
 
             if (!lineageData) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            `No lineage data found for dataset ${datasetId}`,
-                            "NO_LINEAGE_DATA",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        `No lineage data found for dataset ${datasetId}`,
-                    );
-                }
+                this.outputErrorResult({
+                    message: `No lineage data found for dataset ${datasetId}`,
+                    code: "NO_LINEAGE_DATA",
+                });
                 return;
             }
 
@@ -213,63 +176,64 @@ export class GetDatasetChildrenCommand extends BaseCommand {
                 }),
             );
 
-            if (this.isJsonOutput) {
-                const childrenArray = Object.keys(childrenMap).map(
-                    key => childrenMap[key],
-                );
-                console.log(
-                    JsonOutputFormatter.success(
-                        this.name,
-                        { children: childrenArray, ...childrenMap },
-                        {
-                            datasetId,
-                            entityType: "dataset",
-                            note: "Children extracted from Domo API v1/lineage endpoint",
-                        },
-                    ),
-                );
-            } else {
-                const childrenCount = Object.keys(childrenMap).length;
-                if (childrenCount === 0) {
-                    console.log("No children found for this dataset.\n");
-                } else {
-                    console.log(chalk.cyan("Child Entities:"));
-                    this.displayMinimalEntities(minimalChildren, "  ");
-                    console.log("");
-                }
+            // Prepare data for output
+            const childrenArray = Object.keys(childrenMap).map(
+                key => childrenMap[key],
+            );
 
-                // Export data if requested
-                await CommandUtils.exportData(
-                    [
-                        {
-                            datasetId,
-                            children: Object.keys(childrenMap).map(
-                                key => childrenMap[key],
-                            ),
-                            childrenMap,
-                        },
-                    ],
-                    `Dataset Children for ${datasetId}`,
-                    "dataset-children",
-                    saveOptions,
-                );
-            }
+            // Use unified output system
+            await this.output(
+                {
+                    success: true,
+                    data: {
+                        datasetId,
+                        children: childrenArray,
+                        childrenMap,
+                    },
+                    metadata: {
+                        entityType: "dataset",
+                        note: "Children extracted from Domo API v1/lineage endpoint",
+                    },
+                },
+                () =>
+                    this.displayChildren(childrenArray.length, minimalChildren),
+                "dataset-children",
+            );
         } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        error instanceof Error ? error.message : String(error),
-                        "FETCH_ERROR",
-                    ),
-                );
-            } else {
-                log.error("Error fetching dataset children:", error);
-                console.error(chalk.red("Failed to fetch dataset children."));
-                if (error instanceof Error) {
-                    console.error(error.message);
-                }
-            }
+            log.error("Error fetching dataset children:", error);
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch dataset children",
+                    code: "FETCH_ERROR",
+                },
+                () => {
+                    console.error(
+                        chalk.red("Failed to fetch dataset children."),
+                    );
+                    if (error instanceof Error) {
+                        console.error(error.message);
+                    }
+                },
+            );
+        }
+    }
+
+    /**
+     * Display children entities in table format
+     */
+    private displayChildren(
+        childrenCount: number,
+        minimalChildren: Array<Pick<LineageEntity, "type" | "id">>,
+    ): void {
+        if (childrenCount === 0) {
+            console.log("No children found for this dataset.\n");
+        } else {
+            console.log(chalk.cyan("Child Entities:"));
+            this.displayMinimalEntities(minimalChildren, "  ");
+            console.log("");
         }
     }
 
@@ -299,51 +263,111 @@ export class GetDatasetChildrenCommand extends BaseCommand {
             "  dataset-id          The ID of the dataset to get children for",
         );
 
-        console.log(chalk.cyan("\nOptions:"));
-        console.log(
-            "  --traverse-up=<true|false>    Traverse up the lineage graph (default: false)",
-        );
-        console.log(
-            "  --traverse-down=<true|false>  Traverse down the lineage graph (default: true)",
-        );
-        console.log(
-            "  --entities=<types>            Entity types to request (comma-separated)",
-        );
-        console.log(
-            "                                Default: DATA_SOURCE,DATAFLOW,CARD",
-        );
-        console.log(
-            "  --format=json                 Output results in JSON format",
-        );
-        console.log(
-            "  --save                        Save results to JSON file",
-        );
-        console.log(
-            "  --save-json                   Save results to JSON file",
-        );
-        console.log(
-            "  --save-md                     Save results to Markdown file",
-        );
-        console.log(
-            "  --save-both                   Save to both JSON and Markdown",
-        );
-        console.log(
-            "  --path=<directory>            Specify custom export directory",
-        );
+        console.log(chalk.cyan("\nQuery Options:"));
+        const queryData = [
+            {
+                Option: "--traverse-up=<bool>",
+                Description: "Traverse up the lineage graph (default: false)",
+            },
+            {
+                Option: "--traverse-down=<bool>",
+                Description: "Traverse down the lineage graph (default: true)",
+            },
+            {
+                Option: "--entities=<types>",
+                Description:
+                    "Entity types to request (comma-separated, default: DATA_SOURCE,DATAFLOW,CARD)",
+            },
+        ];
+        console.log(TerminalFormatter.table(queryData));
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
-        console.log("  get-dataset-children abc-123-def");
-        console.log(
-            "    Get direct children (datasets/cards) for dataset abc-123-def",
-        );
-        console.log("");
-        console.log("  get-dataset-children abc-123 --format=json");
-        console.log("    Output children in JSON format");
+        const examplesData = [
+            {
+                Command: "get-dataset-children abc-123-def",
+                Description: "Get direct children for dataset",
+            },
+            {
+                Command: "get-dataset-children abc-123 --format=json",
+                Description: "Output children in JSON format",
+            },
+            {
+                Command: "get-dataset-children abc-123 --export=md",
+                Description: "Get children and export to markdown",
+            },
+            {
+                Command: "get-dataset-children abc-123 --format=json --export",
+                Description: "JSON to stdout AND save to file",
+            },
+        ];
+        console.log(TerminalFormatter.table(examplesData));
 
         console.log(chalk.cyan("\nNote:"));
         console.log(
             "  This command requires API token authentication and DOMO_API_HOST",
         );
         console.log("  configuration to access the v1 lineage endpoint.");
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            // Query options
+            "--traverse-up",
+            "--traverse-down",
+            "--entities",
+            // Output options (new unified flags)
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy aliases (deprecated but supported)
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

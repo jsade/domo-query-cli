@@ -5,11 +5,10 @@ import {
     getDatasetLegacy,
 } from "../api/clients/domoClient";
 import { getDataflow } from "../api/clients/dataflowApi";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
+import { TerminalFormatter } from "../utils/terminalFormatter";
 
 /**
  * Gets direct parent entities for a specific dataset from the API
@@ -25,32 +24,16 @@ export class GetDatasetParentsCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { parsed } = this.parseOutputConfig(args);
 
             // Extract ID from positional args
-            const datasetId = parsedArgs.positional[0];
-            const saveOptions = parsedArgs.saveOptions;
+            const datasetId = parsed.positional[0];
 
             if (!datasetId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataset ID provided",
-                            "MISSING_DATASET_ID",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        "Usage: get-dataset-parents <dataset-id> [options]",
-                    );
-                    console.log("No dataset ID provided.");
-                }
+                this.outputErrorResult({
+                    message: "No dataset ID provided",
+                    code: "MISSING_DATASET_ID",
+                });
                 return;
             }
 
@@ -59,17 +42,21 @@ export class GetDatasetParentsCommand extends BaseCommand {
 
             // Check for traverse options (default to upstream-only for this command)
             const traverseUp =
-                parsedArgs.params["traverse-up"] ||
-                parsedArgs.params.traverseUp;
-            if (traverseUp === "true" || traverseUp === true) {
-                queryParams.traverseUp = true;
+                parsed.params["traverse-up"] !== undefined
+                    ? parsed.params["traverse-up"]
+                    : parsed.params.traverseUp;
+            if (traverseUp !== undefined) {
+                queryParams.traverseUp =
+                    traverseUp === "true" || traverseUp === true;
             }
 
             const traverseDown =
-                parsedArgs.params["traverse-down"] ||
-                parsedArgs.params.traverseDown;
-            if (traverseDown === "true" || traverseDown === true) {
-                queryParams.traverseDown = true;
+                parsed.params["traverse-down"] !== undefined
+                    ? parsed.params["traverse-down"]
+                    : parsed.params.traverseDown;
+            if (traverseDown !== undefined) {
+                queryParams.traverseDown =
+                    traverseDown === "true" || traverseDown === true;
             }
 
             // If neither specified, default to upstream-only to minimize payload
@@ -83,7 +70,7 @@ export class GetDatasetParentsCommand extends BaseCommand {
 
             // Check for entity types filter
             const entities =
-                parsedArgs.params.entities || parsedArgs.params.requestEntities;
+                parsed.params.entities || parsed.params.requestEntities;
             if (entities) {
                 queryParams.requestEntities = String(entities);
             } else {
@@ -91,7 +78,7 @@ export class GetDatasetParentsCommand extends BaseCommand {
                 queryParams.requestEntities = "DATA_SOURCE,DATAFLOW";
             }
 
-            if (!this.isJsonOutput) {
+            if (!this.isJsonMode) {
                 console.log(
                     chalk.cyan(`\nFetching parents for dataset: ${datasetId}`),
                 );
@@ -108,20 +95,21 @@ export class GetDatasetParentsCommand extends BaseCommand {
             );
 
             if (!lineageResponse) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
+                this.outputErrorResult(
+                    {
+                        message:
                             "Failed to fetch lineage. API token and DOMO_API_HOST configuration required.",
-                            "CONFIG_ERROR",
-                        ),
-                    );
-                } else {
-                    console.log(chalk.red("Failed to fetch dataset parents."));
-                    console.log(
-                        "This command requires API token and DOMO_API_HOST configuration.",
-                    );
-                }
+                        code: "CONFIG_ERROR",
+                    },
+                    () => {
+                        console.log(
+                            chalk.red("Failed to fetch dataset parents."),
+                        );
+                        console.log(
+                            "This command requires API token and DOMO_API_HOST configuration.",
+                        );
+                    },
+                );
                 return;
             }
 
@@ -130,19 +118,10 @@ export class GetDatasetParentsCommand extends BaseCommand {
             const lineageData = lineageResponse[datasetKey];
 
             if (!lineageData) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            `No lineage data found for dataset ${datasetId}`,
-                            "NO_LINEAGE_DATA",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        `No lineage data found for dataset ${datasetId}`,
-                    );
-                }
+                this.outputErrorResult({
+                    message: `No lineage data found for dataset ${datasetId}`,
+                    code: "NO_LINEAGE_DATA",
+                });
                 return;
             }
 
@@ -199,63 +178,61 @@ export class GetDatasetParentsCommand extends BaseCommand {
                 }),
             );
 
-            if (this.isJsonOutput) {
-                const parentsArray = Object.keys(parentsMap).map(
-                    key => parentsMap[key],
-                );
-                console.log(
-                    JsonOutputFormatter.success(
-                        this.name,
-                        { parents: parentsArray, ...parentsMap },
-                        {
-                            datasetId,
-                            entityType: "dataset",
-                            note: "Parents extracted from Domo API v1/lineage endpoint",
-                        },
-                    ),
-                );
-            } else {
-                const parentsCount = Object.keys(parentsMap).length;
-                if (parentsCount === 0) {
-                    console.log("No parents found for this dataset.\n");
-                } else {
-                    console.log(chalk.cyan("Parent Entities:"));
-                    this.displayMinimalEntities(minimalParents, "  ");
-                    console.log("");
-                }
+            // Prepare data for output
+            const parentsArray = Object.keys(parentsMap).map(
+                key => parentsMap[key],
+            );
 
-                // Export data if requested
-                await CommandUtils.exportData(
-                    [
-                        {
-                            datasetId,
-                            parents: Object.keys(parentsMap).map(
-                                key => parentsMap[key],
-                            ),
-                            parentsMap,
-                        },
-                    ],
-                    `Dataset Parents for ${datasetId}`,
-                    "dataset-parents",
-                    saveOptions,
-                );
-            }
+            // Use unified output system
+            await this.output(
+                {
+                    success: true,
+                    data: {
+                        datasetId,
+                        parents: parentsArray,
+                        parentsMap,
+                    },
+                    metadata: {
+                        entityType: "dataset",
+                        note: "Parents extracted from Domo API v1/lineage endpoint",
+                    },
+                },
+                () => this.displayParents(minimalParents),
+                "dataset-parents",
+            );
         } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
+            log.error("Error fetching dataset parents:", error);
+            this.outputErrorResult(
+                {
+                    message:
                         error instanceof Error ? error.message : String(error),
-                        "FETCH_ERROR",
-                    ),
-                );
-            } else {
-                log.error("Error fetching dataset parents:", error);
-                console.error(chalk.red("Failed to fetch dataset parents."));
-                if (error instanceof Error) {
-                    console.error(error.message);
-                }
-            }
+                    code: "FETCH_ERROR",
+                },
+                () => {
+                    console.error(
+                        chalk.red("Failed to fetch dataset parents."),
+                    );
+                    if (error instanceof Error) {
+                        console.error(error.message);
+                    }
+                },
+            );
+        }
+    }
+
+    /**
+     * Display parents in table format
+     */
+    private displayParents(
+        minimalParents: Array<Pick<LineageEntity, "type" | "id">>,
+    ): void {
+        const parentsCount = minimalParents.length;
+        if (parentsCount === 0) {
+            console.log("No parents found for this dataset.\n");
+        } else {
+            console.log(chalk.cyan("Parent Entities:"));
+            this.displayMinimalEntities(minimalParents, "  ");
+            console.log("");
         }
     }
 
@@ -285,51 +262,118 @@ export class GetDatasetParentsCommand extends BaseCommand {
             "  dataset-id          The ID of the dataset to get parents for",
         );
 
-        console.log(chalk.cyan("\nOptions:"));
+        console.log(chalk.cyan("\nLineage Options:"));
+        const lineageData = [
+            {
+                Option: "--traverse-up=<bool>",
+                Description: "Traverse up the lineage graph (default: true)",
+            },
+            {
+                Option: "--traverse-down=<bool>",
+                Description: "Traverse down the lineage graph (default: false)",
+            },
+            {
+                Option: "--entities=<types>",
+                Description:
+                    "Entity types to request (default: DATA_SOURCE,DATAFLOW)",
+            },
+        ];
+        console.log(TerminalFormatter.table(lineageData));
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
+
+        console.log(chalk.cyan("\nInfo Displayed:"));
         console.log(
-            "  --traverse-up=<true|false>    Traverse up the lineage graph (default: true)",
+            "  - Direct parent entities (dataflows and datasets) for the specified dataset",
         );
-        console.log(
-            "  --traverse-down=<true|false>  Traverse down the lineage graph (default: false)",
-        );
-        console.log(
-            "  --entities=<types>            Entity types to request (comma-separated)",
-        );
-        console.log(
-            "                                Default: DATA_SOURCE,DATAFLOW",
-        );
-        console.log(
-            "  --format=json                 Output results in JSON format",
-        );
-        console.log(
-            "  --save                        Save results to JSON file",
-        );
-        console.log(
-            "  --save-json                   Save results to JSON file",
-        );
-        console.log(
-            "  --save-md                     Save results to Markdown file",
-        );
-        console.log(
-            "  --save-both                   Save to both JSON and Markdown",
-        );
-        console.log(
-            "  --path=<directory>            Specify custom export directory",
-        );
+        console.log("  - Entity types and IDs");
+        console.log("  - Entity names (when available)");
 
         console.log(chalk.cyan("\nExamples:"));
-        console.log("  get-dataset-parents abc-123-def");
-        console.log(
-            "    Get direct parents (dataflows/datasets) for dataset abc-123-def",
-        );
-        console.log("");
-        console.log("  get-dataset-parents abc-123 --format=json");
-        console.log("    Output parents in JSON format");
+        const examplesData = [
+            {
+                Command: "get-dataset-parents abc-123-def",
+                Description: "Get direct parents for dataset",
+            },
+            {
+                Command: "get-dataset-parents abc-123 --format=json",
+                Description: "Output parents in JSON format",
+            },
+            {
+                Command: "get-dataset-parents abc-123 --export=md",
+                Description: "Get parents and save to markdown",
+            },
+            {
+                Command: "get-dataset-parents abc-123 --format=json --export",
+                Description: "JSON to stdout AND save to file",
+            },
+        ];
+        console.log(TerminalFormatter.table(examplesData));
 
         console.log(chalk.cyan("\nNote:"));
         console.log(
             "  This command requires API token authentication and DOMO_API_HOST",
         );
         console.log("  configuration to access the v1 lineage endpoint.");
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            // Lineage options
+            "--traverse-up",
+            "--traverse-down",
+            "--entities",
+            // Output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags (still supported)
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }
