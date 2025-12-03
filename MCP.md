@@ -124,6 +124,7 @@ The MCP server provides the following tools to Claude Desktop:
 | Tool Name | Description | Parameters |
 |-----------|-------------|------------|
 | `get_dataset` | Get detailed dataset information | `id` (required), `sync` (optional), `outputPath` (optional) |
+| `get_dataset_v3` | Get dataset info via v3 API (requires API token). Returns raw v3 response with cloudId, scheduleActive, validConfiguration, formulas, etc. | `id` (required), `outputPath` (optional) |
 | `get_dataflow` | Get detailed dataflow information | `id` (required), `outputPath` (optional) |
 | `get_card` | Get detailed card information | `id` (required), `outputPath` (optional) |
 | `render_card` | Render a KPI card image and summary; auto-computes missing dimension from card aspect to avoid cropping | `cardId` (required), `width` (optional), `height` (optional), `scale` (optional), `outputPath` (optional) |

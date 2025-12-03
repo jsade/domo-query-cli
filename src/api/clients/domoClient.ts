@@ -319,6 +319,73 @@ export interface DomoDataflowExecution {
 }
 
 /**
+ * Defines a Domo datasource execution (connector-based dataset update)
+ * Based on undocumented /api/data/v2/datasources/\{id\}/executions endpoint
+ */
+export interface DatasourceExecution {
+    /** Unique execution identifier */
+    executionId: string;
+    /** Dataset ID being executed */
+    datasetId: string;
+    /** Current state of the execution */
+    state: DatasourceExecutionState;
+    /** Execution start timestamp (ms since epoch) */
+    startTime?: number;
+    /** Execution end timestamp (ms since epoch) */
+    endTime?: number;
+    /** User who triggered the execution */
+    triggeredBy?: string;
+    /** Error message if execution failed */
+    errorMessage?: string;
+    /** Rows processed during execution */
+    rowsProcessed?: number;
+}
+
+/**
+ * Possible states for a datasource execution
+ */
+export type DatasourceExecutionState =
+    | "PENDING"
+    | "QUEUED"
+    | "RUNNING"
+    | "SUCCESS"
+    | "FAILED"
+    | "CANCELLED"
+    | "UNKNOWN";
+
+/**
+ * Terminal states indicating execution has completed
+ */
+export const TERMINAL_EXECUTION_STATES: DatasourceExecutionState[] = [
+    "SUCCESS",
+    "FAILED",
+    "CANCELLED",
+];
+
+/**
+ * Parameters for executing a datasource
+ */
+export interface ExecuteDatasourceParams {
+    /** Whether to wait for completion */
+    wait?: boolean;
+    /** Polling interval in milliseconds (default: 5000) */
+    pollInterval?: number;
+    /** Maximum wait time in milliseconds (default: 600000 = 10 minutes) */
+    timeout?: number;
+}
+
+/**
+ * Result of executing a datasource
+ */
+export interface ExecuteDatasourceResult {
+    datasetId: string;
+    success: boolean;
+    execution?: DatasourceExecution;
+    error?: string;
+    errorCode?: string;
+}
+
+/**
  * Parameters for listing dataflows
  */
 export interface DataflowListParams {
@@ -1320,7 +1387,7 @@ export async function updateDatasetProperties(
 /**
  * V3 API response structure for dataset endpoint
  */
-interface V3DatasetResponse {
+export interface V3DatasetResponse {
     id?: string;
     name?: string;
     description?: string;
@@ -1549,6 +1616,36 @@ export async function getDatasetLegacy(
 ): Promise<DomoDataset | null> {
     const dualResponse = await getDataset(datasetId);
     return ApiResponseMerger.getBestData(dualResponse) as DomoDataset | null;
+}
+
+/**
+ * Get dataset information using only the v3 API endpoint.
+ * This returns the raw v3 response without merging with v1 data.
+ * Requires full authentication (API token + customer domain).
+ * @param datasetId - The ID of the dataset to retrieve
+ * @returns The raw V3DatasetResponse from the API
+ * @throws Error if API token or customer domain is not configured
+ */
+export async function getDatasetV3(
+    datasetId: string,
+): Promise<V3DatasetResponse> {
+    const v3Client = getV3Client();
+
+    if (!v3Client) {
+        throw new Error(
+            "V3 API requires API token and customer domain. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    log.debug(`Fetching dataset ${datasetId} from v3 endpoint`);
+
+    const response = await v3Client.get<V3DatasetResponse>(
+        `/api/data/v3/datasources/${datasetId}?includeAllDetails=true`,
+    );
+
+    log.debug(`Successfully fetched v3 data for dataset ${datasetId}`);
+    return response;
 }
 
 /**

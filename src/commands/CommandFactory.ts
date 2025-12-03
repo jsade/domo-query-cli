@@ -6,6 +6,7 @@ import { ListCardsCommand } from "./ListCardsCommand";
 import { ListPagesCommand } from "./ListPagesCommand";
 import { ListDatasetsCommand } from "./ListDatasetsCommand";
 import { GetDatasetCommand } from "./GetDatasetCommand";
+import { GetDatasetV3Command } from "./GetDatasetV3Command";
 import { GetCardCommand } from "./GetCardCommand";
 import { UpdateDatasetPropertiesCommand } from "./UpdateDatasetPropertiesCommand";
 import { ListDataflowsCommand } from "./ListDataflowsCommand";
@@ -72,6 +73,9 @@ export class CommandFactory {
 
         const getDatasetCommand = new GetDatasetCommand();
         this.commands.set(getDatasetCommand.name, getDatasetCommand);
+
+        const getDatasetV3Command = new GetDatasetV3Command();
+        this.commands.set(getDatasetV3Command.name, getDatasetV3Command);
 
         const getCardCommand = new GetCardCommand();
         this.commands.set(getCardCommand.name, getCardCommand);

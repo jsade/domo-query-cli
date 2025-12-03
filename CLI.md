@@ -181,6 +181,10 @@ domo-query-cli list-datasets "sales"  # Search by name
 # Get dataset details
 domo-query-cli get-dataset 12345678-abcd-1234-5678-901234567890
 
+# Get dataset details via v3 API (requires API token and DOMO_API_HOST)
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --format=json
+
 # Get dataset lineage (requires API token and DOMO_API_HOST)
 domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890
 domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890 --traverse-up=true --traverse-down=true
@@ -299,7 +303,91 @@ domo-query-cli execute-datasource abc-123 --format=json
 **See Also:**
 - [execute-dataflow](#execute-dataflow) - Execute dataflows (ETL processes)
 - [get-dataset](#get-dataset) - Get dataset details
+- [get-dataset-v3](#get-dataset-v3) - Get dataset details via v3 API
 - [list-datasets](#list-datasets) - List all datasets
+
+#### get-dataset-v3
+
+Get dataset information using the v3 API endpoint. Returns raw v3 response with extended metadata not available in the standard `get-dataset` command.
+
+**Authentication Required**: API Token (`DOMO_API_TOKEN` and `DOMO_API_HOST`)
+
+**Usage:**
+```bash
+# Get v3 dataset details
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890
+
+# JSON output for automation
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --format=json
+
+# Save to file
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --save-json
+```
+
+**V3-Specific Fields:**
+| Field | Description |
+|-------|-------------|
+| `cloudId`, `cloudName`, `cloudEngine` | Connector/cloud configuration |
+| `streamId`, `accountId` | Connector stream and account IDs |
+| `scheduleActive`, `nextUpdate` | Schedule status and timing |
+| `validConfiguration`, `validAccount` | Connector validation status |
+| `cryoStatus` | Dataset archival status |
+| `adc`, `adcExternal`, `adcSource` | ADC (Adrenaline Data Cache) info |
+| `cardInfo` | Card count and view count |
+| `formulas` | Beast Mode calculations defined on dataset |
+| `transportType` | Data transport method |
+
+**Example JSON Output:**
+```json
+{
+  "success": true,
+  "command": "get-dataset-v3",
+  "data": {
+    "dataset": {
+      "id": "12345678-abcd-1234-5678-901234567890",
+      "name": "Sales Data",
+      "type": "domo-connector",
+      "displayType": "domo-google-sheets",
+      "dataProviderType": "google-spreadsheets",
+      "status": "SUCCESS",
+      "state": "SUCCESS",
+      "rowCount": 50000,
+      "columnCount": 25,
+      "cloudId": "domo-google-sheets",
+      "cloudName": "Google Sheets",
+      "scheduleActive": true,
+      "validConfiguration": true,
+      "validAccount": true,
+      "created": 1609459200000,
+      "lastUpdated": 1736935800000
+    }
+  },
+  "metadata": {
+    "entityType": "dataset",
+    "apiVersion": "v3"
+  }
+}
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--format json` | Output results as JSON |
+| `--save` | Save to JSON file |
+| `--save-json` | Save to JSON file |
+| `--save-md` | Save to Markdown file |
+| `--path=<dir>` | Custom export directory |
+
+**When to Use:**
+- Need connector/cloud configuration details
+- Checking connector validation status
+- Viewing Beast Mode formulas
+- Getting schedule and execution timing info
+- Accessing ADC status
+
+**See Also:**
+- [get-dataset](#get-dataset) - Standard dataset details with schema and PDP policies
+- [execute-datasource](#execute-datasource) - Trigger connector refresh
 
 ### Dataflow Operations
 

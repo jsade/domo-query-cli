@@ -203,6 +203,26 @@ const tools: Tool[] = [
         },
     },
     {
+        name: "get_dataset_v3",
+        description:
+            "Get dataset information using the v3 API endpoint. Returns raw v3 response with extended metadata like cloudId, cloudName, scheduleActive, validConfiguration, formulas, and more. Requires full authentication (API token + customer domain via DOMO_API_TOKEN and DOMO_API_HOST).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    description: "Dataset ID (GUID format)",
+                },
+                outputPath: {
+                    type: "string",
+                    description:
+                        "Optional file path to write JSON results to instead of returning in response",
+                },
+            },
+            required: ["id"],
+        },
+    },
+    {
         name: "get_card",
         description:
             "Get detailed information about a specific card including visualization type, associated datasets, and configuration.",
@@ -887,6 +907,11 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
                 if (args.sync === true) {
                     commandArgs.push("--sync");
                 }
+                break;
+
+            case "get_dataset_v3":
+                command = "get-dataset-v3";
+                commandArgs.push(args.id as string);
                 break;
 
             case "get_card":
