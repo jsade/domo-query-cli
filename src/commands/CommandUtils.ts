@@ -2,6 +2,17 @@ import { domoConfig } from "../config";
 import { parseSaveOptions } from "../shellUtils";
 import type { OutputOptions, SaveOptions } from "../types/shellTypes";
 export type { OutputOptions, SaveOptions };
+import {
+    type OutputConfig,
+    type ParsedOutputArgs,
+    type ExportFormat,
+    NUMERIC_PARAMS,
+} from "../types/outputTypes";
+import {
+    parseOutputArgs,
+    toOutputConfig,
+    getRemainingArgs,
+} from "../utils/OutputParser";
 import { log } from "../utils/logger";
 import {
     ensureExportDir,
@@ -9,6 +20,9 @@ import {
     exportToMarkdown,
 } from "../utils/utils";
 import readline from "readline";
+
+// Re-export new types for convenience
+export type { OutputConfig, ParsedOutputArgs, ExportFormat };
 
 /**
  * Parsed command arguments
@@ -345,21 +359,7 @@ export class CommandUtils {
 
         // Only convert to number for known numeric parameters
         // This prevents IDs and other string values from being incorrectly converted
-        const numericParams = [
-            "limit",
-            "offset",
-            "page",
-            "size",
-            "count",
-            "max",
-            "min",
-            "timeout",
-            "retries",
-            "delay",
-            "port",
-        ];
-
-        if (key && numericParams.includes(key.toLowerCase())) {
+        if (key && NUMERIC_PARAMS.has(key.toLowerCase())) {
             const num = Number(value);
             if (!isNaN(num) && value !== "") {
                 return num;
@@ -422,5 +422,123 @@ export class CommandUtils {
         isJsonOutput: boolean,
     ): boolean {
         return isJsonOutput || parsedArgs.flags.has("no-confirm");
+    }
+
+    // ========================================================================
+    // UNIFIED OUTPUT SYSTEM METHODS
+    // ========================================================================
+
+    /**
+     * Parse command arguments using the unified output parser
+     *
+     * This is the recommended method for parsing arguments in new commands.
+     * It handles all output-related flags and provides a clean interface.
+     *
+     * @param args - Command arguments
+     * @returns Object containing outputConfig, remaining args, and parsed details
+     *
+     * @example
+     * ```typescript
+     * const { config, args, parsed } = CommandUtils.parseUnifiedArgs(args);
+     * // config.displayFormat: 'table' | 'json'
+     * // config.shouldExport: boolean
+     * // args: string[] (without output flags)
+     * // parsed.positional: string[]
+     * // parsed.params: Record<string, string | number | boolean>
+     * ```
+     */
+    public static parseUnifiedArgs(args?: string[]): {
+        config: OutputConfig;
+        args: string[];
+        parsed: ParsedOutputArgs;
+    } {
+        const parsed = parseOutputArgs(args);
+        return {
+            config: toOutputConfig(parsed),
+            args: getRemainingArgs(parsed),
+            parsed,
+        };
+    }
+
+    /**
+     * Export data using unified output configuration
+     *
+     * This method respects the new unified output config while providing
+     * the same functionality as the legacy exportData method.
+     *
+     * @param data - Data to export
+     * @param title - Title for markdown export
+     * @param fileNamePrefix - Prefix for export file names
+     * @param config - Output configuration from parseUnifiedArgs
+     * @returns Promise resolving when export is complete
+     */
+    public static async exportWithConfig<T>(
+        data: T[],
+        title: string,
+        fileNamePrefix: string,
+        config: OutputConfig,
+    ): Promise<void> {
+        if (!config.shouldExport || !config.exportFormat) return;
+
+        try {
+            const exportPath = config.exportPath || domoConfig.exportPath;
+            await ensureExportDir(exportPath);
+
+            if (
+                config.exportFormat === "json" ||
+                config.exportFormat === "both"
+            ) {
+                const jsonPath = await exportToJson(data, fileNamePrefix);
+                if (!config.quiet) {
+                    console.log(`${title} saved to JSON: ${jsonPath}`);
+                }
+            }
+            if (
+                config.exportFormat === "md" ||
+                config.exportFormat === "both"
+            ) {
+                const mdPath = await exportToMarkdown(
+                    data,
+                    title,
+                    fileNamePrefix,
+                );
+                if (!config.quiet) {
+                    console.log(`${title} saved to Markdown: ${mdPath}`);
+                }
+            }
+        } catch (exportError) {
+            log.error(`Error saving ${fileNamePrefix} to file:`, exportError);
+        }
+    }
+
+    /**
+     * Convert legacy ParsedArgs to unified OutputConfig
+     *
+     * Useful for commands migrating from the old system.
+     *
+     * @param parsedArgs - Legacy parsed arguments
+     * @param isJsonOutput - Whether JSON output was detected
+     * @returns Unified output configuration
+     */
+    public static toOutputConfig(
+        parsedArgs: ParsedArgs,
+        isJsonOutput: boolean,
+    ): OutputConfig {
+        const config: OutputConfig = {
+            displayFormat: isJsonOutput ? "json" : "table",
+            shouldExport: !!parsedArgs.saveOptions,
+            quiet: false,
+        };
+
+        if (parsedArgs.saveOptions) {
+            config.exportFormat = parsedArgs.saveOptions.format;
+            config.exportPath = parsedArgs.saveOptions.path;
+        }
+
+        if (parsedArgs.outputOptions) {
+            config.outputPath = parsedArgs.outputOptions.path;
+        }
+
+        return config;
     }
 }

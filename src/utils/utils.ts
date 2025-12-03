@@ -51,13 +51,15 @@ export async function ensureExportDir(
  *
  * @param data - Data to export
  * @param filePrefix - Prefix for the filename
+ * @param exportPath - Optional custom export directory (uses domoConfig.exportPath if not specified)
  * @returns Promise that resolves to the file path
  */
 export async function exportToJson<T>(
     data: T,
     filePrefix: string,
+    exportPath?: string,
 ): Promise<string> {
-    const exportDir = await ensureExportDir();
+    const exportDir = await ensureExportDir(exportPath);
     const filename = getTimestampedFilename(filePrefix, "json");
     const filePath = path.join(exportDir, filename);
 
@@ -123,14 +125,16 @@ export function objectsToMarkdownTable<T extends Record<string, unknown>>(
  * @param data - Data to export (object or array of objects)
  * @param title - Title of the markdown document
  * @param filePrefix - Prefix for the filename
+ * @param exportPath - Optional custom export directory (uses domoConfig.exportPath if not specified)
  * @returns Promise that resolves to the file path
  */
 export async function exportToMarkdown<T>(
     data: T,
     title: string,
     filePrefix: string,
+    exportPath?: string,
 ): Promise<string> {
-    const exportDir = await ensureExportDir();
+    const exportDir = await ensureExportDir(exportPath);
     const filename = getTimestampedFilename(filePrefix, "md");
     const filePath = path.join(exportDir, filename);
 
