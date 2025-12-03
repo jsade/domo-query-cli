@@ -100,6 +100,26 @@ export class CommandUtils {
     }
 
     /**
+     * Check if a string looks like a command name (not a flag).
+     * Used to detect positional commands for non-interactive mode.
+     * @param arg - Argument to check
+     * @returns True if arg appears to be a command name
+     */
+    public static isLikelyCommand(arg: string): boolean {
+        if (!arg || arg.startsWith("-")) return false;
+
+        // Check if it's a known multi-word command prefix
+        if (MULTI_WORD_COMMANDS[arg]) return true;
+
+        // Check if it's a hyphenated command (e.g., list-datasets, db-sync)
+        if (arg.includes("-")) return true;
+
+        // Check for known single-word commands/prefixes
+        const singleWordCommands = ["db", "help", "exit", "quit"];
+        return singleWordCommands.includes(arg);
+    }
+
+    /**
      * Parse command arguments for save options
      * @param args - Command arguments
      * @returns Tuple of [remaining args, save options]

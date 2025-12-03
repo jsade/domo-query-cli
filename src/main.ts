@@ -98,10 +98,18 @@ async function main(): Promise<void> {
     const hasHelpFlag = args.includes("--help") || args.includes("-h");
     const hasReadOnlyFlag = args.includes("--read-only") || args.includes("-r");
 
+    // Check if first positional argument looks like a command
+    const firstPositional = args.find(arg => !arg.startsWith("-"));
+    const hasPositionalCommand =
+        !!firstPositional && CommandUtils.isLikelyCommand(firstPositional);
+
     // If there are any arguments and we're not in an interactive terminal,
     // automatically switch to non-interactive mode
     const shouldUseNonInteractive =
-        hasCommandFlag || hasHelpFlag || (!isInteractive() && args.length > 0);
+        hasCommandFlag ||
+        hasHelpFlag ||
+        hasPositionalCommand ||
+        (!isInteractive() && args.length > 0);
 
     if (shouldUseNonInteractive) {
         // Non-interactive mode
