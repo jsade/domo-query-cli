@@ -47,6 +47,7 @@ title: Domo Query CLI - Non-Interactive Command Guide
 - [Examples](#examples)
     - [Dataflow Monitoring](#dataflow-monitoring)
     - [Execute Dataflow](#execute-dataflow)
+    - [Execute Datasource](#execute-datasource-example)
     - [Get Dataflow Lineage](#get-dataflow-lineage)
     - [List Datasets with Pattern](#list-datasets-with-pattern)
     - [Get Card Details](#get-card-details)
@@ -198,7 +199,107 @@ domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --description "Updated description" --tags "sales,2024,finance"
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --json '{"name":"New Name","tags":["tag1","tag2"]}'
 domo-query-cli update-dataset-properties 12345678-abcd-1234-5678-901234567890 --json-file properties.json --no-confirm
+
+# Execute datasource (trigger connector refresh, requires API token)
+domo-query-cli execute-datasource 12345678-abcd-1234-5678-901234567890
+domo-query-cli execute-datasource 12345678-abcd-1234-5678-901234567890 --wait
+domo-query-cli execute-datasource id1 id2 id3  # Execute multiple datasources
 ```
+
+#### execute-datasource
+
+Trigger a manual refresh of connector-based datasets (e.g., Google Sheets, Salesforce, database connectors). This command uses the internal Domo Stream API to initiate execution.
+
+**Authentication Required**: API Token (`DOMO_API_TOKEN` and `DOMO_API_HOST`)
+
+**Interactive Usage:**
+```bash
+# Start the CLI shell
+domo-query-cli
+
+# Inside the shell:
+> execute-datasource 12345678-abcd-1234-5678-901234567890
+> execute-datasource abc-123 def-456 ghi-789  # Multiple datasets
+> execute-datasource abc-123 --wait            # Wait for completion
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Execute a single datasource
+domo-query-cli execute-datasource 12345678-abcd-1234-5678-901234567890
+
+# Execute multiple datasources in parallel
+domo-query-cli execute-datasource abc-123 def-456 ghi-789
+
+# Wait for execution to complete (blocking)
+domo-query-cli execute-datasource abc-123 --wait
+
+# Custom timeout and polling interval
+domo-query-cli execute-datasource abc-123 --wait --timeout=300000 --interval=10000
+
+# JSON output for automation
+domo-query-cli execute-datasource abc-123 --format=json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "execute-datasource",
+  "data": {
+    "executions": [
+      {
+        "datasetId": "12345678-abcd-1234-5678-901234567890",
+        "success": true,
+        "executionId": "1234",
+        "state": "RUNNING",
+        "startTime": 1736935800000,
+        "endTime": null,
+        "duration": null,
+        "error": null,
+        "errorCode": null
+      }
+    ]
+  },
+  "metadata": {
+    "count": 1,
+    "successCount": 1,
+    "failCount": 0,
+    "waited": false
+  }
+}
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--wait` | Wait for execution(s) to complete before returning |
+| `--timeout=<ms>` | Maximum wait time in milliseconds (default: 600000 = 10 min) |
+| `--interval=<ms>` | Polling interval in milliseconds (default: 5000) |
+| `--format json` | Output results as JSON |
+
+**Execution States:**
+- `RUNNING` - Execution is currently running
+- `SUCCESS` - Execution completed successfully
+- `FAILED` - Execution failed (check error message)
+- `CANCELLED` - Execution was cancelled
+- `PENDING`, `QUEUED` - Execution is waiting to start
+
+**Common Use Cases:**
+- Refresh Google Sheets data on demand
+- Trigger database connector updates before reports
+- Automate data pipeline refreshes in CI/CD
+- Batch refresh multiple connector datasets
+
+**Important Notes:**
+- Only works with connector-based datasets (not dataflows or API-uploaded datasets)
+- Requires `DOMO_API_TOKEN` and `DOMO_API_HOST` environment variables
+- Blocked in read-only mode (`DOMO_READ_ONLY=true`)
+- Each dataset must have an associated stream (connector configuration)
+- Multiple datasets execute in parallel; partial failures don't stop other executions
+
+**See Also:**
+- [execute-dataflow](#execute-dataflow) - Execute dataflows (ETL processes)
+- [get-dataset](#get-dataset) - Get dataset details
+- [list-datasets](#list-datasets) - List all datasets
 
 ### Dataflow Operations
 
@@ -1146,7 +1247,8 @@ There are two ways to enable read-only mode:
 
 The following operations are disabled when read-only mode is active:
 - `execute-dataflow` - Executing dataflows
-- `createDataflow` - Creating new dataflows  
+- `execute-datasource` - Executing connector-based datasources
+- `createDataflow` - Creating new dataflows
 - `updateDataflow` - Updating existing dataflows
 - `patchDataflow` - Patching dataflow configurations
 - `deleteDataflow` - Deleting dataflows
@@ -1209,6 +1311,44 @@ else
   echo "Failed to start dataflow execution"
   exit 1
 fi
+```
+
+### Execute Datasource {#execute-datasource-example}
+```bash
+#!/bin/bash
+# Trigger refresh of connector-based datasets (Google Sheets, etc.)
+
+# Execute a single datasource
+DATASET_ID="12345678-abcd-1234-5678-901234567890"
+domo-query-cli execute-datasource "$DATASET_ID"
+
+# Execute and wait for completion
+if domo-query-cli execute-datasource "$DATASET_ID" --wait; then
+  echo "Datasource refresh completed successfully"
+else
+  echo "Datasource refresh failed"
+  exit 1
+fi
+
+# Execute multiple datasources in parallel
+DATASETS=(
+  "abc-123-def-456"
+  "def-456-ghi-789"
+  "ghi-789-jkl-012"
+)
+
+echo "Triggering refresh for ${#DATASETS[@]} datasources..."
+domo-query-cli execute-datasource "${DATASETS[@]}" --wait --format=json
+
+# Automated refresh with error handling
+for dataset_id in "${DATASETS[@]}"; do
+  echo "Refreshing: $dataset_id"
+  if domo-query-cli execute-datasource "$dataset_id" --wait --timeout=300000; then
+    echo "  ✓ Success"
+  else
+    echo "  ✗ Failed"
+  fi
+done
 ```
 
 ### Get Dataflow Lineage
