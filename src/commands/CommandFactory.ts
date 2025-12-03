@@ -17,6 +17,7 @@ import { GetDatasetChildrenCommand } from "./GetDatasetChildrenCommand";
 import { ListDataflowExecutionsCommand } from "./ListDataflowExecutionsCommand";
 import { GetDataflowExecutionCommand } from "./GetDataflowExecutionCommand";
 import { ExecuteDataflowCommand } from "./ExecuteDataflowCommand";
+import { ExecuteDatasourceCommand } from "./ExecuteDatasourceCommand";
 import { RenderCardCommand } from "./RenderCardCommand";
 import { ShowLineageCommand } from "./ShowLineageCommand";
 import { CacheStatusCommand } from "./CacheStatusCommand";
@@ -128,6 +129,12 @@ export class CommandFactory {
 
         const executeDataflowCommand = new ExecuteDataflowCommand();
         this.commands.set(executeDataflowCommand.name, executeDataflowCommand);
+
+        const executeDatasourceCommand = new ExecuteDatasourceCommand();
+        this.commands.set(
+            executeDatasourceCommand.name,
+            executeDatasourceCommand,
+        );
 
         // Register render card command - now self-sufficient
         const renderCardCommand = new RenderCardCommand();

@@ -374,6 +374,38 @@ const tools: Tool[] = [
         },
     },
     {
+        name: "execute_datasource",
+        description:
+            "Execute one or more datasources (connector-based datasets like Google Sheets). Triggers a manual refresh of the connector. This is a write operation - check read-only mode settings before using. Requires API token authentication.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                datasetIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                        "One or more dataset IDs (GUID format) to execute",
+                },
+                wait: {
+                    type: "boolean",
+                    description:
+                        "Wait for execution(s) to complete before returning (default: false)",
+                },
+                timeout: {
+                    type: "number",
+                    description:
+                        "Maximum wait time in milliseconds when --wait is used (default: 600000 = 10 minutes)",
+                },
+                interval: {
+                    type: "number",
+                    description:
+                        "Polling interval in milliseconds when --wait is used (default: 5000)",
+                },
+            },
+            required: ["datasetIds"],
+        },
+    },
+    {
         name: "cache_status",
         description:
             "Show the status of the local cache including entry counts, memory usage, and cache hit rates.",
@@ -915,6 +947,25 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
             case "execute_dataflow":
                 command = "execute-dataflow";
                 commandArgs.push(args.id as string);
+                break;
+
+            case "execute_datasource":
+                command = "execute-datasource";
+                // Add all dataset IDs as positional arguments
+                if (Array.isArray(args.datasetIds)) {
+                    for (const id of args.datasetIds) {
+                        commandArgs.push(id as string);
+                    }
+                }
+                if (args.wait === true) {
+                    commandArgs.push("--wait");
+                }
+                if (args.timeout !== undefined) {
+                    commandArgs.push("--timeout=" + String(args.timeout));
+                }
+                if (args.interval !== undefined) {
+                    commandArgs.push("--interval=" + String(args.interval));
+                }
                 break;
 
             case "cache_status":

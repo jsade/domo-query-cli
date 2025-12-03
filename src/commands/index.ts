@@ -6,6 +6,7 @@ export * from "./CommandFactory";
 export * from "./CommandUtils";
 export * from "./ExitCommand";
 export * from "./ExecuteDataflowCommand";
+export * from "./ExecuteDatasourceCommand";
 export * from "./GetDataflowCommand";
 export * from "./GetDataflowLineageCommand";
 export * from "./GetDatasetCommand";

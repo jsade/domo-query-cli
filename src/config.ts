@@ -203,7 +203,7 @@ export function initializeConfig(): void {
 
     // Load read-only mode configuration
     if (
-        process.env.DOMO_READ_ONLY === "true" ||
+        process.env.DOMO_READ_ONLY?.toLowerCase() === "true" ||
         process.env.DOMO_READ_ONLY === "1"
     ) {
         domoConfig.readOnly = true;
