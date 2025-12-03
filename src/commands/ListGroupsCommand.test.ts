@@ -189,14 +189,16 @@ describe("ListGroupsCommand", () => {
         it("should return matching flags", () => {
             const results = command.autocomplete("--");
             expect(results).toContain("--type");
-            expect(results).toContain("--format");
+            expect(results).toContain("--format=json");
+            expect(results).toContain("--export");
+            // Legacy aliases still supported
             expect(results).toContain("--save");
         });
 
         it("should filter flags based on partial input", () => {
             const results = command.autocomplete("--ty");
             expect(results).toContain("--type");
-            expect(results).not.toContain("--format");
+            expect(results).not.toContain("--format=json");
         });
     });
 });

@@ -8,9 +8,7 @@ import type {
 } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 
 /**
  * Lists all accessible Domo dataflows
@@ -33,45 +31,40 @@ export class ListDataflowsCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
+            // Parse output configuration using unified system
+            const { parsed } = this.parseOutputConfig(args);
 
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
             let params: DataflowListParams = { limit: 50, offset: 0 };
             let nameLike: string | undefined;
             let hasExplicitLimit = false;
             let hasExplicitOffset = false;
 
             // Handle positional argument for search
-            if (parsedArgs.positional.length > 0) {
-                nameLike = parsedArgs.positional[0];
+            if (parsed.positional.length > 0) {
+                nameLike = parsed.positional[0];
                 params.nameLike = nameLike;
             }
 
             // Process named parameters
-            if (parsedArgs.params.limit !== undefined) {
-                const limitValue = Number(parsedArgs.params.limit);
+            if (parsed.params.limit !== undefined) {
+                const limitValue = Number(parsed.params.limit);
                 if (limitValue < 1 || limitValue > 50) {
-                    console.log(
-                        TerminalFormatter.error(
-                            `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
-                        ),
-                    );
-                    return; // Exit early
+                    this.outputErrorResult({
+                        message: `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
+                    });
+                    return;
                 }
                 params.limit = limitValue;
                 hasExplicitLimit = true;
             }
 
-            if (parsedArgs.params.offset !== undefined) {
-                params.offset = Number(parsedArgs.params.offset);
+            if (parsed.params.offset !== undefined) {
+                params.offset = Number(parsed.params.offset);
                 hasExplicitOffset = true;
             }
 
-            if (parsedArgs.params.sort !== undefined) {
-                const sortValue = String(parsedArgs.params.sort);
+            if (parsed.params.sort !== undefined) {
+                const sortValue = String(parsed.params.sort);
                 // Store sort field for proper mapping with order parameter
                 if (
                     sortValue === "name" ||
@@ -85,16 +78,16 @@ export class ListDataflowsCommand extends BaseCommand {
             }
 
             // Handle search/name parameters (override positional if specified)
-            if (parsedArgs.params.search !== undefined) {
-                params.nameLike = String(parsedArgs.params.search);
+            if (parsed.params.search !== undefined) {
+                params.nameLike = String(parsed.params.search);
                 nameLike = params.nameLike;
-            } else if (parsedArgs.params.name !== undefined) {
-                params.nameLike = String(parsedArgs.params.name);
+            } else if (parsed.params.name !== undefined) {
+                params.nameLike = String(parsed.params.name);
                 nameLike = params.nameLike;
             }
 
-            if (parsedArgs.params.order !== undefined) {
-                const orderValue = String(parsedArgs.params.order);
+            if (parsed.params.order !== undefined) {
+                const orderValue = String(parsed.params.order);
                 // Process order parameter with the corresponding sort field
                 if (orderValue === "asc" || orderValue === "desc") {
                     params.order = orderValue as "asc" | "desc";
@@ -110,12 +103,12 @@ export class ListDataflowsCommand extends BaseCommand {
                 }
             }
 
-            if (parsedArgs.params.fields !== undefined) {
-                params.fields = String(parsedArgs.params.fields);
+            if (parsed.params.fields !== undefined) {
+                params.fields = String(parsed.params.fields);
             }
 
-            if (parsedArgs.params.tags !== undefined) {
-                params.tags = String(parsedArgs.params.tags);
+            if (parsed.params.tags !== undefined) {
+                params.tags = String(parsed.params.tags);
             }
 
             // Always use apiToken auth method for dataflow operations
@@ -125,9 +118,9 @@ export class ListDataflowsCommand extends BaseCommand {
             if (
                 (!hasExplicitLimit &&
                     !hasExplicitOffset &&
-                    parsedArgs.positional.length === 0 &&
-                    Object.keys(parsedArgs.params).length === 0) ||
-                (parsedArgs.positional.length === 1 &&
+                    parsed.positional.length === 0 &&
+                    Object.keys(parsed.params).length === 0) ||
+                (parsed.positional.length === 1 &&
                     nameLike &&
                     !hasExplicitLimit &&
                     !hasExplicitOffset)
@@ -138,7 +131,7 @@ export class ListDataflowsCommand extends BaseCommand {
                 const pageSize = 50;
                 let hasMoreData = true;
 
-                if (!this.isJsonOutput) {
+                if (!this.isJsonMode) {
                     console.log("Fetching all dataflows...");
                 }
 
@@ -164,7 +157,7 @@ export class ListDataflowsCommand extends BaseCommand {
                         } else {
                             currentOffset += pageSize;
                             // Show progress
-                            if (!this.isJsonOutput) {
+                            if (!this.isJsonMode) {
                                 process.stdout.write(
                                     `\rFetched ${this.dataflows.length} dataflows...`,
                                 );
@@ -173,7 +166,7 @@ export class ListDataflowsCommand extends BaseCommand {
                     }
                 }
 
-                if (this.dataflows.length > 0 && !this.isJsonOutput) {
+                if (this.dataflows.length > 0 && !this.isJsonMode) {
                     process.stdout.write("\r"); // Clear the progress line
                 }
             } else {
@@ -216,126 +209,114 @@ export class ListDataflowsCommand extends BaseCommand {
                 });
             }
 
-            if (this.dataflows.length > 0) {
-                if (this.isJsonOutput) {
-                    // JSON output
-                    const metadata: Record<string, unknown> = {
-                        count: this.dataflows.length,
-                    };
+            // Build metadata
+            const metadata: Record<string, unknown> = {
+                count: this.dataflows.length,
+            };
 
-                    if (hasExplicitLimit || hasExplicitOffset) {
-                        metadata.pagination = {
-                            offset: params.offset || 0,
-                            limit: params.limit || 50,
-                            hasMore:
-                                this.dataflows.length === (params.limit || 50),
-                        };
-                    }
+            if (hasExplicitLimit || hasExplicitOffset) {
+                metadata.pagination = {
+                    offset: params.offset || 0,
+                    limit: params.limit || 50,
+                    hasMore: this.dataflows.length === (params.limit || 50),
+                };
+            }
 
-                    if (params.sort) {
-                        metadata.sort = params.sort;
-                        if (params.order) {
-                            metadata.order = params.order;
-                        }
-                    }
-
-                    if (nameLike) {
-                        metadata.filter = { nameLike };
-                    }
-
-                    if (params.fields) {
-                        metadata.fields = params.fields;
-                    }
-
-                    if (params.tags) {
-                        metadata.tags = params.tags;
-                    }
-
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { dataflows: this.dataflows },
-                            metadata,
-                        ),
-                    );
-                } else {
-                    // Default table output
-                    console.log(
-                        `\n${this.dataflows.length} dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
-                    );
-
-                    // Prepare data for table - Name first for better readability
-                    const tableData = this.dataflows.map(dataflow => {
-                        const lastRunDate = dataflow.lastRun
-                            ? new Date(dataflow.lastRun).toLocaleDateString()
-                            : dataflow.lastExecution?.beginTime
-                              ? new Date(
-                                    dataflow.lastExecution.beginTime,
-                                ).toLocaleDateString()
-                              : "Never";
-                        const status =
-                            dataflow.runState || dataflow.status || "Unknown";
-                        const inputOutput = `${dataflow.inputCount || 0}/${dataflow.outputCount || 0}`;
-
-                        return {
-                            Name:
-                                dataflow.name.length > 35
-                                    ? dataflow.name.substring(0, 32) + "..."
-                                    : dataflow.name,
-                            Status: status,
-                            "I/O": inputOutput,
-                            "Last Run": lastRunDate,
-                            ID: dataflow.id,
-                        };
-                    });
-
-                    console.log(TerminalFormatter.table(tableData));
-
-                    await CommandUtils.exportData(
-                        this.dataflows,
-                        `Domo Dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
-                        "dataflows",
-                        parsedArgs.saveOptions,
-                        this.isJsonOutput,
-                    );
-
-                    console.log(
-                        "\nTip: get-dataflow <id> for details • list-dataflows [search] sort=name --save-md",
-                    );
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { dataflows: [] },
-                            { count: 0 },
-                        ),
-                    );
-                } else {
-                    console.log("No accessible dataflows found.");
+            if (params.sort) {
+                metadata.sort = params.sort;
+                if (params.order) {
+                    metadata.order = params.order;
                 }
             }
+
+            if (nameLike) {
+                metadata.filter = { nameLike };
+            }
+
+            if (params.fields) {
+                metadata.fields = params.fields;
+            }
+
+            if (params.tags) {
+                metadata.tags = params.tags;
+            }
+
+            // Use unified output system
+            await this.output(
+                {
+                    success: true,
+                    data: { dataflows: this.dataflows },
+                    metadata,
+                },
+                () => this.displayTable(nameLike),
+                "dataflows",
+            );
         } catch (error) {
             log.error("Error fetching dataflows:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch dataflows";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
-                console.error(
-                    TerminalFormatter.error("Failed to fetch dataflows."),
-                );
-                if (error instanceof Error) {
-                    console.error("Error details:", error.message);
-                }
-                console.error(
-                    "Check your parameters and authentication, then try again.",
-                );
-            }
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch dataflows",
+                },
+                () => {
+                    console.error(
+                        TerminalFormatter.error("Failed to fetch dataflows."),
+                    );
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                    console.error(
+                        "Check your parameters and authentication, then try again.",
+                    );
+                },
+            );
         }
+    }
+
+    /**
+     * Displays the dataflows as a table
+     */
+    private displayTable(nameLike?: string): void {
+        if (this.dataflows.length === 0) {
+            console.log("No accessible dataflows found.");
+            return;
+        }
+
+        console.log(
+            `\n${this.dataflows.length} dataflows${nameLike ? ` matching "${nameLike}"` : ""}`,
+        );
+
+        // Prepare data for table - Name first for better readability
+        const tableData = this.dataflows.map(dataflow => {
+            const lastRunDate = dataflow.lastRun
+                ? new Date(dataflow.lastRun).toLocaleDateString()
+                : dataflow.lastExecution?.beginTime
+                  ? new Date(
+                        dataflow.lastExecution.beginTime,
+                    ).toLocaleDateString()
+                  : "Never";
+            const status = dataflow.runState || dataflow.status || "Unknown";
+            const inputOutput = `${dataflow.inputCount || 0}/${dataflow.outputCount || 0}`;
+
+            return {
+                Name:
+                    dataflow.name.length > 35
+                        ? dataflow.name.substring(0, 32) + "..."
+                        : dataflow.name,
+                Status: status,
+                "I/O": inputOutput,
+                "Last Run": lastRunDate,
+                ID: dataflow.id,
+            };
+        });
+
+        console.log(TerminalFormatter.table(tableData));
+
+        console.log(
+            "\nTip: get-dataflow <id> for details • list-dataflows [search] sort=name --export=md",
+        );
     }
 
     /**
@@ -390,29 +371,56 @@ export class ListDataflowsCommand extends BaseCommand {
         console.log(chalk.cyan("\nOptions:"));
         const optionsData = [
             {
-                Option: "--save",
-                Description: "Save results to JSON file (default)",
-            },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
-            },
-            {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
-            },
-            {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
-            },
-            {
                 Option: "--format=json",
-                Description:
-                    "Output results in JSON format for programmatic use",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
         console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases:"));
+        const legacyData = [
+            {
+                Legacy: "--save, --save-json",
+                Equivalent: "--export",
+            },
+            {
+                Legacy: "--save-md",
+                Equivalent: "--export=md",
+            },
+            {
+                Legacy: "--save-both",
+                Equivalent: "--export=both",
+            },
+            {
+                Legacy: "--path=<dir>",
+                Equivalent: "--export-path=<dir>",
+            },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
         const examplesData = [
@@ -437,14 +445,50 @@ export class ListDataflowsCommand extends BaseCommand {
                 Description: "Sort by last run time, newest first",
             },
             {
-                Command: "list-dataflows etl --save-md",
-                Description: "Filter and save to markdown",
+                Command: "list-dataflows etl --export=md",
+                Description: "Filter and export to markdown",
             },
             {
                 Command: "list-dataflows --format=json",
                 Description: "Output all dataflows as JSON",
             },
+            {
+                Command: "list-dataflows --format=json --export",
+                Description: "JSON to stdout and export file",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--limit",
+            "--offset",
+            "--sort",
+            "--order",
+            "--fields",
+            "--tags",
+            "--search",
+            "--name",
+            // Unified output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags (still supported)
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

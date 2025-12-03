@@ -2,9 +2,7 @@ import type { DomoPage } from "../api/clients/domoClient";
 import { listPages } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
 
 /**
@@ -28,73 +26,27 @@ export class ListPagesCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
-
-            const [_, saveOptions] = CommandUtils.parseSaveOptions(args || []);
+            this.parseOutputConfig(args);
 
             this.pages = await listPages();
 
-            if (this.pages.length > 0) {
-                if (this.isJsonOutput) {
-                    // JSON output
-                    const metadata: Record<string, unknown> = {
-                        count: this.pages.length,
-                    };
+            const metadata: Record<string, unknown> = {
+                count: this.pages.length,
+            };
 
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { pages: this.pages },
-                            metadata,
-                        ),
-                    );
-                } else {
-                    // Default table output
-                    console.log(chalk.cyan("\nAccessible Pages:"));
-                    console.log("----------------");
-
-                    this.pages.forEach((page, index) => {
-                        console.log(
-                            `${index + 1}. ID: ${page.id}, Name: ${page.name}`,
-                        );
-                    });
-
-                    await CommandUtils.exportData(
-                        this.pages,
-                        "Domo Pages",
-                        "pages",
-                        saveOptions,
-                    );
-
-                    console.log("");
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { pages: [] },
-                            { count: 0 },
-                        ),
-                    );
-                } else {
-                    console.log("No accessible pages found.");
-                }
-            }
+            await this.output(
+                { success: true, data: { pages: this.pages }, metadata },
+                () => this.displayTable(),
+                "pages",
+            );
         } catch (error) {
             log.error("Error fetching pages:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch pages";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch pages";
+
+            this.outputErrorResult({ message }, () => {
                 console.error(
                     TerminalFormatter.error("Failed to fetch pages."),
                 );
@@ -104,7 +56,25 @@ export class ListPagesCommand extends BaseCommand {
                 console.error(
                     "Check your parameters and authentication, then try again.",
                 );
-            }
+            });
+        }
+    }
+
+    /**
+     * Displays pages in table format
+     */
+    private displayTable(): void {
+        if (this.pages.length > 0) {
+            console.log(chalk.cyan("\nAccessible Pages:"));
+            console.log("----------------");
+
+            this.pages.forEach((page, index) => {
+                console.log(`${index + 1}. ID: ${page.id}, Name: ${page.name}`);
+            });
+
+            console.log("");
+        } else {
+            console.log("No accessible pages found.");
         }
     }
 
@@ -118,26 +88,32 @@ export class ListPagesCommand extends BaseCommand {
         console.log(chalk.cyan("\nOptions:"));
         const optionsData = [
             {
-                Option: "--save",
-                Description: "Save results to JSON file (default)",
-            },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
-            },
-            {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
-            },
-            {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
-            },
-            {
                 Option: "--format=json",
-                Description:
-                    "Output results in JSON format for programmatic use",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
         console.log(TerminalFormatter.table(optionsData));
@@ -149,15 +125,37 @@ export class ListPagesCommand extends BaseCommand {
                 Description: "List all accessible pages",
             },
             {
-                Command: "list-pages --save-both",
-                Description: "List pages and save to both formats",
+                Command: "list-pages --export=both",
+                Description: "List pages and export to both formats",
             },
             {
                 Command: "list-pages --format=json",
                 Description: "Output all pages as JSON",
             },
+            {
+                Command: "list-pages --format=json --export",
+                Description: "JSON output and also export to file",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
         console.log("");
+    }
+
+    /**
+     * Provides autocomplete suggestions for the command
+     * @returns Array of autocomplete suggestions
+     */
+    public async autocomplete(): Promise<string[]> {
+        const suggestions: string[] = [
+            "--format=json",
+            "--export",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+        ];
+
+        return suggestions;
     }
 }

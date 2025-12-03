@@ -2,9 +2,7 @@ import type { CardListParams, DomoCard } from "../api/clients/domoClient";
 import { listCards } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
 
 /**
@@ -28,48 +26,45 @@ export class ListCardsCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
+            // Parse output configuration (handles all output-related flags)
+            const { config, parsed } = this.parseOutputConfig(args);
 
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
-
-            const [remainingArgs, saveOptions] =
-                CommandUtils.parseSaveOptions(args);
             let params: CardListParams = { limit: 35, offset: 0 };
             let hasExplicitLimit = false;
             let hasExplicitOffset = false;
 
-            if (remainingArgs.length > 0) {
-                for (const arg of remainingArgs) {
-                    if (arg.includes("=")) {
-                        const [key, value] = arg.split("=");
-                        if (key === "limit" && !isNaN(Number(value))) {
-                            const limitValue = Number(value);
-                            if (limitValue < 1 || limitValue > 50) {
-                                console.log(
-                                    TerminalFormatter.error(
-                                        `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
-                                    ),
-                                );
-                                return; // Exit early
-                            }
-                            params.limit = limitValue;
-                            hasExplicitLimit = true;
-                        } else if (key === "offset" && !isNaN(Number(value))) {
-                            params.offset = Number(value);
-                            hasExplicitOffset = true;
-                        }
-                    }
+            // Extract limit and offset from parsed params
+            if (parsed.params.limit !== undefined) {
+                const limitValue = Number(parsed.params.limit);
+                if (limitValue < 1 || limitValue > 50) {
+                    this.outputErrorResult(
+                        {
+                            message: `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
+                            code: "INVALID_LIMIT",
+                        },
+                        () =>
+                            console.log(
+                                TerminalFormatter.error(
+                                    `Invalid limit value: ${limitValue}. Must be between 1 and 50.`,
+                                ),
+                            ),
+                    );
+                    return;
                 }
+                params.limit = limitValue;
+                hasExplicitLimit = true;
+            }
+
+            if (parsed.params.offset !== undefined) {
+                params.offset = Number(parsed.params.offset);
+                hasExplicitOffset = true;
             }
 
             // If no explicit limit/offset, fetch all data
             if (
                 !hasExplicitLimit &&
                 !hasExplicitOffset &&
-                remainingArgs.length === 0
+                parsed.positional.length === 0
             ) {
                 // Fetch all cards with automatic pagination
                 this.cards = [];
@@ -77,7 +72,7 @@ export class ListCardsCommand extends BaseCommand {
                 const pageSize = 50;
                 let hasMoreData = true;
 
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log("Fetching all cards...");
                 }
 
@@ -99,7 +94,7 @@ export class ListCardsCommand extends BaseCommand {
                         } else {
                             currentOffset += pageSize;
                             // Show progress
-                            if (!this.isJsonOutput) {
+                            if (config.displayFormat !== "json") {
                                 process.stdout.write(
                                     `\rFetched ${this.cards.length} cards...`,
                                 );
@@ -108,98 +103,41 @@ export class ListCardsCommand extends BaseCommand {
                     }
                 }
 
-                if (this.cards.length > 0 && !this.isJsonOutput) {
+                if (this.cards.length > 0 && config.displayFormat !== "json") {
                     process.stdout.write("\r"); // Clear the progress line
                 }
             } else {
                 // Use explicit parameters
                 this.cards = await listCards(params);
             }
-            if (this.cards.length > 0) {
-                if (this.isJsonOutput) {
-                    // JSON output
-                    const metadata: Record<string, unknown> = {
-                        count: this.cards.length,
-                    };
 
-                    if (hasExplicitLimit || hasExplicitOffset) {
-                        metadata.pagination = {
-                            offset: params.offset || 0,
-                            limit: params.limit || 35,
-                            hasMore: this.cards.length === (params.limit || 35),
-                        };
-                    }
+            // Build metadata
+            const metadata: Record<string, unknown> = {
+                count: this.cards.length,
+            };
 
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { cards: this.cards },
-                            metadata,
-                        ),
-                    );
-                } else {
-                    // Default table output
-                    console.log(`\n📊 ${this.cards.length} cards`);
-
-                    // Prepare data for table - Title first for better readability
-                    const tableData = this.cards.map(card => {
-                        const id = card.id || card.cardUrn || "N/A";
-                        const title = card.title || card.cardTitle || "N/A";
-                        const type = card.type || "N/A";
-                        const owner = card.owner || card.ownerName || "N/A";
-                        const lastModified = card.lastModified
-                            ? new Date(card.lastModified).toLocaleDateString()
-                            : card.lastUpdated || "N/A";
-
-                        return {
-                            Title:
-                                title.length > 35
-                                    ? title.substring(0, 32) + "..."
-                                    : title,
-                            Type: type,
-                            Owner:
-                                owner.length > 18
-                                    ? owner.substring(0, 15) + "..."
-                                    : owner,
-                            Modified: lastModified,
-                            ID: id,
-                        };
-                    });
-
-                    console.log(TerminalFormatter.table(tableData));
-
-                    await CommandUtils.exportData(
-                        this.cards,
-                        "Domo Cards",
-                        "cards",
-                        saveOptions,
-                        this.isJsonOutput,
-                    );
-
-                    console.log("\nTip: list-cards limit=n offset=m --save-md");
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { cards: [] },
-                            { count: 0 },
-                        ),
-                    );
-                } else {
-                    console.log("No accessible cards found.");
-                }
+            if (hasExplicitLimit || hasExplicitOffset) {
+                metadata.pagination = {
+                    offset: params.offset || 0,
+                    limit: params.limit || 35,
+                    hasMore: this.cards.length === (params.limit || 35),
+                };
             }
+
+            // Output using unified system
+            await this.output(
+                { success: true, data: { cards: this.cards }, metadata },
+                () => this.displayTable(),
+                "cards",
+            );
         } catch (error) {
             log.error("Error fetching cards:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch cards";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch cards";
+
+            this.outputErrorResult({ message, details: error }, () => {
                 console.error(
                     TerminalFormatter.error("Failed to fetch cards."),
                 );
@@ -209,8 +147,44 @@ export class ListCardsCommand extends BaseCommand {
                 console.error(
                     "Check your parameters and authentication, then try again.",
                 );
-            }
+            });
         }
+    }
+
+    /**
+     * Display cards as a formatted table
+     */
+    private displayTable(): void {
+        if (this.cards.length === 0) {
+            console.log("No accessible cards found.");
+            return;
+        }
+
+        console.log(`\n${this.cards.length} cards`);
+
+        // Prepare data for table - Title first for better readability
+        const tableData = this.cards.map(card => {
+            const id = card.id || card.cardUrn || "N/A";
+            const title = card.title || card.cardTitle || "N/A";
+            const type = card.type || "N/A";
+            const owner = card.owner || card.ownerName || "N/A";
+            const lastModified = card.lastModified
+                ? new Date(card.lastModified).toLocaleDateString()
+                : card.lastUpdated || "N/A";
+
+            return {
+                Title:
+                    title.length > 35 ? title.substring(0, 32) + "..." : title,
+                Type: type,
+                Owner:
+                    owner.length > 18 ? owner.substring(0, 15) + "..." : owner,
+                Modified: lastModified,
+                ID: id,
+            };
+        });
+
+        console.log(TerminalFormatter.table(tableData));
+        console.log("\nTip: list-cards limit=n offset=m --export=md");
     }
 
     /**
@@ -238,26 +212,32 @@ export class ListCardsCommand extends BaseCommand {
         console.log(chalk.cyan("\nOptions:"));
         const optionsData = [
             {
-                Option: "--save",
-                Description: "Save results to JSON file (default)",
-            },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
-            },
-            {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
-            },
-            {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
-            },
-            {
                 Option: "--format=json",
-                Description:
-                    "Output results in JSON format for programmatic use",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
         console.log(TerminalFormatter.table(optionsData));
@@ -281,14 +261,47 @@ export class ListCardsCommand extends BaseCommand {
                 Description: "List second page of 50",
             },
             {
-                Command: "list-cards --save-md",
-                Description: "Fetch all cards and save to markdown",
+                Command: "list-cards --export=md",
+                Description: "Fetch all cards and export to markdown",
             },
             {
                 Command: "list-cards --format=json",
                 Description: "Output all cards as JSON",
             },
+            {
+                Command: "list-cards --format=json --export",
+                Description: "JSON output + export to file",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
+    }
+
+    /**
+     * Provides autocomplete suggestions for this command
+     */
+    public async autocomplete(args: string[]): Promise<string[]> {
+        const suggestions: string[] = [];
+
+        // Parameter suggestions
+        if (args.length === 0 || args[args.length - 1].startsWith("limit")) {
+            suggestions.push("limit=10", "limit=25", "limit=50");
+        }
+        if (args.length === 0 || args[args.length - 1].startsWith("offset")) {
+            suggestions.push("offset=0", "offset=50");
+        }
+
+        // Flag suggestions
+        const flags = [
+            "--format=json",
+            "--export",
+            "--export=md",
+            "--export=both",
+            "--export-path=",
+            "--output=",
+            "--quiet",
+        ];
+        suggestions.push(...flags);
+
+        return suggestions;
     }
 }

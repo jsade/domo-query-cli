@@ -3,9 +3,7 @@ import { listUsers } from "../api/clients/domoClient";
 import type { DomoUser } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 
 /**
  * Lists all Domo users with optional search
@@ -28,12 +26,7 @@ export class ListUsersCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             let limit = 50;
             let offset = 0;
@@ -43,23 +36,23 @@ export class ListUsersCommand extends BaseCommand {
             let roleFilter: string | undefined;
 
             // Handle positional argument for search
-            if (parsedArgs.positional.length > 0) {
-                searchQuery = parsedArgs.positional[0];
+            if (parsed.positional.length > 0) {
+                searchQuery = parsed.positional[0];
             }
 
             // Process named parameters
-            if (parsedArgs.params.limit !== undefined) {
-                limit = Math.min(Number(parsedArgs.params.limit), 500);
+            if (parsed.params.limit !== undefined) {
+                limit = Math.min(Number(parsed.params.limit), 500);
                 hasExplicitLimit = true;
             }
 
-            if (parsedArgs.params.offset !== undefined) {
-                offset = Number(parsedArgs.params.offset);
+            if (parsed.params.offset !== undefined) {
+                offset = Number(parsed.params.offset);
                 hasExplicitOffset = true;
             }
 
-            if (parsedArgs.params.role !== undefined) {
-                roleFilter = String(parsedArgs.params.role);
+            if (parsed.params.role !== undefined) {
+                roleFilter = String(parsed.params.role);
             }
 
             // If no explicit limit/offset, fetch all users with auto-pagination
@@ -69,7 +62,7 @@ export class ListUsersCommand extends BaseCommand {
                 const pageSize = 50;
                 let hasMoreData = true;
 
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log("Fetching all users...");
                 }
 
@@ -90,7 +83,7 @@ export class ListUsersCommand extends BaseCommand {
                         } else {
                             currentOffset += pageSize;
                             // Show progress
-                            if (!this.isJsonOutput) {
+                            if (config.displayFormat !== "json") {
                                 process.stdout.write(
                                     `\rFetched ${this.users.length} users...`,
                                 );
@@ -99,7 +92,7 @@ export class ListUsersCommand extends BaseCommand {
                     }
                 }
 
-                if (this.users.length > 0 && !this.isJsonOutput) {
+                if (this.users.length > 0 && config.displayFormat !== "json") {
                     process.stdout.write("\r"); // Clear the progress line
                 }
             } else {
@@ -122,96 +115,47 @@ export class ListUsersCommand extends BaseCommand {
                 this.users = this.users.filter(u => u.role === roleFilter);
             }
 
-            if (this.users.length > 0) {
-                if (this.isJsonOutput) {
-                    // JSON output
-                    const metadata: Record<string, unknown> = {
-                        count: this.users.length,
-                    };
+            // Build metadata
+            const metadata: Record<string, unknown> = {
+                count: this.users.length,
+            };
 
-                    if (hasExplicitLimit || hasExplicitOffset) {
-                        metadata.pagination = {
-                            offset,
-                            limit,
-                            hasMore: this.users.length === limit,
-                        };
-                    }
-
-                    if (searchQuery) {
-                        metadata.filter = { search: searchQuery };
-                    }
-
-                    if (roleFilter) {
-                        metadata.filter = {
-                            ...((metadata.filter as Record<string, unknown>) ||
-                                {}),
-                            role: roleFilter,
-                        };
-                    }
-
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { users: this.users },
-                            metadata,
-                        ),
-                    );
-                } else {
-                    // Default table output
-                    console.log(
-                        `\n${this.users.length} users${searchQuery ? ` matching "${searchQuery}"` : ""}${roleFilter ? ` with role "${roleFilter}"` : ""}`,
-                    );
-
-                    // Prepare data for table
-                    const tableData = this.users.map(user => ({
-                        ID: user.id,
-                        Name:
-                            user.name.length > 30
-                                ? user.name.substring(0, 27) + "..."
-                                : user.name,
-                        Email:
-                            user.email.length > 35
-                                ? user.email.substring(0, 32) + "..."
-                                : user.email,
-                        Role: user.role,
-                        Title: user.title || "-",
-                        Groups: user.groups?.length || 0,
-                    }));
-
-                    console.log(TerminalFormatter.table(tableData));
-
-                    await CommandUtils.exportData(
-                        this.users,
-                        `Domo Users${searchQuery ? ` matching "${searchQuery}"` : ""}`,
-                        "users",
-                        parsedArgs.saveOptions,
-                        this.isJsonOutput,
-                    );
-
-                    console.log(`\nTotal: ${this.users.length} users`);
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { users: [] },
-                            { count: 0 },
-                        ),
-                    );
-                } else {
-                    console.log("No users found.");
-                }
+            if (hasExplicitLimit || hasExplicitOffset) {
+                metadata.pagination = {
+                    offset,
+                    limit,
+                    hasMore: this.users.length === limit,
+                };
             }
+
+            if (searchQuery) {
+                metadata.filter = { search: searchQuery };
+            }
+
+            if (roleFilter) {
+                metadata.filter = {
+                    ...((metadata.filter as Record<string, unknown>) || {}),
+                    role: roleFilter,
+                };
+            }
+
+            // Use unified output
+            await this.output(
+                {
+                    success: true,
+                    data: { users: this.users },
+                    metadata,
+                },
+                () => this.displayTable(searchQuery, roleFilter),
+                "users",
+            );
         } catch (error) {
             log.error("Error fetching users:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch users";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch users";
+            this.outputErrorResult({ message }, () => {
                 console.error(
                     TerminalFormatter.error("Failed to fetch users."),
                 );
@@ -219,8 +163,41 @@ export class ListUsersCommand extends BaseCommand {
                     console.error("Error details:", error.message);
                 }
                 console.error("Check your authentication and try again.");
-            }
+            });
         }
+    }
+
+    /**
+     * Display users in table format
+     */
+    private displayTable(searchQuery?: string, roleFilter?: string): void {
+        if (this.users.length === 0) {
+            console.log("No users found.");
+            return;
+        }
+
+        console.log(
+            `\n${this.users.length} users${searchQuery ? ` matching "${searchQuery}"` : ""}${roleFilter ? ` with role "${roleFilter}"` : ""}`,
+        );
+
+        // Prepare data for table
+        const tableData = this.users.map(user => ({
+            ID: user.id,
+            Name:
+                user.name.length > 30
+                    ? user.name.substring(0, 27) + "..."
+                    : user.name,
+            Email:
+                user.email.length > 35
+                    ? user.email.substring(0, 32) + "..."
+                    : user.email,
+            Role: user.role,
+            Title: user.title || "-",
+            Groups: user.groups?.length || 0,
+        }));
+
+        console.log(TerminalFormatter.table(tableData));
+        console.log(`\nTotal: ${this.users.length} users`);
     }
 
     /**
@@ -256,25 +233,40 @@ export class ListUsersCommand extends BaseCommand {
                 Description: "Filter by role (Admin, Privileged, Participant)",
             },
             {
-                Option: "--format json",
-                Description: "Output as JSON",
-            },
-            { Option: "--save", Description: "Save results to JSON file" },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
             },
             {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
             },
             {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
         console.log(TerminalFormatter.table(optionsData));
+
+        console.log(
+            chalk.yellow("\nNote:") +
+                " Legacy flags (--save, --save-json, --save-md, --save-both, --path) are still supported",
+        );
 
         console.log(chalk.cyan("\nExamples:"));
         const examplesData = [
@@ -315,6 +307,11 @@ export class ListUsersCommand extends BaseCommand {
             "--offset",
             "--role",
             "--format",
+            "--export",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags (still supported)
             "--save",
             "--save-json",
             "--save-md",

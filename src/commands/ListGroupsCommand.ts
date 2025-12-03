@@ -3,9 +3,7 @@ import { listGroups } from "../api/clients/domoClient";
 import type { DomoGroup } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 
 /**
  * Lists all Domo groups with optional search
@@ -28,12 +26,7 @@ export class ListGroupsCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { parsed } = this.parseOutputConfig(args);
 
             let limit = 50;
             let offset = 0;
@@ -41,24 +34,24 @@ export class ListGroupsCommand extends BaseCommand {
             let typeFilter: string | undefined;
 
             // Handle positional argument for search
-            if (parsedArgs.positional.length > 0) {
-                searchQuery = parsedArgs.positional[0];
+            if (parsed.positional.length > 0) {
+                searchQuery = parsed.positional[0];
             }
 
             // Process named parameters
-            if (parsedArgs.params.limit !== undefined) {
-                limit = Number(parsedArgs.params.limit);
+            if (parsed.params.limit !== undefined) {
+                limit = Number(parsed.params.limit);
             }
 
-            if (parsedArgs.params.offset !== undefined) {
-                offset = Number(parsedArgs.params.offset);
+            if (parsed.params.offset !== undefined) {
+                offset = Number(parsed.params.offset);
             }
 
-            if (parsedArgs.params.type !== undefined) {
-                typeFilter = String(parsedArgs.params.type);
+            if (parsed.params.type !== undefined) {
+                typeFilter = String(parsed.params.type);
             }
 
-            if (!this.isJsonOutput) {
+            if (!this.isJsonMode) {
                 console.log("Fetching all groups...");
             }
 
@@ -80,92 +73,76 @@ export class ListGroupsCommand extends BaseCommand {
                 );
             }
 
-            if (this.groups.length > 0) {
-                if (this.isJsonOutput) {
-                    // JSON output
-                    const metadata: Record<string, unknown> = {
-                        count: this.groups.length,
-                    };
+            // Build metadata
+            const metadata: Record<string, unknown> = {
+                count: this.groups.length,
+            };
 
-                    if (searchQuery) {
-                        metadata.filter = { search: searchQuery };
-                    }
-
-                    if (typeFilter) {
-                        metadata.filter = {
-                            ...((metadata.filter as Record<string, unknown>) ||
-                                {}),
-                            type: typeFilter,
-                        };
-                    }
-
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { groups: this.groups },
-                            metadata,
-                        ),
-                    );
-                } else {
-                    // Default table output
-                    console.log(
-                        `\n${this.groups.length} groups${searchQuery ? ` matching "${searchQuery}"` : ""}${typeFilter ? ` with type "${typeFilter}"` : ""}`,
-                    );
-
-                    // Prepare data for table
-                    const tableData = this.groups.map(group => ({
-                        ID: group.groupId || group.id,
-                        Name:
-                            group.name.length > 40
-                                ? group.name.substring(0, 37) + "..."
-                                : group.name,
-                        Type: group.groupType || "-",
-                        Members: group.memberCount || 0,
-                    }));
-
-                    console.log(TerminalFormatter.table(tableData));
-
-                    await CommandUtils.exportData(
-                        this.groups,
-                        `Domo Groups${searchQuery ? ` matching "${searchQuery}"` : ""}`,
-                        "groups",
-                        parsedArgs.saveOptions,
-                        this.isJsonOutput,
-                    );
-
-                    console.log(`\nTotal: ${this.groups.length} groups`);
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            { groups: [] },
-                            { count: 0 },
-                        ),
-                    );
-                } else {
-                    console.log("No groups found.");
-                }
+            if (searchQuery) {
+                metadata.filter = { search: searchQuery };
             }
+
+            if (typeFilter) {
+                metadata.filter = {
+                    ...((metadata.filter as Record<string, unknown>) || {}),
+                    type: typeFilter,
+                };
+            }
+
+            // Unified output handling
+            await this.output(
+                { success: true, data: { groups: this.groups }, metadata },
+                () => this.displayTable(searchQuery, typeFilter),
+                "groups",
+            );
         } catch (error) {
             log.error("Error fetching groups:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to fetch groups";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
-                console.error(
-                    TerminalFormatter.error("Failed to fetch groups."),
-                );
-                if (error instanceof Error) {
-                    console.error("Error details:", error.message);
-                }
-                console.error("Check your authentication and try again.");
-            }
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to fetch groups",
+                },
+                () => {
+                    console.error(
+                        TerminalFormatter.error("Failed to fetch groups."),
+                    );
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                    console.error("Check your authentication and try again.");
+                },
+            );
         }
+    }
+
+    /**
+     * Display groups in table format
+     */
+    private displayTable(searchQuery?: string, typeFilter?: string): void {
+        if (this.groups.length === 0) {
+            console.log("No groups found.");
+            return;
+        }
+
+        console.log(
+            `\n${this.groups.length} groups${searchQuery ? ` matching "${searchQuery}"` : ""}${typeFilter ? ` with type "${typeFilter}"` : ""}`,
+        );
+
+        // Prepare data for table
+        const tableData = this.groups.map(group => ({
+            ID: group.groupId || group.id,
+            Name:
+                group.name.length > 40
+                    ? group.name.substring(0, 37) + "..."
+                    : group.name,
+            Type: group.groupType || "-",
+            Members: group.memberCount || 0,
+        }));
+
+        console.log(TerminalFormatter.table(tableData));
+        console.log(`\nTotal: ${this.groups.length} groups`);
     }
 
     /**
@@ -192,25 +169,41 @@ export class ListGroupsCommand extends BaseCommand {
                 Description: "Filter by type (open, user, system)",
             },
             {
-                Option: "--format json",
-                Description: "Output as JSON",
-            },
-            { Option: "--save", Description: "Save results to JSON file" },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
             },
             {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
             },
             {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
         console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (deprecated):"));
+        console.log("  --save, --save-json   → --export");
+        console.log("  --save-md             → --export=md");
+        console.log("  --save-both           → --export=both");
+        console.log("  --path                → --export-path");
 
         console.log(chalk.cyan("\nExamples:"));
         const examplesData = [
@@ -227,12 +220,16 @@ export class ListGroupsCommand extends BaseCommand {
                 Description: "Show only open groups",
             },
             {
-                Command: 'list-groups "sales" --format json',
+                Command: 'list-groups "sales" --format=json',
                 Description: "Search and output JSON",
             },
             {
-                Command: "list-groups --type user --save-md",
-                Description: "Filter and save to markdown",
+                Command: "list-groups --type user --export=md",
+                Description: "Filter and export to markdown",
+            },
+            {
+                Command: "list-groups --format=json --export",
+                Description: "Output JSON and export to file",
             },
         ];
         console.log(TerminalFormatter.table(examplesData));
@@ -244,7 +241,15 @@ export class ListGroupsCommand extends BaseCommand {
     public autocomplete(partial: string): string[] {
         const flags = [
             "--type",
-            "--format",
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy aliases
             "--save",
             "--save-json",
             "--save-md",
