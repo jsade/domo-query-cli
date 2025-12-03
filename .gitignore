@@ -95,8 +95,12 @@ package.build.json
 export
 reports/
 release/
+
+# local only files
 docs_local
+local
 
 # Code signing files (local only)
 entitlements.plist
 sign-local.sh
+
