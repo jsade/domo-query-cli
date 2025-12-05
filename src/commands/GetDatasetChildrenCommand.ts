@@ -45,13 +45,15 @@ export class GetDatasetChildrenCommand extends BaseCommand {
             const traverseUp =
                 parsed.params["traverse-up"] || parsed.params.traverseUp;
             if (traverseUp !== undefined) {
-                queryParams.traverseUp = traverseUp === "true" || traverseUp === true;
+                queryParams.traverseUp =
+                    traverseUp === "true" || traverseUp === true;
             }
 
             const traverseDown =
                 parsed.params["traverse-down"] || parsed.params.traverseDown;
             if (traverseDown !== undefined) {
-                queryParams.traverseDown = traverseDown === "true" || traverseDown === true;
+                queryParams.traverseDown =
+                    traverseDown === "true" || traverseDown === true;
             }
 
             // If neither specified, default to downstream-only to minimize payload
