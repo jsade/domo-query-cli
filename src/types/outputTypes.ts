@@ -200,6 +200,7 @@ export const NUMERIC_PARAMS = new Set([
     "max",
     "min",
     "timeout",
+    "interval",
     "retries",
     "delay",
     "port",

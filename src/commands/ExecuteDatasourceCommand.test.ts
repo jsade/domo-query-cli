@@ -292,22 +292,24 @@ describe("ExecuteDatasourceCommand", () => {
 
         it("should handle API errors gracefully", async () => {
             const error = new Error("API Error");
-            mockedParseCommandArgs.mockReturnValue({
-                positional: ["abc123"],
-                params: {},
-                flags: new Set(),
-                saveOptions: null,
-            });
             mockedExecuteDatasources.mockRejectedValue(error);
 
-            await expect(command.execute(["abc123"])).rejects.toThrow(
-                "API Error",
-            );
+            // In table mode, errors are output via console.error
+            const consoleErrorSpy = vi
+                .spyOn(console, "error")
+                .mockImplementation(() => {});
+
+            await command.execute(["abc123"]);
 
             expect(logger.log.error).toHaveBeenCalledWith(
                 "Error executing datasource:",
                 error,
             );
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringContaining("Failed to execute datasource"),
+            );
+
+            consoleErrorSpy.mockRestore();
         });
 
         it("should output JSON error when API fails and format is json", async () => {

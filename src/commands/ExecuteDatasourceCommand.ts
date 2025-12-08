@@ -1,8 +1,7 @@
 import { executeDatasources } from "../api/clients/datasourceApi.ts";
 import { log } from "../utils/logger.ts";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter.ts";
+import { TerminalFormatter } from "../utils/terminalFormatter.ts";
 import { BaseCommand } from "./BaseCommand.ts";
-import { CommandUtils } from "./CommandUtils.ts";
 import { checkReadOnlyMode } from "../utils/readOnlyGuard.ts";
 import chalk from "chalk";
 import type { ExecuteDatasourceResult } from "../api/clients/domoClient.ts";
@@ -24,53 +23,46 @@ export class ExecuteDatasourceCommand extends BaseCommand {
             // Check read-only mode before attempting to execute
             checkReadOnlyMode("execute-datasource");
 
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { config, parsed } = this.parseOutputConfig(args);
 
             // Extract dataset IDs from positional arguments
-            const datasetIds = parsedArgs.positional;
+            const datasetIds = parsed.positional;
 
             if (datasetIds.length === 0) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "At least one dataset ID is required",
-                            "MISSING_DATASET_IDS",
-                        ),
-                    );
-                } else {
-                    console.log(
-                        chalk.red(
-                            "\nError: At least one dataset ID is required.",
-                        ),
-                    );
-                    console.log(
-                        chalk.yellow(
-                            "Usage: execute-datasource <dataset_id> [dataset_id2...] [--wait]",
-                        ),
-                    );
-                }
+                this.outputErrorResult(
+                    {
+                        message: "At least one dataset ID is required",
+                        code: "MISSING_DATASET_IDS",
+                    },
+                    () => {
+                        console.log(
+                            chalk.red(
+                                "\nError: At least one dataset ID is required.",
+                            ),
+                        );
+                        console.log(
+                            chalk.yellow(
+                                "Usage: execute-datasource <dataset_id> [dataset_id2...] [--wait]",
+                            ),
+                        );
+                    },
+                );
                 return;
             }
 
             // Parse options
-            const shouldWait = parsedArgs.flags.has("wait");
+            const shouldWait = parsed.flags.has("wait");
             const pollInterval =
-                typeof parsedArgs.params.interval === "number"
-                    ? parsedArgs.params.interval
+                typeof parsed.params.interval === "number"
+                    ? parsed.params.interval
                     : 5000;
             const timeout =
-                typeof parsedArgs.params.timeout === "number"
-                    ? parsedArgs.params.timeout
+                typeof parsed.params.timeout === "number"
+                    ? parsed.params.timeout
                     : 600000;
 
             // Execute datasources
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(
                     chalk.cyan(
                         `\nExecuting ${datasetIds.length} datasource(s)...`,
@@ -87,33 +79,7 @@ export class ExecuteDatasourceCommand extends BaseCommand {
                 timeout,
             });
 
-            // Output results
-            this.outputResults(results, shouldWait);
-        } catch (error) {
-            log.error("Error executing datasource:", error);
-            if (this.isJsonOutput) {
-                const message =
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to execute datasource";
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
-                throw error;
-            }
-        }
-    }
-
-    /**
-     * Outputs execution results
-     */
-    private outputResults(
-        results: ExecuteDatasourceResult[],
-        waited: boolean,
-    ): void {
-        const successCount = results.filter(r => r.success).length;
-        const failCount = results.length - successCount;
-
-        if (this.isJsonOutput) {
+            // Prepare execution data
             const executionData = results.map(r => ({
                 datasetId: r.datasetId,
                 success: r.success,
@@ -125,130 +91,232 @@ export class ExecuteDatasourceCommand extends BaseCommand {
                     r.execution?.endTime && r.execution?.startTime
                         ? (r.execution.endTime - r.execution.startTime) / 1000
                         : null,
+                rowsProcessed: r.execution?.rowsProcessed,
                 error: r.error,
                 errorCode: r.errorCode,
             }));
 
-            console.log(
-                JsonOutputFormatter.success(
-                    this.name,
-                    { executions: executionData },
-                    {
+            const successCount = results.filter(r => r.success).length;
+            const failCount = results.length - successCount;
+
+            // Use unified output system
+            await this.output(
+                {
+                    success: true,
+                    data: { executions: executionData },
+                    metadata: {
                         count: results.length,
                         successCount,
                         failCount,
-                        waited,
+                        waited: shouldWait,
                     },
-                ),
+                },
+                () => this.displayResults(results, shouldWait),
+                "datasource-executions",
             );
-        } else {
-            console.log(chalk.cyan("\nDatasource Execution Results:"));
-            console.log("─".repeat(60));
-
-            for (const result of results) {
-                const statusIcon = result.success ? "✓" : "✗";
-                const statusColor = result.success ? chalk.green : chalk.red;
-
-                console.log(
-                    statusColor(`\n${statusIcon} Dataset: ${result.datasetId}`),
-                );
-
-                if (result.execution) {
-                    console.log(
-                        `  Execution ID: ${result.execution.executionId}`,
+        } catch (error) {
+            log.error("Error executing datasource:", error);
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to execute datasource",
+                },
+                () => {
+                    console.error(
+                        TerminalFormatter.error(
+                            "Failed to execute datasource.",
+                        ),
                     );
-                    console.log(`  State: ${result.execution.state}`);
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                    console.error("Check your parameters and try again.");
+                },
+            );
+        }
+    }
+
+    /**
+     * Display execution results as terminal output
+     */
+    private displayResults(
+        results: ExecuteDatasourceResult[],
+        _waited: boolean,
+    ): void {
+        const successCount = results.filter(r => r.success).length;
+        const failCount = results.length - successCount;
+
+        console.log(chalk.cyan("\nDatasource Execution Results:"));
+        console.log("─".repeat(60));
+
+        for (const result of results) {
+            const statusIcon = result.success ? "✓" : "✗";
+            const statusColor = result.success ? chalk.green : chalk.red;
+
+            console.log(
+                statusColor(`\n${statusIcon} Dataset: ${result.datasetId}`),
+            );
+
+            if (result.execution) {
+                console.log(`  Execution ID: ${result.execution.executionId}`);
+                console.log(`  State: ${result.execution.state}`);
+
+                if (result.execution.startTime) {
+                    console.log(
+                        `  Start Time: ${new Date(result.execution.startTime).toLocaleString()}`,
+                    );
+                }
+
+                if (result.execution.endTime) {
+                    console.log(
+                        `  End Time: ${new Date(result.execution.endTime).toLocaleString()}`,
+                    );
 
                     if (result.execution.startTime) {
+                        const duration =
+                            (result.execution.endTime -
+                                result.execution.startTime) /
+                            1000;
                         console.log(
-                            `  Start Time: ${new Date(result.execution.startTime).toLocaleString()}`,
-                        );
-                    }
-
-                    if (result.execution.endTime) {
-                        console.log(
-                            `  End Time: ${new Date(result.execution.endTime).toLocaleString()}`,
-                        );
-
-                        if (result.execution.startTime) {
-                            const duration =
-                                (result.execution.endTime -
-                                    result.execution.startTime) /
-                                1000;
-                            console.log(
-                                `  Duration: ${duration.toFixed(2)} seconds`,
-                            );
-                        }
-                    }
-
-                    if (result.execution.rowsProcessed !== undefined) {
-                        console.log(
-                            `  Rows Processed: ${result.execution.rowsProcessed}`,
+                            `  Duration: ${duration.toFixed(2)} seconds`,
                         );
                     }
                 }
 
-                if (result.error) {
-                    console.log(chalk.red(`  Error: ${result.error}`));
+                if (result.execution.rowsProcessed !== undefined) {
+                    console.log(
+                        `  Rows Processed: ${result.execution.rowsProcessed}`,
+                    );
                 }
             }
 
-            console.log("\n" + "─".repeat(60));
-            console.log(
-                `Total: ${results.length} | ` +
-                    chalk.green(`Success: ${successCount}`) +
-                    ` | ` +
-                    chalk.red(`Failed: ${failCount}`),
-            );
-            console.log("");
+            if (result.error) {
+                console.log(chalk.red(`  Error: ${result.error}`));
+            }
         }
+
+        console.log("\n" + "─".repeat(60));
+        console.log(
+            `Total: ${results.length} | ` +
+                chalk.green(`Success: ${successCount}`) +
+                ` | ` +
+                chalk.red(`Failed: ${failCount}`),
+        );
+        console.log("");
     }
 
     /**
      * Shows help for the execute-datasource command
      */
     public showHelp(): void {
+        console.log(this.description);
         console.log(
-            "Executes one or more datasource-based datasets (triggers connector updates)",
-        );
-        console.log(
-            "Usage: execute-datasource <dataset_id> [dataset_id2...] [options]",
+            "\nUsage: execute-datasource <dataset_id> [dataset_id2...] [options]",
         );
 
         console.log(chalk.cyan("\nParameters:"));
-        console.log("  dataset_id          One or more dataset IDs to execute");
+        const paramsData = [
+            {
+                Parameter: "dataset_id",
+                Description: "One or more dataset IDs to execute",
+            },
+        ];
+        console.log(TerminalFormatter.table(paramsData));
 
         console.log(chalk.cyan("\nOptions:"));
-        console.log(
-            "  --wait              Wait for execution(s) to complete before returning",
-        );
-        console.log(
-            "  --interval=<ms>     Polling interval in milliseconds (default: 5000)",
-        );
-        console.log(
-            "  --timeout=<ms>      Maximum wait time in milliseconds (default: 600000)",
-        );
-        console.log("  --format=json       Output results in JSON format");
+        const optionsData = [
+            {
+                Option: "--wait",
+                Description: "Wait for execution(s) to complete",
+            },
+            {
+                Option: "--interval=<ms>",
+                Description: "Polling interval (default: 5000)",
+            },
+            {
+                Option: "--timeout=<ms>",
+                Description: "Maximum wait time (default: 600000)",
+            },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const outputOptionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
+            },
+        ];
+        console.log(TerminalFormatter.table(outputOptionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
-        console.log(
-            "  execute-datasource abc123                      Fire and forget single dataset",
-        );
-        console.log(
-            "  execute-datasource abc123 def456               Execute multiple datasets",
-        );
-        console.log(
-            "  execute-datasource abc123 --wait               Wait for completion",
-        );
-        console.log(
-            "  execute-datasource abc123 def456 --wait        Execute multiple and wait",
-        );
-        console.log(
-            "  execute-datasource abc123 --wait --timeout=300000  Wait with 5 minute timeout",
-        );
-        console.log(
-            "  execute-datasource abc123 --format=json        JSON output for automation",
-        );
+        const examplesData = [
+            {
+                Command: "execute-datasource abc123",
+                Description: "Fire and forget single dataset",
+            },
+            {
+                Command: "execute-datasource abc123 def456",
+                Description: "Execute multiple datasets",
+            },
+            {
+                Command: "execute-datasource abc123 --wait",
+                Description: "Wait for completion",
+            },
+            {
+                Command: "execute-datasource abc123 def456 --wait",
+                Description: "Execute multiple and wait",
+            },
+            {
+                Command: "execute-datasource abc123 --wait --timeout=300000",
+                Description: "Wait with 5 minute timeout",
+            },
+            {
+                Command: "execute-datasource abc123 --format=json",
+                Description: "JSON output for automation",
+            },
+            {
+                Command: "execute-datasource abc123 --export=both",
+                Description: "Export results to JSON and MD",
+            },
+        ];
+        console.log(TerminalFormatter.table(examplesData));
 
         console.log(chalk.cyan("\nNotes:"));
         console.log(
@@ -268,7 +336,25 @@ export class ExecuteDatasourceCommand extends BaseCommand {
      * @returns Array of suggestion strings
      */
     public async autocomplete(): Promise<string[]> {
-        // Could be enhanced to suggest dataset IDs from the database
-        return ["--wait", "--format=json", "--timeout=", "--interval="];
+        return [
+            "--wait",
+            "--timeout=",
+            "--interval=",
+            // Unified output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
     }
 }

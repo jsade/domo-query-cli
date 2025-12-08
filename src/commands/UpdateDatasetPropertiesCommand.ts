@@ -2,7 +2,8 @@ import { updateDatasetProperties } from "../api/clients/domoClient";
 import { log } from "../utils/logger";
 import { BaseCommand } from "./BaseCommand";
 import { CommandUtils } from "./CommandUtils";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
+import { TerminalFormatter } from "../utils/terminalFormatter";
+import { checkReadOnlyMode } from "../utils/readOnlyGuard";
 import chalk from "chalk";
 import fs from "fs/promises";
 import validator from "validator";
@@ -133,19 +134,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             const properties = JSON.parse(content);
             return properties;
         } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        `Failed to read JSON file: ${error instanceof Error ? error.message : String(error)}`,
-                        "JSON_FILE_ERROR",
-                    ),
-                );
-            } else {
-                console.error(
-                    `Failed to read JSON file: ${error instanceof Error ? error.message : String(error)}`,
-                );
-            }
+            this.outputErrorResult({
+                message: `Failed to read JSON file: ${error instanceof Error ? error.message : String(error)}`,
+                code: "JSON_FILE_ERROR",
+            });
             return null;
         }
     }
@@ -156,36 +148,27 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
      */
     public async execute(args?: string[]): Promise<void> {
         try {
-            const parsedArgs = CommandUtils.parseCommandArgs(args);
+            // Check read-only mode before attempting to modify
+            checkReadOnlyMode("update-dataset-properties");
 
-            // Check for JSON output format
-            if (parsedArgs.format?.toLowerCase() === "json") {
-                this.isJsonOutput = true;
-            }
+            const { parsed } = this.parseOutputConfig(args);
 
             // Extract dataset ID from positional args
-            const datasetId = parsedArgs.positional[0];
+            const datasetId = parsed.positional[0];
 
             if (!datasetId) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No dataset ID provided",
-                            "MISSING_DATASET_ID",
-                        ),
-                    );
-                } else {
-                    console.log("No dataset ID provided.");
-                }
+                this.outputErrorResult({
+                    message: "No dataset ID provided",
+                    code: "MISSING_DATASET_ID",
+                });
                 return;
             }
 
             let properties: DatasetPropertiesUpdate = {};
 
             // Check for JSON file input
-            if (parsedArgs.params["json-file"]) {
-                const filePath = String(parsedArgs.params["json-file"]);
+            if (parsed.params["json-file"]) {
+                const filePath = String(parsed.params["json-file"]);
                 const fileProperties = await this.parseJsonFile(filePath);
                 if (!fileProperties) {
                     return;
@@ -193,36 +176,29 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                 properties = fileProperties;
             }
             // Check for inline JSON input
-            else if (parsedArgs.params["json"]) {
+            else if (parsed.params["json"]) {
                 try {
-                    properties = JSON.parse(String(parsedArgs.params["json"]));
+                    properties = JSON.parse(String(parsed.params["json"]));
                 } catch {
-                    if (this.isJsonOutput) {
-                        console.log(
-                            JsonOutputFormatter.error(
-                                this.name,
-                                "Invalid JSON format",
-                                "JSON_PARSE_ERROR",
-                            ),
-                        );
-                    } else {
-                        console.error("Invalid JSON format");
-                    }
+                    this.outputErrorResult({
+                        message: "Invalid JSON format",
+                        code: "JSON_PARSE_ERROR",
+                    });
                     return;
                 }
             }
             // Check for individual property arguments
             else {
-                if (parsedArgs.params["name"]) {
-                    properties.name = String(parsedArgs.params["name"]);
+                if (parsed.params["name"]) {
+                    properties.name = String(parsed.params["name"]);
                 }
-                if (parsedArgs.params["description"]) {
+                if (parsed.params["description"]) {
                     properties.description = String(
-                        parsedArgs.params["description"],
+                        parsed.params["description"],
                     );
                 }
-                if (parsedArgs.params["tags"]) {
-                    const tagsParam = String(parsedArgs.params["tags"]);
+                if (parsed.params["tags"]) {
+                    const tagsParam = String(parsed.params["tags"]);
                     // Support both comma-separated and JSON array formats
                     if (tagsParam.startsWith("[")) {
                         try {
@@ -241,7 +217,7 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             }
 
             // If no properties provided via arguments, prompt interactively
-            if (Object.keys(properties).length === 0 && !this.isJsonOutput) {
+            if (Object.keys(properties).length === 0 && !this.isJsonMode) {
                 console.log(
                     chalk.cyan(
                         "No properties provided. Enter the properties you want to update (press Enter to skip):",
@@ -275,17 +251,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
 
             // Check if we have any properties to update
             if (Object.keys(properties).length === 0) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "No properties provided to update",
-                            "NO_PROPERTIES",
-                        ),
-                    );
-                } else {
-                    console.log("No properties provided to update.");
-                }
+                this.outputErrorResult({
+                    message: "No properties provided to update",
+                    code: "NO_PROPERTIES",
+                });
                 return;
             }
 
@@ -293,19 +262,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             if (properties.name) {
                 const nameValidation = this.validateName(properties.name);
                 if (!nameValidation.valid) {
-                    if (this.isJsonOutput) {
-                        console.log(
-                            JsonOutputFormatter.error(
-                                this.name,
-                                nameValidation.error!,
-                                "VALIDATION_ERROR",
-                            ),
-                        );
-                    } else {
-                        console.error(
-                            `Validation error: ${nameValidation.error}`,
-                        );
-                    }
+                    this.outputErrorResult({
+                        message: nameValidation.error!,
+                        code: "VALIDATION_ERROR",
+                    });
                     return;
                 }
                 // Sanitize the name before using it
@@ -317,19 +277,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
                     properties.description,
                 );
                 if (!descValidation.valid) {
-                    if (this.isJsonOutput) {
-                        console.log(
-                            JsonOutputFormatter.error(
-                                this.name,
-                                descValidation.error!,
-                                "VALIDATION_ERROR",
-                            ),
-                        );
-                    } else {
-                        console.error(
-                            `Validation error: ${descValidation.error}`,
-                        );
-                    }
+                    this.outputErrorResult({
+                        message: descValidation.error!,
+                        code: "VALIDATION_ERROR",
+                    });
                     return;
                 }
                 // Sanitize the description before using it
@@ -341,19 +292,10 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             if (properties.tags) {
                 const tagsValidation = this.validateTags(properties.tags);
                 if (!tagsValidation.valid) {
-                    if (this.isJsonOutput) {
-                        console.log(
-                            JsonOutputFormatter.error(
-                                this.name,
-                                tagsValidation.error!,
-                                "VALIDATION_ERROR",
-                            ),
-                        );
-                    } else {
-                        console.error(
-                            `Validation error: ${tagsValidation.error}`,
-                        );
-                    }
+                    this.outputErrorResult({
+                        message: tagsValidation.error!,
+                        code: "VALIDATION_ERROR",
+                    });
                     return;
                 }
                 // Sanitize each tag before using it
@@ -363,12 +305,7 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             }
 
             // Show confirmation if not skipped
-            if (
-                !CommandUtils.shouldSkipConfirmation(
-                    parsedArgs,
-                    this.isJsonOutput,
-                )
-            ) {
+            if (!parsed.flags.has("no-confirm") && !this.isJsonMode) {
                 console.log(chalk.cyan("\nProperties to update:"));
                 if (properties.name) {
                     console.log(`  Name: ${properties.name}`);
@@ -393,102 +330,203 @@ export class UpdateDatasetPropertiesCommand extends BaseCommand {
             const result = await updateDatasetProperties(datasetId, properties);
 
             if (result) {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            {
-                                datasetId,
-                                updatedProperties: properties,
-                                result,
-                            },
-                            { entityType: "dataset" },
-                        ),
-                    );
-                } else {
-                    console.log(
-                        chalk.green(
-                            "\n✓ Dataset properties updated successfully",
-                        ),
-                    );
-                    console.log(chalk.cyan("\nUpdated properties:"));
-                    if (properties.name) {
-                        console.log(`  Name: ${properties.name}`);
-                    }
-                    if (properties.description) {
-                        console.log(`  Description: ${properties.description}`);
-                    }
-                    if (properties.tags) {
-                        console.log(`  Tags: ${properties.tags.join(", ")}`);
-                    }
-                    console.log("");
-                }
-            } else {
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Failed to update dataset properties",
-                            "UPDATE_FAILED",
-                        ),
-                    );
-                } else {
-                    console.log("Failed to update dataset properties.");
-                }
-            }
-        } catch (error) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        error instanceof Error ? error.message : String(error),
-                        "UPDATE_ERROR",
-                    ),
+                await this.output(
+                    {
+                        success: true,
+                        data: {
+                            datasetId,
+                            updatedProperties: properties,
+                            result,
+                        },
+                        metadata: { entityType: "dataset" },
+                    },
+                    () => this.displaySuccessTable(properties),
+                    "update-dataset-properties",
                 );
             } else {
-                log.error("Error updating dataset properties:", error);
+                this.outputErrorResult({
+                    message: "Failed to update dataset properties",
+                    code: "UPDATE_FAILED",
+                });
             }
+        } catch (error) {
+            log.error("Error updating dataset properties:", error);
+            this.outputErrorResult({
+                message: error instanceof Error ? error.message : String(error),
+                code: "UPDATE_ERROR",
+            });
         }
+    }
+
+    /**
+     * Display success message with updated properties
+     */
+    private displaySuccessTable(properties: DatasetPropertiesUpdate): void {
+        console.log(chalk.green("\n✓ Dataset properties updated successfully"));
+        console.log(chalk.cyan("\nUpdated properties:"));
+        if (properties.name) {
+            console.log(`  Name: ${properties.name}`);
+        }
+        if (properties.description) {
+            console.log(`  Description: ${properties.description}`);
+        }
+        if (properties.tags) {
+            console.log(`  Tags: ${properties.tags.join(", ")}`);
+        }
+        console.log("");
     }
 
     /**
      * Shows help for the update-dataset-properties command
      */
     public showHelp(): void {
-        console.log("Updates properties of a specific dataset");
-        console.log("Usage: update-dataset-properties <dataset_id> [options]");
+        console.log(this.description);
+        console.log(
+            "\nUsage: update-dataset-properties <dataset_id> [options]",
+        );
+
         console.log(chalk.cyan("\nParameters:"));
-        console.log("  dataset_id          Required dataset ID to update");
-        console.log(chalk.cyan("\nOptions:"));
-        console.log("  --name=<name>       New name for the dataset");
-        console.log("  --description=<desc> New description for the dataset");
-        console.log("  --tags=<tags>       Comma-separated list of tags");
-        console.log(
-            "  --json=<json>       Inline JSON with properties to update",
-        );
-        console.log("  --json-file=<path>  Path to JSON file with properties");
-        console.log("  --no-confirm        Skip confirmation prompt");
-        console.log("  --format=json       Output results in JSON format");
+        const paramsData = [
+            {
+                Parameter: "dataset_id",
+                Description: "Required dataset ID to update",
+            },
+        ];
+        console.log(TerminalFormatter.table(paramsData));
+
+        console.log(chalk.cyan("\nProperty Options:"));
+        const propOptionsData = [
+            {
+                Option: "--name=<name>",
+                Description: "New name for the dataset",
+            },
+            { Option: "--description=<desc>", Description: "New description" },
+            {
+                Option: "--tags=<tags>",
+                Description: "Comma-separated list of tags",
+            },
+            {
+                Option: "--json=<json>",
+                Description: "Inline JSON with properties",
+            },
+            {
+                Option: "--json-file=<path>",
+                Description: "Path to JSON file with properties",
+            },
+            { Option: "--no-confirm", Description: "Skip confirmation prompt" },
+        ];
+        console.log(TerminalFormatter.table(propOptionsData));
+
+        console.log(chalk.cyan("\nOutput Options:"));
+        const outputOptionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            { Option: "--export=md", Description: "Export as Markdown" },
+            { Option: "--export=both", Description: "Export both formats" },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            { Option: "--quiet", Description: "Suppress export messages" },
+        ];
+        console.log(TerminalFormatter.table(outputOptionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
+
         console.log(chalk.cyan("\nValidation Rules:"));
-        console.log("  - Name: Required non-empty string, max 255 characters");
-        console.log("  - Description: Optional string, max 1000 characters");
-        console.log(
-            "  - Tags: Array of alphanumeric strings (plus spaces, hyphens, underscores)",
-        );
+        const validationData = [
+            { Property: "Name", Rule: "Non-empty string, max 255 characters" },
+            {
+                Property: "Description",
+                Rule: "Optional string, max 1000 characters",
+            },
+            {
+                Property: "Tags",
+                Rule: "Alphanumeric with spaces, hyphens, underscores",
+            },
+        ];
+        console.log(TerminalFormatter.table(validationData));
+
         console.log(chalk.cyan("\nExamples:"));
-        console.log(
-            '  update-dataset-properties abc-123 --name="Sales Data 2024"',
-        );
-        console.log(
-            '  update-dataset-properties abc-123 --tags="sales,finance,2024"',
-        );
-        console.log(
-            '  update-dataset-properties abc-123 --json=\'{"name":"New Name","tags":["tag1","tag2"]}\'',
-        );
-        console.log(
-            "  update-dataset-properties abc-123 --json-file=properties.json",
-        );
-        console.log("  update-dataset-properties abc-123  # Interactive mode");
+        const examplesData = [
+            {
+                Command:
+                    'update-dataset-properties abc-123 --name="Sales Data 2024"',
+                Description: "Update dataset name",
+            },
+            {
+                Command:
+                    'update-dataset-properties abc-123 --tags="sales,finance,2024"',
+                Description: "Update dataset tags",
+            },
+            {
+                Command:
+                    'update-dataset-properties abc-123 --json=\'{"name":"New Name"}\'',
+                Description: "Update with inline JSON",
+            },
+            {
+                Command:
+                    "update-dataset-properties abc-123 --json-file=props.json",
+                Description: "Update from JSON file",
+            },
+            {
+                Command: "update-dataset-properties abc-123 --export",
+                Description: "Update and export result",
+            },
+            {
+                Command: "update-dataset-properties abc-123",
+                Description: "Interactive mode",
+            },
+        ];
+        console.log(TerminalFormatter.table(examplesData));
         console.log("");
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--name=",
+            "--description=",
+            "--tags=",
+            "--json=",
+            "--json-file=",
+            "--no-confirm",
+            // Unified output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags (still supported)
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

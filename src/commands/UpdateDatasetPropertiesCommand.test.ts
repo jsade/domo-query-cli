@@ -48,8 +48,8 @@ describe("UpdateDatasetPropertiesCommand", () => {
     describe("execute", () => {
         it("should fail when no dataset ID is provided", async () => {
             await command.execute([]);
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                "No dataset ID provided.",
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                "Error: No dataset ID provided",
             );
         });
 
@@ -252,7 +252,9 @@ describe("UpdateDatasetPropertiesCommand", () => {
 
         it("should fail with invalid JSON", async () => {
             await command.execute(["dataset-123", "--json={invalid json}"]);
-            expect(consoleErrorSpy).toHaveBeenCalledWith("Invalid JSON format");
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                "Error: Invalid JSON format",
+            );
         });
 
         it("should fail when JSON file cannot be read", async () => {
@@ -266,7 +268,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
             ]);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining("Failed to read JSON file"),
+                expect.stringContaining("Error: Failed to read JSON file"),
             );
         });
 
@@ -279,7 +281,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
             ]);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                "Validation error: Name cannot exceed 255 characters",
+                "Error: Name cannot exceed 255 characters",
             );
             expect(domoClient.updateDatasetProperties).not.toHaveBeenCalled();
         });
@@ -292,7 +294,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
             ]);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                "Validation error: Name contains potentially malicious content",
+                "Error: Name contains potentially malicious content",
             );
             expect(domoClient.updateDatasetProperties).not.toHaveBeenCalled();
         });
@@ -306,7 +308,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
             ]);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                "Validation error: Description cannot exceed 1000 characters",
+                "Error: Description cannot exceed 1000 characters",
             );
             expect(domoClient.updateDatasetProperties).not.toHaveBeenCalled();
         });
@@ -320,7 +322,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 expect.stringContaining(
-                    'Tag "invalid@tag" contains invalid characters',
+                    '"invalid@tag" contains invalid characters',
                 ),
             );
             expect(domoClient.updateDatasetProperties).not.toHaveBeenCalled();
@@ -335,9 +337,7 @@ describe("UpdateDatasetPropertiesCommand", () => {
             ]);
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining(
-                    `Tag "${longTag}" exceeds 50 characters`,
-                ),
+                expect.stringContaining(`"${longTag}" exceeds 50 characters`),
             );
             expect(domoClient.updateDatasetProperties).not.toHaveBeenCalled();
         });
@@ -396,8 +396,8 @@ describe("UpdateDatasetPropertiesCommand", () => {
                 "--no-confirm",
             ]);
 
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                "Failed to update dataset properties.",
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                "Error: Failed to update dataset properties",
             );
         });
     });
@@ -406,11 +406,9 @@ describe("UpdateDatasetPropertiesCommand", () => {
         it("should display help information", () => {
             command.showHelp();
 
+            // Check that key sections are displayed
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                "Updates properties of a specific dataset",
-            );
-            expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining("Usage:"),
+                expect.stringContaining("update-dataset-properties"),
             );
             expect(consoleLogSpy).toHaveBeenCalledWith(
                 expect.stringContaining("--name"),
@@ -428,7 +426,10 @@ describe("UpdateDatasetPropertiesCommand", () => {
                 expect.stringContaining("--json-file"),
             );
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining("Examples:"),
+                expect.stringContaining("--export"),
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining("--format=json"),
             );
         });
     });
