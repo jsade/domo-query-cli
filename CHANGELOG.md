@@ -1,3 +1,26 @@
+# [1.6.0](https://github.com/jsade/domo-query-cli/compare/v1.5.0...v1.6.0) (2025-12-08)
+
+
+### Features
+
+* **output:** unified output/export system infrastructure with consistent flag handling across all commands
+* **output:** migrate 31 commands to unified output system (Phases B1-B6)
+* **output:** add `--format=json`, `--export`, `--export=md`, `--export=both`, `--export-path`, `--output`, and `--quiet` flags
+* **output:** legacy alias support (`--save`, `--save-json`, `--save-md`, `--save-both`, `--path`) for backward compatibility
+
+
+### Bug Fixes
+
+* **output:** fix `--format=json` silently ignoring `--save*` flags - both now work together
+* **output:** fix `--export-path` not being properly passed to export functions
+
+
+### Documentation
+
+* **docs:** comprehensive CLI.md update with unified output system documentation
+* **docs:** update README.md command table and output options section
+* **docs:** update STORAGE.md with export flag precedence rules and examples
+
 # [1.5.0](https://github.com/jsade/domo-query-cli/compare/v1.4.0...v1.5.0) (2025-10-30)
 
 
