@@ -150,13 +150,13 @@ Different parameters create different cache entries. For example, `list-datasets
 ### JSON Export Questions
 
 **Q: Where are exported JSON files saved?**
-By default in `./exports` directory. Use `--path=/custom/path` to change location, or set `DOMO_EXPORT_PATH` environment variable.
+By default in `./exports` directory. Use `--export-path=/custom/path` to change location, or set `DOMO_EXPORT_PATH` environment variable.
 
 **Q: Can I export data automatically on every command?**
-Not by default, but you can create shell aliases or wrapper scripts that add `--save` to commands.
+Not by default, but you can create shell aliases or wrapper scripts that add `--export` to commands.
 
-**Q: What's the difference between `--save` and `--format=json`?**
-`--save` writes to a timestamped file, while `--format=json` outputs to stdout for piping or redirection.
+**Q: What's the difference between `--export` and `--format=json`?**
+`--export` writes to a timestamped file, while `--format=json` outputs to stdout for piping or redirection. You can use both together: `--format=json --export` outputs JSON to stdout AND saves to a file.
 
 **Q: How large can exported JSON files get?**
 File size depends on your data volume. A typical export of 1000 datasets is around 500KB-2MB.
@@ -234,10 +234,12 @@ The CLI provides flexible export capabilities to save your data for later use, s
 
 Most data-fetching commands support these export options:
 
-- **`--save`** or **`--save-json`**: Export data to JSON file (default)
-- **`--save-md`**: Export data to Markdown file (human-readable format)
-- **`--save-both`**: Export to both JSON and Markdown formats
-- **`--path=<directory>`**: Specify custom export directory (default: `./exports`)
+- **`--export`** or **`--export=json`**: Export data to JSON file
+- **`--export=md`**: Export data to Markdown file (human-readable format)
+- **`--export=both`**: Export to both JSON and Markdown formats
+- **`--export-path=<directory>`**: Specify custom export directory (default: `./exports`)
+
+> **Note:** Legacy flags (`--save`, `--save-json`, `--save-md`, `--save-both`, `--path`) are still supported as aliases for backward compatibility, but the `--export*` flags are now preferred.
 
 ### File Naming Convention
 
@@ -252,19 +254,22 @@ Example: `datasets_2025_01_15_143052.json`
 
 ```bash
 # Export dataset list to JSON
-list-datasets --save
+list-datasets --export
 
 # Export to Markdown for documentation
-list-datasets --save-md
+list-datasets --export=md
 
 # Export to both formats with custom path
-list-datasets --save-both --path=/Users/me/reports
+list-datasets --export=both --export-path=/Users/me/reports
 
 # Export filtered results
-list-datasets "sales" --save-json
+list-datasets "sales" --export=json
 
 # Export with pagination
-list-datasets --limit=50 --save
+list-datasets --limit=50 --export
+
+# Combine JSON format output with export (outputs to stdout AND saves to file)
+list-datasets --format=json --export | jq '.datasets[0].name'
 ```
 
 ### JSON Output Format
@@ -280,7 +285,19 @@ list-datasets --format=json > datasets.json
 
 # Use with other tools
 cache-status --format=json | python analyze.py
+
+# Combine JSON output with export (outputs to stdout AND saves to file)
+list-datasets --format=json --export
 ```
+
+### Export Behavior & Precedence
+
+Understanding how export flags interact with other output options:
+
+- **`--format=json` + `--export`**: Outputs JSON to stdout AND saves to timestamped file (both happen)
+- **`--output=<path>` + `--export`**: The `--output` flag takes precedence; export is ignored
+- **`--quiet` mode**: Suppresses export confirmation messages, but export still happens
+- **Multiple formats**: Use `--export=both` to generate both JSON and Markdown files simultaneously
 
 ## Local Database Storage
 
@@ -349,10 +366,10 @@ The local database stores:
 mkdir -p ~/domo-reports/$(date +%Y-%m)
 
 # Export all datasets
-list-datasets --save-both --path=~/domo-reports/$(date +%Y-%m)
+list-datasets --export=both --export-path=~/domo-reports/$(date +%Y-%m)
 
 # Export specific dataflows
-list-dataflows "ETL" --save-md --path=~/domo-reports/$(date +%Y-%m)
+list-dataflows "ETL" --export=md --export-path=~/domo-reports/$(date +%Y-%m)
 
 # Generate summary
 echo "Report generated: $(date)" >> ~/domo-reports/summary.log
@@ -380,11 +397,11 @@ echo "Generated: $(date)" >> catalog.md
 echo "" >> catalog.md
 
 # Add datasets section
-list-datasets --save-md
+list-datasets --export=md
 cat exports/datasets_*.md >> catalog.md
 
 # Add dataflows section
-list-dataflows --save-md
+list-dataflows --export=md
 cat exports/dataflows_*.md >> catalog.md
 ```
 

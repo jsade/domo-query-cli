@@ -25,9 +25,17 @@ title: Domo Query CLI - Non-Interactive Command Guide
     - [Group Management](#group-management)
     - [Lineage and Reporting](#lineage-and-reporting)
     - [Database Operations](#database-operations)
-- [Output Formats](#output-formats)
-    - [JSON Output](#json-output)
-    - [Standard Output (formatted for terminal)](#standard-output-formatted-for-terminal)
+- [Output Options](#output-options)
+    - [Quick Reference](#quick-reference)
+    - [Output Modes (Mutually Exclusive Display Formats)](#output-modes-mutually-exclusive-display-formats)
+    - [Export Flags (File Output Options)](#export-flags-file-output-options)
+    - [File Output (Custom Path)](#file-output-custom-path)
+    - [Modifiers](#modifiers)
+    - [Legacy Aliases (Deprecated)](#legacy-aliases-deprecated)
+    - [Combining Flags Examples](#combining-flags-examples)
+    - [Bug Fix: Format and Export Compatibility](#bug-fix-format-and-export-compatibility)
+    - [Output Examples by Command Type](#output-examples-by-command-type)
+    - [File-Based Output (Detailed)](#file-based-output-detailed)
 - [Filtering and Pagination](#filtering-and-pagination)
 - [Persistent Database](#persistent-database)
     - [Overview](#database-overview)
@@ -184,6 +192,7 @@ domo-query-cli get-dataset 12345678-abcd-1234-5678-901234567890
 # Get dataset details via v3 API (requires API token and DOMO_API_HOST)
 domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890
 domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --format=json
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --export
 
 # Get dataset lineage (requires API token and DOMO_API_HOST)
 domo-query-cli get-dataset-lineage 12345678-abcd-1234-5678-901234567890
@@ -320,8 +329,9 @@ domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890
 # JSON output for automation
 domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --format=json
 
-# Save to file
-domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --save-json
+# Export to file
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --export
+domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --export=json
 ```
 
 **V3-Specific Fields:**
@@ -373,10 +383,11 @@ domo-query-cli get-dataset-v3 12345678-abcd-1234-5678-901234567890 --save-json
 | Option | Description |
 |--------|-------------|
 | `--format json` | Output results as JSON |
-| `--save` | Save to JSON file |
-| `--save-json` | Save to JSON file |
-| `--save-md` | Save to Markdown file |
-| `--path=<dir>` | Custom export directory |
+| `--export` | Export to timestamped JSON file |
+| `--export=json` | Export as JSON (explicit) |
+| `--export=md` | Export as Markdown |
+| `--export=both` | Export both JSON and Markdown |
+| `--export-path=<dir>` | Custom export directory |
 
 **When to Use:**
 - Need connector/cloud configuration details
@@ -760,7 +771,7 @@ domo-query-cli get-dataflow-lineage dataflow-id --entities=DATA_SOURCE,DATAFLOW,
 # Get dataset lineage from API (requires API token and DOMO_API_HOST)
 domo-query-cli get-dataset-lineage dataset-id
 domo-query-cli get-dataset-lineage dataset-id --traverse-up=true --traverse-down=true
-domo-query-cli get-dataset-lineage dataset-id --format=json --save
+domo-query-cli get-dataset-lineage dataset-id --format=json --export
 
 # Get dataset parents from API (requires API token and DOMO_API_HOST)
 domo-query-cli get-dataset-parents dataset-id
@@ -991,19 +1002,206 @@ domo-query-cli get-dataset 123456 --sync  # Force refresh from API
 domo-query-cli get-dataset 123456 --offline # Only use local database
 ```
 
-## Output Formats
+## Output Options
 
-### JSON Output
+The CLI provides a unified output system that supports multiple display modes, export formats, and file output options. These flags can be combined to control how data is displayed and saved.
+
+### Quick Reference
+
 ```bash
-domo-query-cli --command "list-datasets" --format json
+# OUTPUT FORMAT (mutually exclusive display modes):
+--format=table       # Default human-readable output (implied)
+--format=json        # Structured JSON to stdout
+
+# EXPORT FLAGS (can combine with any output mode):
+--export             # Export data to timestamped file (JSON)
+--export=json        # Export as JSON (explicit)
+--export=md          # Export as Markdown
+--export=both        # Export as both JSON and Markdown
+--export-path=<dir>  # Custom export directory
+
+# FILE OUTPUT (alternative to export):
+--output=<path>      # Write JSON to specific file path
+
+# MODIFIERS:
+--quiet, -q          # Suppress informational messages
+
+# LEGACY ALIASES (deprecated but supported):
+--save       → --export
+--save-json  → --export=json
+--save-md    → --export=md
+--save-both  → --export=both
+--path=<dir> → --export-path=<dir>
 ```
 
-### Standard Output (formatted for terminal)
+### Output Modes (Mutually Exclusive Display Formats)
+
+Commands support two primary output modes for displaying results:
+
 ```bash
+# Table format (default) - Human-readable terminal output
 domo-query-cli list-datasets
+
+# JSON format - Structured data to stdout
+domo-query-cli list-datasets --format=json
 ```
 
-### File-Based Output
+**Standard JSON Response Format:**
+All JSON output follows a consistent structure for easy parsing:
+
+```json
+{
+  "success": true,
+  "command": "command-name",
+  "data": {
+    "...": "command-specific data"
+  },
+  "metadata": {
+    "timestamp": "2025-12-08T10:30:00.000Z",
+    "count": 42
+  }
+}
+```
+
+### Export Flags (File Output Options)
+
+Export flags allow you to save command results to files. These work **with both** table and JSON output modes:
+
+```bash
+# Export to timestamped JSON file (e.g., list-datasets_20251208_103000.json)
+domo-query-cli list-datasets --export
+
+# Export as JSON (explicit format)
+domo-query-cli list-datasets --export=json
+
+# Export as Markdown documentation
+domo-query-cli list-datasets --export=md
+
+# Export as both JSON and Markdown
+domo-query-cli list-datasets --export=both
+
+# Custom export directory
+domo-query-cli list-datasets --export --export-path=/tmp/reports
+domo-query-cli list-datasets --export=md --export-path=./documentation
+```
+
+**Important Behavior:**
+- Export flags work **independently** of `--format` flag
+- You can use `--format=json` for stdout AND `--export` for file output simultaneously
+- Default export format is JSON with automatic timestamped filenames
+- Files are saved to `~/.domo-cli/exports/` by default (or custom path via `--export-path`)
+
+### File Output (Custom Path)
+
+For precise control over output file location and name:
+
+```bash
+# Write JSON to specific file path
+domo-query-cli list-datasets --output=/tmp/datasets.json
+
+# Relative paths work too
+domo-query-cli get-dataset abc-123 --output=./exports/dataset.json
+
+# Parent directories are created automatically
+domo-query-cli get-dataset abc-123 --output=/tmp/domo/exports/2024/dataset.json
+```
+
+**Precedence:**
+- `--output=<path>` takes precedence over `--export*` flags
+- When using `--output`, export flags are ignored
+
+### Modifiers
+
+```bash
+# Suppress informational messages (only show essential output)
+domo-query-cli list-datasets --quiet
+
+# Suppress export confirmation messages
+domo-query-cli list-datasets --export --quiet
+```
+
+### Legacy Aliases (Deprecated)
+
+For backward compatibility, the following legacy flags are still supported but deprecated:
+
+| Legacy Flag | Modern Equivalent |
+|-------------|------------------|
+| `--save` | `--export` |
+| `--save-json` | `--export=json` |
+| `--save-md` | `--export=md` |
+| `--save-both` | `--export=both` |
+| `--path=<dir>` | `--export-path=<dir>` |
+
+**Deprecation Notice:** While these legacy flags continue to work, new scripts should use the `--export*` flags for consistency with the unified output system.
+
+### Combining Flags Examples
+
+The unified output system allows flexible combinations:
+
+```bash
+# Display JSON to console AND export to timestamped file
+domo-query-cli list-datasets --format=json --export
+
+# Table display to console, export as Markdown
+domo-query-cli list-datasets --export=md
+
+# JSON to console, export both JSON and Markdown
+domo-query-cli list-datasets --format=json --export=both
+
+# JSON to console, export to custom location
+domo-query-cli list-datasets --format=json --export --export-path=/tmp/reports
+
+# Write directly to specific file (no console output of data)
+domo-query-cli list-datasets --output=/tmp/datasets.json
+
+# Quiet mode - suppress confirmations, only show data
+domo-query-cli list-datasets --format=json --export --quiet
+```
+
+### Bug Fix: Format and Export Compatibility
+
+**Previous Behavior (Bug):**
+- Using `--format=json` would silently ignore `--save*` flags
+- Users couldn't get JSON console output AND file export simultaneously
+
+**Current Behavior (Fixed):**
+- `--format=json` and `--export*` flags work together
+- Console output and file exports are independent
+- All flag combinations are now supported
+
+### Output Examples by Command Type
+
+**Dataset Operations:**
+```bash
+# List with export
+domo-query-cli list-datasets --export=md --export-path=./docs
+
+# Get details with JSON output and file export
+domo-query-cli get-dataset abc-123 --format=json --export
+
+# Lineage with custom output file
+domo-query-cli get-dataset-lineage abc-123 --output=/tmp/lineage.json
+```
+
+**Dataflow Operations:**
+```bash
+# Execute with JSON status and export
+domo-query-cli execute-dataflow 12345 --format=json --export
+
+# List executions with both formats exported
+domo-query-cli list-dataflow-executions 12345 --export=both
+```
+
+**User & Group Management:**
+```bash
+# List users with JSON export
+domo-query-cli list-users --format=json --export
+
+# Get group details as Markdown
+domo-query-cli get-group 123456 --export=md
+```
+
+### File-Based Output (Detailed)
 
 All read-only commands support the `--output` flag to write JSON results to a local file instead of returning them to stdout. This is especially useful for:
 - Processing large datasets without terminal output limitations
@@ -1509,11 +1707,11 @@ domo-query-cli get-card "$CARD_ID"
 # Get card details as JSON for processing
 domo-query-cli get-card "$CARD_ID" --format json | jq '.data.card'
 
-# Save card details to markdown documentation
-domo-query-cli get-card "$CARD_ID" --save-md --path ./docs
+# Export card details to markdown documentation
+domo-query-cli get-card "$CARD_ID" --export=md --export-path ./docs
 
-# Save to both JSON and Markdown formats
-domo-query-cli get-card "$CARD_ID" --save-both
+# Export to both JSON and Markdown formats
+domo-query-cli get-card "$CARD_ID" --export=both
 ```
 
 ### Update Dataset Properties

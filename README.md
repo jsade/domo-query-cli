@@ -15,10 +15,10 @@ A simple command-line interface for exploring your <a href="https://domo.com/" a
 - 🔗 **Data Lineage** - Trace data flow with focused Mermaid diagrams
 - 📊 **Pipeline Monitoring** - Track dataflow execution and health scores
 - 👥 **Team Management** - List and explore users and groups
-- 📝 **Report Generation** - Export documentation in Markdown/JSON formats
+- 📝 **Flexible Output** - Unified `--format=json` and `--export` flags across all commands
 - 🚀 **Performance** - Built-in caching to minimize API calls
 - 🎯 **Smart Autocomplete** - Interactive command discovery with tab completion
-- 💾 **File-Based Output** - Save command results to local files for batch processing and reduced context usage
+- 💾 **File Export** - Export results to JSON or Markdown files with `--export` flags
 
 ## Prerequisites
 
@@ -239,6 +239,18 @@ Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, w
 
 > 📚 **For comprehensive command documentation and non-interactive usage, see [CLI.md](./CLI.md)**
 
+### Output Options
+
+All commands support unified output flags:
+- `--format=json` - Output JSON to stdout
+- `--export` - Export to timestamped JSON file
+- `--export=md` - Export as Markdown
+- `--export=both` - Export both JSON and Markdown
+- `--export-path=<dir>` - Custom export directory
+- `--output=<path>` - Write to specific file
+
+See [CLI.md](./CLI.md) for complete documentation and examples.
+
 ### Core Commands
 
 | Command | Description |
@@ -274,25 +286,40 @@ domo-query-cli
 > get-dataset abc-123-def    # Get specific dataset details
 > execute-dataflow 12345     # Run a dataflow
 > show-lineage abc-123 --diagram  # Visualize data lineage
+> help                       # See all commands
+```
 
 ### Get Dataset Parents (JSON)
 ```bash
-domo-query-cli get-dataset-parents <dataset-id> --format json
+domo-query-cli get-dataset-parents <dataset-id> --format=json
 ```
 Returns a JSON `parents` array of full nodes and a keyed map (`<TYPE><ID>`, e.g., `DATAFLOW24`) for O(1) lookup. Parent nodes include a `name` field when available (e.g., dataflow or dataset names).
 
 ### Get Dataset Children (JSON)
 ```bash
-domo-query-cli get-dataset-children <dataset-id> --format json
+domo-query-cli get-dataset-children <dataset-id> --format=json
 ```
 Returns a JSON `children` array of full nodes and a keyed map (`<TYPE><ID>`, e.g., `CARD1213...`) for O(1) lookup. Child nodes include a `name` field when available (e.g., card title, dataset name, or dataflow name).
-> help                       # See all commands
-```
 
 ### Non-Interactive Mode (Scripts & Automation)
 ```bash
 # List datasets with pagination
 domo-query-cli list-datasets --limit 10 --offset 20
+
+# Get JSON output for processing
+domo-query-cli list-datasets --format=json | jq '.data[]'
+
+# Export to timestamped JSON file
+domo-query-cli list-datasets --export
+
+# Export both JSON and Markdown
+domo-query-cli get-dataflow 12345 --export=both
+
+# Export to custom location
+domo-query-cli show-lineage abc-123 --export-path=/path/to/exports
+
+# Write to specific file
+domo-query-cli list-users --output=users.json
 
 # Update dataset properties
 domo-query-cli update-dataset-properties abc-123 \
@@ -305,9 +332,6 @@ domo-query-cli --token YOUR_API_TOKEN execute-dataflow 12345
 
 # Run in read-only mode (prevents destructive operations)
 domo-query-cli --read-only list-dataflows
-
-# Get JSON output for processing
-domo-query-cli list-datasets --format json | jq '.data[]'
 ```
 
 ### Monitoring Dataflows
@@ -328,19 +352,19 @@ fi
 
 ### User and Group Management
 ```bash
-# List users by role
-domo-query-cli list-users --role Admin --format json
+# List users by role with JSON output
+domo-query-cli list-users --role Admin --format=json
 
-# Get user details with group memberships
-domo-query-cli get-user 871428330
+# Get user details and export to file
+domo-query-cli get-user 871428330 --export
 
-# Find groups and view members
-domo-query-cli list-groups "engineering"
-domo-query-cli get-group 1324037627 --format json
+# Find groups and export results
+domo-query-cli list-groups "engineering" --export=both
+domo-query-cli get-group 1324037627 --format=json
 
 # Use offline mode with cached data
 domo-query-cli get-user 871428330 --offline
-domo-query-cli get-group 1324037627 --offline
+domo-query-cli get-group 1324037627 --offline --export
 ```
 
 ## Troubleshooting
