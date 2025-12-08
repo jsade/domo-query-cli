@@ -1,6 +1,31 @@
 # [1.6.0](https://github.com/jsade/domo-query-cli/compare/v1.5.0...v1.6.0) (2025-12-08)
 
 
+### Bug Fixes
+
+* add CLI_LLM.md to .gitignore ([a9e6da5](https://github.com/jsade/domo-query-cli/commit/a9e6da582b425f46ff9f7cfa8c0b1b2b432f944e))
+* **ci:** upgrade to Node 22 and remove redundant yarn package extensions ([c8add9e](https://github.com/jsade/domo-query-cli/commit/c8add9e83d11e907cfba530f40f5d326285d483e))
+* enable positional command syntax in interactive terminals ([9c0c06c](https://github.com/jsade/domo-query-cli/commit/9c0c06cc93db4e1396baa00aecbca3d03cf23fb5))
+* remove bulk request document ([023ae08](https://github.com/jsade/domo-query-cli/commit/023ae089c4942310fe327a1b60beee707ccc159d))
+* update .gitignore to include local only files ([9bfaca0](https://github.com/jsade/domo-query-cli/commit/9bfaca0a5bb8ca2e441caab2f6b35d9db4f49152))
+
+
+### Features
+
+* add execute-datasource command for connector-based datasets ([fcff317](https://github.com/jsade/domo-query-cli/commit/fcff317d2e1c531e2c65243ca0d22dc0c12bcd77))
+* add get-dataset-v3 command for v3 API endpoint ([d8a0f4c](https://github.com/jsade/domo-query-cli/commit/d8a0f4cbdef393d4e0af9b735152518aa6cf37f8))
+* add output options for command results and implement JSON file writing functionality ([65bde79](https://github.com/jsade/domo-query-cli/commit/65bde79b11fa7e2651d4f82e96e0329f068416e5))
+* add unified output/export system infrastructure (Phase A) ([e5666bd](https://github.com/jsade/domo-query-cli/commit/e5666bd191c04155855a71d2b72f90c8d7be9125))
+* implement DOMO_OUTPUT_PATH for admin-controlled output sandboxing ([1378047](https://github.com/jsade/domo-query-cli/commit/137804731a25273d17c23fc9ebe64d2541e51306))
+* migrate Wave B2 Get Entity commands to unified output system ([a66c80f](https://github.com/jsade/domo-query-cli/commit/a66c80f9ccece85f0285f22fa0a1f22c321b8e6c))
+* migrate Wave B3 Lineage commands to unified output system ([f5bcc94](https://github.com/jsade/domo-query-cli/commit/f5bcc94340590c8735f8dae7d019ddddb35f808e))
+* migrate Wave B4 Execute/Write commands to unified output system ([780c896](https://github.com/jsade/domo-query-cli/commit/780c8962eed94cd18c4a829ac8df5d8d4498d014))
+* migrate Wave B5 Database commands to unified output system ([3a4f4d2](https://github.com/jsade/domo-query-cli/commit/3a4f4d237cd9366b0af2c9c08f6536a1153128d1))
+* migrate Wave B6 Utility commands to unified output system ([dad18aa](https://github.com/jsade/domo-query-cli/commit/dad18aae04391648aaf8013c6f300e4cd56334cb))
+
+# [1.6.0](https://github.com/jsade/domo-query-cli/compare/v1.5.0...v1.6.0) (2025-12-08)
+
+
 ### Features
 
 * **output:** unified output/export system infrastructure with consistent flag handling across all commands
