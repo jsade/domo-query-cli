@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import type { Command } from "../types/shellTypes";
+import type { CommandResult } from "../types/outputTypes";
 import { TerminalFormatter } from "../utils/terminalFormatter";
 import { BaseCommand } from "./BaseCommand";
 import { isReadOnlyMode } from "../config";
@@ -26,23 +27,168 @@ export class HelpCommand extends BaseCommand {
      * @param args - Command arguments, optionally specifying which command to show help for
      */
     public async execute(args?: string[]): Promise<void> {
-        const command = args && args.length > 0 ? args[0].toLowerCase() : null;
+        try {
+            const { config: _config, parsed } = this.parseOutputConfig(args);
 
-        // If specific command help is requested
-        if (command && this.commands.has(command)) {
-            console.log(`\nHelp for '${command}':\n`);
-            this.showCommandHelp(command);
-            return;
+            // Extract command name from remaining args
+            const commandName =
+                parsed.positional && parsed.positional.length > 0
+                    ? parsed.positional[0].toLowerCase()
+                    : null;
+
+            // If specific command help is requested
+            if (commandName && this.commands.has(commandName)) {
+                const commandHelp = this.getCommandHelpData(commandName);
+
+                const result: CommandResult<typeof commandHelp> = {
+                    success: true,
+                    data: commandHelp,
+                    metadata: {
+                        command: commandName,
+                    },
+                };
+
+                await this.output(
+                    result,
+                    () => this.displayCommandHelp(commandName),
+                    `help-${commandName}`,
+                );
+            } else {
+                // General help
+                const generalHelp = this.getGeneralHelpData();
+
+                const result: CommandResult<typeof generalHelp> = {
+                    success: true,
+                    data: generalHelp,
+                    metadata: {
+                        totalCommands: this.commands.size,
+                    },
+                };
+
+                await this.output(
+                    result,
+                    () => this.displayGeneralHelp(),
+                    "help",
+                );
+            }
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : "Unknown error";
+
+            this.outputErrorResult({ message }, () => {
+                console.error(
+                    TerminalFormatter.error(
+                        `Failed to display help: ${message}`,
+                    ),
+                );
+            });
         }
-
-        // Otherwise show general help
-        this.showGeneralHelp();
     }
 
     /**
-     * Shows help for all commands
+     * Gets structured general help data for JSON output
      */
-    private showGeneralHelp(): void {
+    private getGeneralHelpData() {
+        const commandGroups = this.groupCommandsByCategory();
+
+        // Build commands array by category
+        const commands: Array<{
+            name: string;
+            description: string;
+            category: string;
+        }> = [];
+
+        for (const [category, categoryCommands] of commandGroups) {
+            for (const [name, cmd] of categoryCommands) {
+                commands.push({
+                    name,
+                    description: cmd.description,
+                    category,
+                });
+            }
+        }
+
+        return {
+            commands,
+            commonOptions: [
+                {
+                    option: "--format=json",
+                    description: "Output as JSON to stdout",
+                },
+                {
+                    option: "--export",
+                    description: "Export to timestamped JSON file",
+                },
+                {
+                    option: "--export=md",
+                    description: "Export as Markdown file",
+                },
+                {
+                    option: "--export=both",
+                    description: "Export both JSON and Markdown",
+                },
+                {
+                    option: "--export-path=<dir>",
+                    description: "Custom export directory",
+                },
+                {
+                    option: "--output=<path>",
+                    description: "Write to specific file",
+                },
+                {
+                    option: "--quiet",
+                    description: "Suppress export messages",
+                },
+            ],
+            legacyAliases: [
+                { flag: "--save", mapsTo: "--export" },
+                { flag: "--save-json", mapsTo: "--export=json" },
+                { flag: "--save-md", mapsTo: "--export=md" },
+                { flag: "--save-both", mapsTo: "--export=both" },
+                { flag: "--path", mapsTo: "--export-path" },
+            ],
+            readOnlyMode: {
+                active: isReadOnlyMode(),
+                message: isReadOnlyMode()
+                    ? "Read-only mode is currently active. All destructive operations are disabled."
+                    : "Enable with DOMO_READ_ONLY=true environment variable or --read-only CLI flag",
+            },
+        };
+    }
+
+    /**
+     * Gets structured help data for a specific command
+     */
+    private getCommandHelpData(commandName: string) {
+        const command = this.commands.get(commandName);
+
+        if (
+            !command ||
+            !("showHelp" in command) ||
+            typeof command.showHelp !== "function"
+        ) {
+            return {
+                command: commandName,
+                description: command?.description || "No description available",
+                helpAvailable: false,
+                message: `No detailed help available for '${commandName}'`,
+            };
+        }
+
+        // For commands with showHelp, provide basic info
+        // The command's own showHelp will be called for terminal display
+        return {
+            command: commandName,
+            description: command.description,
+            helpAvailable: true,
+            message: `Detailed help for '${commandName}'`,
+        };
+    }
+
+    /**
+     * Display general help in terminal format
+     */
+    private displayGeneralHelp(): void {
         console.log(`${chalk.bold("Domo Query CLI Commands:")}`);
 
         // Group commands by category
@@ -76,33 +222,57 @@ export class HelpCommand extends BaseCommand {
             }
         }
 
-        console.log(`\n${TerminalFormatter.bold("Common Options")}`);
+        console.log(`\n${TerminalFormatter.bold("Output Options")}`);
         const optionsData = [
             {
-                Option: "--save",
-                Description: "Save results to JSON file (default)",
-            },
-            { Option: "--save-json", Description: "Save results to JSON file" },
-            {
-                Option: "--save-md",
-                Description: "Save results to Markdown file",
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
             },
             {
-                Option: "--save-both",
-                Description: "Save to both JSON and Markdown",
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
             },
             {
-                Option: "--save=<format>",
-                Description: "Specify format (json, md, both)",
+                Option: "--export=md",
+                Description: "Export as Markdown file",
             },
             {
-                Option: "--path=<directory>",
-                Description: "Specify custom export directory",
+                Option: "--export=both",
+                Description: "Export both JSON and Markdown",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
 
         console.log(
             TerminalFormatter.table(optionsData, {
+                showHeaders: false,
+                borderless: true,
+                colWidths: [26, 60],
+            }),
+        );
+
+        console.log(`\n${chalk.dim("Legacy Aliases (still supported)")}`);
+        const legacyData = [
+            { Option: "--save", Description: "→ --export" },
+            { Option: "--save-json", Description: "→ --export=json" },
+            { Option: "--save-md", Description: "→ --export=md" },
+            { Option: "--save-both", Description: "→ --export=both" },
+            { Option: "--path", Description: "→ --export-path" },
+        ];
+
+        console.log(
+            TerminalFormatter.table(legacyData, {
                 showHeaders: false,
                 borderless: true,
                 colWidths: [26, 60],
@@ -189,10 +359,12 @@ export class HelpCommand extends BaseCommand {
     }
 
     /**
-     * Shows detailed help for a specific command
+     * Display detailed help for a specific command in terminal format
      * @param commandName - The command to show help for
      */
-    private showCommandHelp(commandName: string): void {
+    private displayCommandHelp(commandName: string): void {
+        console.log(`\nHelp for '${commandName}':\n`);
+
         const command = this.commands.get(commandName);
         if (
             command &&
@@ -211,9 +383,9 @@ export class HelpCommand extends BaseCommand {
      */
     public showHelp(): void {
         console.log("Shows help information about available commands");
-        console.log("\nUsage: help [command]");
+        console.log("\nUsage: " + chalk.cyan("help [command] [options]"));
 
-        console.log(chalk.cyan("\nParameters:"));
+        console.log(chalk.yellow("\nParameters:"));
         const paramsData = [
             {
                 Parameter: "command",
@@ -225,7 +397,50 @@ export class HelpCommand extends BaseCommand {
 
         console.log(TerminalFormatter.table(paramsData));
 
-        console.log(chalk.cyan("\nExamples:"));
+        console.log(chalk.yellow("\nOutput Options:"));
+        const optionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output help as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
+            },
+        ];
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.yellow("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
+
+        console.log(chalk.yellow("\nExamples:"));
         const examplesData = [
             {
                 Command: "help",
@@ -236,11 +451,49 @@ export class HelpCommand extends BaseCommand {
                 Description: "Shows detailed help for list-datasets",
             },
             {
-                Command: "help show-lineage",
-                Description: "Shows detailed help for show-lineage",
+                Command: "help --format=json",
+                Description: "Output general help as JSON",
+            },
+            {
+                Command: "help list-datasets --format=json",
+                Description: "Output specific command help as JSON",
+            },
+            {
+                Command: "help --export",
+                Description: "Export help to timestamped JSON file",
             },
         ];
 
         console.log(TerminalFormatter.table(examplesData));
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        // If partial looks like a command name (no dashes), suggest command names
+        if (!partial.startsWith("-")) {
+            const commandNames = Array.from(this.commands.keys());
+            return commandNames.filter(name => name.startsWith(partial));
+        }
+
+        // Otherwise suggest output flags
+        const flags = [
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

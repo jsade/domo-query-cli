@@ -14,10 +14,9 @@ import {
 import { domoConfig } from "../config";
 import { log } from "../utils/logger";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
 import { BaseCommand } from "./BaseCommand";
-import { CommandUtils } from "./CommandUtils";
 import chalk from "chalk";
+import type { CommandResult } from "../types/outputTypes";
 
 /**
  * Renders a KPI card and saves the results
@@ -38,45 +37,38 @@ export class RenderCardCommand extends BaseCommand {
      * @param args - Command arguments
      */
     public async execute(args?: string[]): Promise<void> {
-        const parsedArgs = CommandUtils.parseCommandArgs(args);
+        const { parsed } = this.parseOutputConfig(args);
+        const { positional, params } = parsed;
 
-        // Check for JSON output format
-        if (parsedArgs.format?.toLowerCase() === "json") {
-            this.isJsonOutput = true;
-        }
-
-        const saveOptions = parsedArgs.saveOptions;
         let cardId: string | undefined;
 
         // Parse render options from arguments
         const renderOptions: KpiCardRenderOptions = {
-            width: parsedArgs.params.width
-                ? Number(parsedArgs.params.width)
-                : undefined,
-            height: parsedArgs.params.height
-                ? Number(parsedArgs.params.height)
-                : undefined,
-            scale: parsedArgs.params.scale
-                ? Number(parsedArgs.params.scale)
-                : undefined,
+            width: params.width ? Number(params.width) : undefined,
+            height: params.height ? Number(params.height) : undefined,
+            scale: params.scale ? Number(params.scale) : undefined,
         };
 
         // Extract ID from positional args
-        if (parsedArgs.positional && parsedArgs.positional.length > 0) {
-            cardId = parsedArgs.positional[0];
-            if (!this.isJsonOutput) {
+        if (positional && positional.length > 0) {
+            cardId = positional[0];
+            if (!this.isJsonMode) {
                 console.log("Using provided card ID:", cardId);
             }
         } else {
             // No card ID provided - need to fetch cards for selection
-            if (this.isJsonOutput) {
+            if (this.isJsonMode) {
                 // Can't do interactive selection in JSON mode
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        "Card ID required when using JSON format",
-                        "MISSING_CARD_ID",
-                    ),
+                this.outputErrorResult(
+                    {
+                        message: "Card ID required when using JSON format",
+                        code: "MISSING_CARD_ID",
+                    },
+                    () => {
+                        console.error(
+                            "Card ID required when using JSON format",
+                        );
+                    },
                 );
                 return;
             }
@@ -107,44 +99,52 @@ export class RenderCardCommand extends BaseCommand {
                 cardId = selectedCard;
                 console.log("Selected card ID:", cardId);
             } catch (error) {
-                console.error("Error during card selection:", error);
+                this.outputErrorResult(
+                    {
+                        message: `Error during card selection: ${error instanceof Error ? error.message : String(error)}`,
+                        code: "CARD_SELECTION_ERROR",
+                    },
+                    () => {
+                        console.error("Error during card selection:", error);
+                    },
+                );
                 return;
             }
         }
 
         if (!cardId) {
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        "No card selected",
-                        "NO_CARD_SELECTED",
-                    ),
-                );
-            } else {
-                console.log("No card selected.");
-            }
+            this.outputErrorResult(
+                {
+                    message: "No card selected",
+                    code: "NO_CARD_SELECTED",
+                },
+                () => {
+                    console.log("No card selected.");
+                },
+            );
             return;
         }
 
         try {
-            const exportDir = saveOptions?.path || domoConfig.exportPath;
+            // Use custom path from --path param or fall back to default export path
+            const exportDir = params.path
+                ? String(params.path)
+                : this.outputConfig.exportPath || domoConfig.exportPath;
 
             // Ensure we have a valid export directory
             if (!exportDir) {
-                const errorMsg =
-                    "Export directory is not configured. Set DOMO_EXPORT_PATH environment variable.";
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            errorMsg,
-                            "EXPORT_PATH_NOT_CONFIGURED",
-                        ),
-                    );
-                } else {
-                    console.error(errorMsg);
-                }
+                this.outputErrorResult(
+                    {
+                        message:
+                            "Export directory is not configured. Set DOMO_EXPORT_PATH environment variable.",
+                        code: "EXPORT_PATH_NOT_CONFIGURED",
+                    },
+                    () => {
+                        console.error(
+                            "Export directory is not configured. Set DOMO_EXPORT_PATH environment variable.",
+                        );
+                    },
+                );
                 return;
             }
 
@@ -155,17 +155,15 @@ export class RenderCardCommand extends BaseCommand {
                 const errorMsg = `Failed to create export directory at "${exportDir}": ${error instanceof Error ? error.message : String(error)}`;
                 log.error(errorMsg);
 
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            errorMsg,
-                            "EXPORT_DIR_ERROR",
-                        ),
-                    );
-                } else {
-                    console.error(errorMsg);
-                }
+                this.outputErrorResult(
+                    {
+                        message: errorMsg,
+                        code: "EXPORT_DIR_ERROR",
+                    },
+                    () => {
+                        console.error(errorMsg);
+                    },
+                );
                 return;
             }
 
@@ -215,7 +213,7 @@ export class RenderCardCommand extends BaseCommand {
                 }
             }
 
-            if (!this.isJsonOutput) {
+            if (!this.isJsonMode) {
                 console.log(`Rendering KPI card ${cardId}...`);
                 const widthText = String(effectiveOptions.width ?? 1024);
                 const heightText =
@@ -261,7 +259,7 @@ export class RenderCardCommand extends BaseCommand {
                     const filePath = path.join(exportDir, fileName);
                     await fs.writeFile(filePath, imageBuffer);
                     files.image = filePath;
-                    if (!this.isJsonOutput) {
+                    if (!this.isJsonMode) {
                         console.log(`Image saved to ${filePath}`);
                     }
                 }
@@ -275,7 +273,7 @@ export class RenderCardCommand extends BaseCommand {
                         JSON.stringify(typedCardData.summary, null, 2),
                     );
                     files.summary = summaryPath;
-                    if (!this.isJsonOutput) {
+                    if (!this.isJsonMode) {
                         console.log(`Summary saved to ${summaryPath}`);
                         // Provide helpful context about the status
                         const statusMessage = this.getStatusMessage(
@@ -298,39 +296,47 @@ export class RenderCardCommand extends BaseCommand {
                     JSON.stringify(cardData, null, 2),
                 );
                 files.fullResponse = fullResponsePath;
-                if (!this.isJsonOutput) {
+                if (!this.isJsonMode) {
                     console.log(`Full response saved to ${fullResponsePath}`);
                 }
 
-                // Output success in JSON format if requested
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.success(
-                            this.name,
-                            {
-                                cardId,
-                                files,
-                                summary: {
-                                    ...typedCardData.summary,
-                                    statusDescription: typedCardData.summary
-                                        ? this.getStatusMessage(
-                                              typedCardData.summary.status,
-                                          )
-                                        : undefined,
-                                    dimensions: {
-                                        width: effectiveOptions.width ?? 1024,
-                                        height: effectiveOptions.height ?? null,
-                                        scale: effectiveOptions.scale ?? 1,
-                                    },
-                                },
-                                notAllDataShown: typedCardData.notAllDataShown,
-                            },
-                            {
-                                exportPath: exportDir,
-                            },
-                        ),
-                    );
-                }
+                // Build command result
+                const resultData = {
+                    cardId,
+                    files,
+                    summary: {
+                        ...typedCardData.summary,
+                        statusDescription: typedCardData.summary
+                            ? this.getStatusMessage(
+                                  typedCardData.summary.status,
+                              )
+                            : undefined,
+                        dimensions: {
+                            width: effectiveOptions.width ?? 1024,
+                            height: effectiveOptions.height ?? null,
+                            scale: effectiveOptions.scale ?? 1,
+                        },
+                    },
+                    notAllDataShown: typedCardData.notAllDataShown,
+                };
+
+                const result: CommandResult<typeof resultData> = {
+                    success: true,
+                    data: resultData,
+                    metadata: {
+                        exportPath: exportDir,
+                    },
+                };
+
+                // Use unified output system
+                await this.output(
+                    result,
+                    () => {
+                        // Table mode output already shown above (file save messages)
+                        // No additional output needed here
+                    },
+                    "render-card",
+                );
             } else {
                 // Unexpected response format
                 const debugFileName = `kpi-card-${cardId}-debug.json`;
@@ -340,22 +346,20 @@ export class RenderCardCommand extends BaseCommand {
                     JSON.stringify(cardData, null, 2),
                 );
 
-                if (this.isJsonOutput) {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Unexpected response format from API",
-                            "INVALID_API_RESPONSE",
-                        ),
-                    );
-                } else {
-                    console.log("Unexpected response format from API");
-                    console.log(
-                        "Response:",
-                        JSON.stringify(cardData, null, 2).substring(0, 500),
-                    );
-                    console.log(`Debug output saved to ${debugPath}`);
-                }
+                this.outputErrorResult(
+                    {
+                        message: "Unexpected response format from API",
+                        code: "INVALID_API_RESPONSE",
+                    },
+                    () => {
+                        console.log("Unexpected response format from API");
+                        console.log(
+                            "Response:",
+                            JSON.stringify(cardData, null, 2).substring(0, 500),
+                        );
+                        console.log(`Debug output saved to ${debugPath}`);
+                    },
+                );
             }
         } catch (error) {
             let errorCode = "RENDER_ERROR";
@@ -375,26 +379,25 @@ export class RenderCardCommand extends BaseCommand {
                 errorCode = "API_BAD_REQUEST";
             }
 
-            if (this.isJsonOutput) {
-                console.log(
-                    JsonOutputFormatter.error(
-                        this.name,
-                        errorMessage,
-                        errorCode,
-                    ),
-                );
-            } else {
-                console.error("Error rendering KPI card:", error);
-                if (error instanceof Error) {
-                    console.error("Error message:", error.message);
-                    if ("response" in error) {
-                        console.error(
-                            "API response:",
-                            (error as Error & { response?: unknown }).response,
-                        );
+            this.outputErrorResult(
+                {
+                    message: errorMessage,
+                    code: errorCode,
+                },
+                () => {
+                    console.error("Error rendering KPI card:", error);
+                    if (error instanceof Error) {
+                        console.error("Error message:", error.message);
+                        if ("response" in error) {
+                            console.error(
+                                "API response:",
+                                (error as Error & { response?: unknown })
+                                    .response,
+                            );
+                        }
                     }
-                }
-            }
+                },
+            );
         }
     }
 
@@ -545,8 +548,8 @@ export class RenderCardCommand extends BaseCommand {
         ];
         console.log(TerminalFormatter.table(paramsData));
 
-        console.log(chalk.cyan("\nOptions:"));
-        const optionsData = [
+        console.log(chalk.cyan("\nRender Options:"));
+        const renderOptionsData = [
             {
                 Option: "--path=<directory>",
                 Description: "Specify custom export directory",
@@ -566,7 +569,50 @@ export class RenderCardCommand extends BaseCommand {
                 Description: "Scale factor for image (default: 1)",
             },
         ];
-        console.log(TerminalFormatter.table(optionsData));
+        console.log(TerminalFormatter.table(renderOptionsData));
+
+        console.log(chalk.yellow("\nOutput Options:"));
+        const outputOptionsData = [
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
+            },
+        ];
+        console.log(TerminalFormatter.table(outputOptionsData));
+
+        console.log(chalk.yellow("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.cyan("\nExamples:"));
         const examplesData = [
@@ -587,7 +633,43 @@ export class RenderCardCommand extends BaseCommand {
                 Description:
                     "Render at width 1600px with auto height (preserves aspect) at 2x scale",
             },
+            {
+                Command: "render-card abc123 --format=json",
+                Description: "Output result as JSON to stdout",
+            },
+            {
+                Command: "render-card abc123 --format=json --export",
+                Description: "Output JSON to stdout AND save to file",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            // Render options
+            "--path",
+            "--width",
+            "--height",
+            "--scale",
+            // Output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }
