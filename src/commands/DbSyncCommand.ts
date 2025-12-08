@@ -6,8 +6,7 @@ import { CardRepository } from "../core/database/repositories/CardRepository";
 import { UserRepository } from "../core/database/repositories/UserRepository";
 import { GroupRepository } from "../core/database/repositories/GroupRepository";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
-import { CommandUtils } from "./CommandUtils";
+import type { CommandResult } from "../types/outputTypes";
 import chalk from "chalk";
 
 export class DbSyncCommand extends BaseCommand {
@@ -15,20 +14,23 @@ export class DbSyncCommand extends BaseCommand {
     description = "Synchronize database with Domo API";
 
     async execute(args?: string[]): Promise<void> {
-        const parsedArgs = CommandUtils.parseCommandArgs(args);
+        const { config, parsed } = this.parseOutputConfig(args);
 
-        // Check for JSON output format
-        if (parsedArgs.format?.toLowerCase() === "json") {
-            this.isJsonOutput = true;
-        }
-
-        // Parse sync options
-        const syncAll = !args || args.length === 0 || args.includes("--all");
-        const syncDatasets = syncAll || args?.includes("--datasets");
-        const syncDataflows = syncAll || args?.includes("--dataflows");
-        const syncCards = syncAll || args?.includes("--cards");
-        const syncUsers = syncAll || args?.includes("--users");
-        const syncGroups = syncAll || args?.includes("--groups");
+        // Parse sync options using parsed.flags
+        const syncAll =
+            !args ||
+            args.length === 0 ||
+            parsed.flags.has("--all") ||
+            (!parsed.flags.has("--datasets") &&
+                !parsed.flags.has("--dataflows") &&
+                !parsed.flags.has("--cards") &&
+                !parsed.flags.has("--users") &&
+                !parsed.flags.has("--groups"));
+        const syncDatasets = syncAll || parsed.flags.has("--datasets");
+        const syncDataflows = syncAll || parsed.flags.has("--dataflows");
+        const syncCards = syncAll || parsed.flags.has("--cards");
+        const syncUsers = syncAll || parsed.flags.has("--users");
+        const syncGroups = syncAll || parsed.flags.has("--groups");
 
         // Check if at least one entity type is selected for sync
         const syncFlags = [
@@ -41,12 +43,10 @@ export class DbSyncCommand extends BaseCommand {
         if (!syncFlags.some(flag => flag)) {
             const message =
                 "Please specify what to sync: --all, --datasets, --dataflows, --cards, --users, or --groups";
-            if (this.isJsonOutput) {
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
+            this.outputErrorResult({ message }, () => {
                 console.error(TerminalFormatter.error(message));
                 this.showHelp();
-            }
+            });
             return;
         }
 
@@ -57,24 +57,24 @@ export class DbSyncCommand extends BaseCommand {
                 { success: boolean; count?: number; error?: string }
             > = {};
 
-            if (!this.isJsonOutput) {
+            if (config.displayFormat !== "json") {
                 console.log(chalk.cyan("Starting database synchronization..."));
                 console.log("═".repeat(50));
             }
 
             // Sync datasets
             if (syncDatasets) {
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log(chalk.yellow("\nSyncing datasets..."));
                 }
 
                 try {
                     const datasetRepo = new DatasetRepository(db);
-                    await datasetRepo.sync(this.isJsonOutput);
+                    await datasetRepo.sync(config.displayFormat === "json");
                     const count = await datasetRepo.count();
                     results.datasets = { success: true, count };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.log(
                             TerminalFormatter.success(
                                 `✓ Synced ${count} datasets`,
@@ -88,7 +88,7 @@ export class DbSyncCommand extends BaseCommand {
                             : "Unknown error";
                     results.datasets = { success: false, error: message };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.error(
                             TerminalFormatter.error(
                                 `✗ Failed to sync datasets: ${message}`,
@@ -100,17 +100,17 @@ export class DbSyncCommand extends BaseCommand {
 
             // Sync dataflows
             if (syncDataflows) {
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log(chalk.yellow("\nSyncing dataflows..."));
                 }
 
                 try {
                     const dataflowRepo = new DataflowRepository(db);
-                    await dataflowRepo.sync(this.isJsonOutput);
+                    await dataflowRepo.sync(config.displayFormat === "json");
                     const count = await dataflowRepo.count();
                     results.dataflows = { success: true, count };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.log(
                             TerminalFormatter.success(
                                 `✓ Synced ${count} dataflows`,
@@ -124,7 +124,7 @@ export class DbSyncCommand extends BaseCommand {
                             : "Unknown error";
                     results.dataflows = { success: false, error: message };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.error(
                             TerminalFormatter.error(
                                 `✗ Failed to sync dataflows: ${message}`,
@@ -136,17 +136,17 @@ export class DbSyncCommand extends BaseCommand {
 
             // Sync cards
             if (syncCards) {
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log(chalk.yellow("\nSyncing cards..."));
                 }
 
                 try {
                     const cardRepo = new CardRepository(db);
-                    await cardRepo.sync(this.isJsonOutput);
+                    await cardRepo.sync(config.displayFormat === "json");
                     const count = await cardRepo.count();
                     results.cards = { success: true, count };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.log(
                             TerminalFormatter.success(
                                 `✓ Synced ${count} cards`,
@@ -160,7 +160,7 @@ export class DbSyncCommand extends BaseCommand {
                             : "Unknown error";
                     results.cards = { success: false, error: message };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.error(
                             TerminalFormatter.error(
                                 `✗ Failed to sync cards: ${message}`,
@@ -172,17 +172,17 @@ export class DbSyncCommand extends BaseCommand {
 
             // Sync users
             if (syncUsers) {
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log(chalk.yellow("\nSyncing users..."));
                 }
 
                 try {
                     const userRepo = new UserRepository(db);
-                    await userRepo.sync(this.isJsonOutput);
+                    await userRepo.sync(config.displayFormat === "json");
                     const count = await userRepo.count();
                     results.users = { success: true, count };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.log(
                             TerminalFormatter.success(
                                 `✓ Synced ${count} users`,
@@ -196,7 +196,7 @@ export class DbSyncCommand extends BaseCommand {
                             : "Unknown error";
                     results.users = { success: false, error: message };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.error(
                             TerminalFormatter.error(
                                 `✗ Failed to sync users: ${message}`,
@@ -208,17 +208,17 @@ export class DbSyncCommand extends BaseCommand {
 
             // Sync groups
             if (syncGroups) {
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log(chalk.yellow("\nSyncing groups..."));
                 }
 
                 try {
                     const groupRepo = new GroupRepository(db);
-                    await groupRepo.sync(this.isJsonOutput);
+                    await groupRepo.sync(config.displayFormat === "json");
                     const count = await groupRepo.count();
                     results.groups = { success: true, count };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.log(
                             TerminalFormatter.success(
                                 `✓ Synced ${count} groups`,
@@ -232,7 +232,7 @@ export class DbSyncCommand extends BaseCommand {
                             : "Unknown error";
                     results.groups = { success: false, error: message };
 
-                    if (!this.isJsonOutput) {
+                    if (config.displayFormat !== "json") {
                         console.error(
                             TerminalFormatter.error(
                                 `✗ Failed to sync groups: ${message}`,
@@ -253,72 +253,82 @@ export class DbSyncCommand extends BaseCommand {
             // Get updated stats
             const stats = await db.getStats();
 
-            if (this.isJsonOutput) {
-                // JSON output
-                const allSuccess = Object.values(results).every(r => r.success);
-                const output = {
-                    status: allSuccess ? "success" : "partial_failure",
-                    syncResults: results,
-                    database: {
-                        totalEntities: stats.totalEntities,
-                        totalSize: stats.totalSizeBytes,
-                        totalSizeFormatted: TerminalFormatter.fileSize(
-                            stats.totalSizeBytes,
-                        ),
-                    },
-                };
+            // Prepare result data
+            const allSuccess = Object.values(results).every(r => r.success);
+            const resultData = {
+                status: allSuccess ? "success" : "partial_failure",
+                syncResults: results,
+                database: {
+                    totalEntities: stats.totalEntities,
+                    totalSize: stats.totalSizeBytes,
+                    totalSizeFormatted: TerminalFormatter.fileSize(
+                        stats.totalSizeBytes,
+                    ),
+                },
+            };
 
-                if (allSuccess) {
-                    console.log(JsonOutputFormatter.success(this.name, output));
-                } else {
-                    console.log(
-                        JsonOutputFormatter.error(
-                            this.name,
-                            "Some syncs failed",
-                            "PARTIAL_SYNC_FAILURE",
-                            output,
-                        ),
-                    );
-                }
-            } else {
-                // Terminal output - Summary
-                console.log(chalk.cyan("\n" + "═".repeat(50)));
-                console.log(chalk.cyan("Synchronization Complete"));
+            // Use unified output system
+            const commandResult: CommandResult<typeof resultData> = {
+                success: allSuccess,
+                data: resultData,
+                metadata: {
+                    syncedEntities: Object.keys(results).filter(
+                        key => results[key].success,
+                    ),
+                    failedEntities: Object.keys(results).filter(
+                        key => !results[key].success,
+                    ),
+                },
+            };
 
-                const summaryData = [
-                    {
-                        Entity: "Total Entities",
-                        Count: stats.totalEntities.toLocaleString(),
-                    },
-                    {
-                        Entity: "Database Size",
-                        Count: TerminalFormatter.fileSize(stats.totalSizeBytes),
-                    },
-                ];
-                console.log(TerminalFormatter.table(summaryData));
-            }
+            await this.output(
+                commandResult,
+                () => this.displaySummary(stats),
+                "db-sync",
+            );
         } catch (error) {
             const message =
                 error instanceof Error ? error.message : "Unknown error";
 
-            if (this.isJsonOutput) {
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
+            this.outputErrorResult({ message }, () => {
                 console.error(
                     TerminalFormatter.error(
                         `Failed to sync database: ${message}`,
                     ),
                 );
-            }
+            });
         }
+    }
+
+    /**
+     * Display summary in terminal format
+     */
+    private displaySummary(stats: {
+        totalEntities: number;
+        totalSizeBytes: number;
+    }): void {
+        console.log(chalk.cyan("\n" + "═".repeat(50)));
+        console.log(chalk.cyan("Synchronization Complete"));
+
+        const summaryData = [
+            {
+                Entity: "Total Entities",
+                Count: stats.totalEntities.toLocaleString(),
+            },
+            {
+                Entity: "Database Size",
+                Count: TerminalFormatter.fileSize(stats.totalSizeBytes),
+            },
+        ];
+        console.log(TerminalFormatter.table(summaryData));
     }
 
     showHelp(): void {
         console.log(this.description);
         console.log("\nUsage: " + chalk.cyan(this.name) + " [options]");
 
-        console.log(chalk.yellow("\nOptions:"));
-        const optionsData = [
+        console.log(chalk.yellow("\nSync Options:"));
+        const syncOptionsData = [
             {
                 Option: "--all",
                 Description:
@@ -344,12 +354,51 @@ export class DbSyncCommand extends BaseCommand {
                 Option: "--groups",
                 Description: "Sync only groups",
             },
+        ];
+        console.log(TerminalFormatter.table(syncOptionsData));
+
+        console.log(chalk.yellow("\nOutput Options:"));
+        const outputOptionsData = [
             {
                 Option: "--format=json",
-                Description: "Output results in JSON format",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
-        console.log(TerminalFormatter.table(optionsData));
+        console.log(TerminalFormatter.table(outputOptionsData));
+
+        console.log(chalk.yellow("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.yellow("\nExamples:"));
         const examplesData = [
@@ -381,7 +430,42 @@ export class DbSyncCommand extends BaseCommand {
                 Command: `${this.name} --all --format=json`,
                 Description: "Sync all and output as JSON",
             },
+            {
+                Command: `${this.name} --datasets --export=md`,
+                Description: "Sync datasets and export as Markdown",
+            },
+            {
+                Command: `${this.name} --all --export=both`,
+                Description: "Sync all and export both JSON and Markdown",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
+    }
+
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--all",
+            "--datasets",
+            "--dataflows",
+            "--cards",
+            "--users",
+            "--groups",
+            // Unified output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

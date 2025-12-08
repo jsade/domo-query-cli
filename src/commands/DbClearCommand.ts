@@ -1,32 +1,27 @@
 import { BaseCommand } from "./BaseCommand";
 import { getDatabase } from "../core/database/JsonDatabase";
 import { TerminalFormatter } from "../utils/terminalFormatter";
-import { JsonOutputFormatter } from "../utils/JsonOutputFormatter";
-import { CommandUtils } from "./CommandUtils";
+import type { CommandResult } from "../types/outputTypes";
 import chalk from "chalk";
 import * as readline from "readline";
 
+/**
+ * Clear database contents
+ */
 export class DbClearCommand extends BaseCommand {
     name = "db-clear";
     description = "Clear database contents";
 
     async execute(args?: string[]): Promise<void> {
-        const parsedArgs = CommandUtils.parseCommandArgs(args);
-
-        // Check for JSON output format
-        if (parsedArgs.format?.toLowerCase() === "json") {
-            this.isJsonOutput = true;
-        }
+        const { config, parsed } = this.parseOutputConfig(args);
 
         // Check for force flag
-        const force = args?.includes("--force") || false;
+        const force = parsed.flags.has("--force");
 
         // Parse what to clear
         const clearAll =
-            args?.includes("--all") ||
-            !args ||
-            args.filter(a => !a.startsWith("--")).length === 0;
-        const collections = args?.filter(a => !a.startsWith("--")) || [];
+            parsed.flags.has("--all") || parsed.positional.length === 0;
+        const collections = parsed.positional;
 
         try {
             const db = await getDatabase();
@@ -34,8 +29,8 @@ export class DbClearCommand extends BaseCommand {
             // Get current stats before clearing
             const statsBefore = await db.getStats();
 
-            // Confirm with user unless force flag is set
-            if (!force && !this.isJsonOutput) {
+            // Confirm with user unless force flag is set or JSON mode
+            if (!force && config.displayFormat !== "json") {
                 const confirmed = await this.confirmAction(
                     clearAll
                         ? "Are you sure you want to clear ALL database contents?"
@@ -55,7 +50,7 @@ export class DbClearCommand extends BaseCommand {
                 await db.clearAll();
                 clearedCollections.push("all");
 
-                if (!this.isJsonOutput) {
+                if (config.displayFormat !== "json") {
                     console.log(
                         TerminalFormatter.success(
                             "✓ Cleared all database contents",
@@ -68,7 +63,7 @@ export class DbClearCommand extends BaseCommand {
                         await db.clear(collection);
                         clearedCollections.push(collection);
 
-                        if (!this.isJsonOutput) {
+                        if (config.displayFormat !== "json") {
                             console.log(
                                 TerminalFormatter.success(
                                     `✓ Cleared collection: ${collection}`,
@@ -81,7 +76,7 @@ export class DbClearCommand extends BaseCommand {
                                 ? error.message
                                 : "Unknown error";
 
-                        if (!this.isJsonOutput) {
+                        if (config.displayFormat !== "json") {
                             console.error(
                                 TerminalFormatter.error(
                                     `✗ Failed to clear ${collection}: ${message}`,
@@ -95,68 +90,73 @@ export class DbClearCommand extends BaseCommand {
             // Get stats after clearing
             const statsAfter = await db.getStats();
 
-            if (this.isJsonOutput) {
-                // JSON output
-                const output = {
-                    cleared: clearedCollections,
-                    before: {
-                        totalEntities: statsBefore.totalEntities,
-                        totalSize: statsBefore.totalSizeBytes,
-                    },
-                    after: {
-                        totalEntities: statsAfter.totalEntities,
-                        totalSize: statsAfter.totalSizeBytes,
-                    },
-                    removed: {
-                        entities:
-                            statsBefore.totalEntities -
-                            statsAfter.totalEntities,
-                        bytes:
-                            statsBefore.totalSizeBytes -
-                            statsAfter.totalSizeBytes,
-                    },
-                };
+            // Build result data
+            const resultData = {
+                cleared: clearedCollections,
+                before: {
+                    totalEntities: statsBefore.totalEntities,
+                    totalSize: statsBefore.totalSizeBytes,
+                },
+                after: {
+                    totalEntities: statsAfter.totalEntities,
+                    totalSize: statsAfter.totalSizeBytes,
+                },
+                removed: {
+                    entities:
+                        statsBefore.totalEntities - statsAfter.totalEntities,
+                    bytes:
+                        statsBefore.totalSizeBytes - statsAfter.totalSizeBytes,
+                },
+            };
 
-                console.log(JsonOutputFormatter.success(this.name, output));
-            } else {
-                // Terminal output - Summary
-                console.log(chalk.cyan("\n" + "═".repeat(50)));
-                console.log(chalk.cyan("Clear Operation Complete"));
+            const result: CommandResult<typeof resultData> = {
+                success: true,
+                data: resultData,
+            };
 
-                const summaryData = [
-                    {
-                        Metric: "Entities Removed",
-                        Value: (
-                            statsBefore.totalEntities - statsAfter.totalEntities
-                        ).toLocaleString(),
-                    },
-                    {
-                        Metric: "Space Freed",
-                        Value: TerminalFormatter.fileSize(
-                            statsBefore.totalSizeBytes -
-                                statsAfter.totalSizeBytes,
-                        ),
-                    },
-                    {
-                        Metric: "Remaining Entities",
-                        Value: statsAfter.totalEntities.toLocaleString(),
-                    },
-                ];
-                console.log(TerminalFormatter.table(summaryData));
-            }
+            // Use unified output system
+            await this.output(
+                result,
+                () => {
+                    // Terminal output - Summary
+                    console.log(chalk.cyan("\n" + "═".repeat(50)));
+                    console.log(chalk.cyan("Clear Operation Complete"));
+
+                    const summaryData = [
+                        {
+                            Metric: "Entities Removed",
+                            Value: (
+                                statsBefore.totalEntities -
+                                statsAfter.totalEntities
+                            ).toLocaleString(),
+                        },
+                        {
+                            Metric: "Space Freed",
+                            Value: TerminalFormatter.fileSize(
+                                statsBefore.totalSizeBytes -
+                                    statsAfter.totalSizeBytes,
+                            ),
+                        },
+                        {
+                            Metric: "Remaining Entities",
+                            Value: statsAfter.totalEntities.toLocaleString(),
+                        },
+                    ];
+                    console.log(TerminalFormatter.table(summaryData));
+                },
+                "db-clear",
+            );
         } catch (error) {
             const message =
                 error instanceof Error ? error.message : "Unknown error";
 
-            if (this.isJsonOutput) {
-                console.log(JsonOutputFormatter.error(this.name, message));
-            } else {
+            this.outputErrorResult({ message }, () => {
                 console.error(
                     TerminalFormatter.error(
                         `Failed to clear database: ${message}`,
                     ),
                 );
-            }
+            });
         }
     }
 
@@ -196,10 +196,44 @@ export class DbClearCommand extends BaseCommand {
             },
             {
                 Option: "--format=json",
-                Description: "Output results in JSON format",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
             },
         ];
         console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
 
         console.log(chalk.yellow("\nExamples:"));
         const examplesData = [
@@ -231,11 +265,42 @@ export class DbClearCommand extends BaseCommand {
                 Command: `${this.name} --all --force`,
                 Description: "Clear all without confirmation",
             },
+            {
+                Command: `${this.name} --format=json`,
+                Description: "Clear with JSON output",
+            },
+            {
+                Command: `${this.name} datasets --export`,
+                Description: "Clear datasets and export results",
+            },
         ];
         console.log(TerminalFormatter.table(examplesData));
 
         console.log(
             chalk.red("\n⚠️  Warning: This operation cannot be undone!"),
         );
+    }
+
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--all",
+            "--force",
+            // Unified output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }

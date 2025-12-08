@@ -4,43 +4,134 @@ import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
 import { homedir } from "os";
+import { TerminalFormatter } from "../utils/terminalFormatter";
+import chalk from "chalk";
 
+/**
+ * Database repair result structure
+ */
+interface RepairResult {
+    databasePath: string;
+    filesChecked: number;
+    corruptedFound: number;
+    repaired: number;
+    skipped: number;
+    operations: Array<{
+        file: string;
+        status: "valid" | "corrupted" | "repaired" | "skipped";
+        details?: string;
+    }>;
+    verification: {
+        success: boolean;
+        totalEntities?: number;
+        totalCollections?: number;
+        error?: string;
+    };
+}
+
+/**
+ * Repair corrupted database files by recovering from temporary files
+ */
 export class DbRepairCommand extends BaseCommand {
     name = "db-repair";
     description =
         "Repair corrupted database files by recovering from temporary files";
-    usage = "db-repair [--force]";
-    category = "database" as const;
 
     showHelp(): void {
-        console.log("Usage: db-repair [--force]");
-        console.log("");
         console.log(
             "Repair corrupted database files by recovering from temporary files.",
         );
-        console.log("");
-        console.log("Options:");
-        console.log(
-            "  --force    Apply repairs automatically without confirmation",
-        );
-        console.log("");
-        console.log("This command will:");
-        console.log("  - Check all database files for corruption");
-        console.log("  - Recover data from .tmp files when available");
-        console.log("  - Clean up orphaned temporary files");
-        console.log("  - Verify database integrity after repairs");
-        console.log("");
-        console.log("Examples:");
-        console.log(
-            "  db-repair            # Check and report issues (dry run)",
-        );
-        console.log("  db-repair --force    # Apply all possible repairs");
+
+        console.log("\nUsage: db-repair [--force] [options]");
+
+        console.log(chalk.cyan("\nOptions:"));
+        const optionsData = [
+            {
+                Option: "--force",
+                Description: "Apply repairs automatically without confirmation",
+            },
+            {
+                Option: "--format=json",
+                Description: "Output as JSON to stdout",
+            },
+            {
+                Option: "--export",
+                Description: "Export to timestamped JSON file",
+            },
+            {
+                Option: "--export=md",
+                Description: "Export as Markdown",
+            },
+            {
+                Option: "--export=both",
+                Description: "Export both formats",
+            },
+            {
+                Option: "--export-path=<dir>",
+                Description: "Custom export directory",
+            },
+            {
+                Option: "--output=<path>",
+                Description: "Write to specific file",
+            },
+            {
+                Option: "--quiet",
+                Description: "Suppress export messages",
+            },
+        ];
+
+        console.log(TerminalFormatter.table(optionsData));
+
+        console.log(chalk.cyan("\nWhat This Command Does:"));
+        const actionsData = [
+            { Action: "Check all database files for corruption" },
+            { Action: "Recover data from .tmp files when available" },
+            { Action: "Clean up orphaned temporary files" },
+            { Action: "Verify database integrity after repairs" },
+        ];
+
+        console.log(TerminalFormatter.table(actionsData));
+
+        console.log(chalk.cyan("\nExamples:"));
+        const examplesData = [
+            {
+                Command: "db-repair",
+                Description: "Check and report issues (dry run)",
+            },
+            {
+                Command: "db-repair --force",
+                Description: "Apply all possible repairs",
+            },
+            {
+                Command: "db-repair --format=json",
+                Description: "Output repair results as JSON",
+            },
+            {
+                Command: "db-repair --force --export",
+                Description: "Repair and save results to file",
+            },
+        ];
+
+        console.log(TerminalFormatter.table(examplesData));
+
+        console.log(chalk.cyan("\nLegacy Aliases (still supported):"));
+        const legacyData = [
+            { Flag: "--save", "Maps To": "--export" },
+            { Flag: "--save-json", "Maps To": "--export=json" },
+            { Flag: "--save-md", "Maps To": "--export=md" },
+            { Flag: "--save-both", "Maps To": "--export=both" },
+            { Flag: "--path", "Maps To": "--export-path" },
+        ];
+        console.log(TerminalFormatter.table(legacyData));
     }
 
     async execute(args?: string[]): Promise<void> {
-        const forceRepair = args?.includes("--force") || false;
+        const { config, parsed } = this.parseOutputConfig(args);
+        const forceRepair = parsed.flags.has("--force");
 
-        console.log("🔧 Starting database repair...\n");
+        if (config.displayFormat !== "json") {
+            console.log("Starting database repair...\n");
+        }
 
         try {
             // Get database path
@@ -51,7 +142,28 @@ export class DbRepairCommand extends BaseCommand {
 
             // Check if database directory exists
             if (!fsSync.existsSync(dbPath)) {
-                console.log("Database directory not found. Nothing to repair.");
+                const result: RepairResult = {
+                    databasePath: dbPath,
+                    filesChecked: 0,
+                    corruptedFound: 0,
+                    repaired: 0,
+                    skipped: 0,
+                    operations: [],
+                    verification: {
+                        success: false,
+                        error: "Database directory not found",
+                    },
+                };
+
+                await this.output(
+                    { success: false, data: result },
+                    () => {
+                        console.log(
+                            "Database directory not found. Nothing to repair.",
+                        );
+                    },
+                    "db-repair",
+                );
                 return;
             }
 
@@ -65,10 +177,13 @@ export class DbRepairCommand extends BaseCommand {
             let repairedCount = 0;
             let corruptedCount = 0;
             let skippedCount = 0;
+            const operations: RepairResult["operations"] = [];
 
-            console.log(
-                `Found ${jsonFiles.length} database files and ${tmpFiles.length} temporary files.\n`,
-            );
+            if (config.displayFormat !== "json") {
+                console.log(
+                    `Found ${jsonFiles.length} database files and ${tmpFiles.length} temporary files.\n`,
+                );
+            }
 
             // Check each JSON file
             for (const file of jsonFiles) {
@@ -76,99 +191,196 @@ export class DbRepairCommand extends BaseCommand {
                 const tmpPath = `${filePath}.tmp`;
                 const hasTmp = fsSync.existsSync(tmpPath);
 
-                console.log(`Checking ${file}...`);
+                if (config.displayFormat !== "json") {
+                    console.log(`Checking ${file}...`);
+                }
 
                 try {
                     const content = await fs.readFile(filePath, "utf-8");
 
                     // Check if file is empty
                     if (content.trim() === "") {
-                        console.log(`  ❌ File is empty`);
+                        if (config.displayFormat !== "json") {
+                            console.log(
+                                `  ${chalk.red("[ERROR]")} File is empty`,
+                            );
+                        }
                         corruptedCount++;
 
                         if (hasTmp) {
-                            console.log(`  📄 Found temporary file`);
-                            if (
-                                await this.repairFile(
-                                    filePath,
-                                    tmpPath,
-                                    forceRepair,
-                                )
-                            ) {
+                            if (config.displayFormat !== "json") {
+                                console.log(`  [INFO] Found temporary file`);
+                            }
+                            const repaired = await this.repairFile(
+                                filePath,
+                                tmpPath,
+                                forceRepair,
+                                config.displayFormat !== "json",
+                            );
+                            if (repaired) {
                                 repairedCount++;
+                                operations.push({
+                                    file,
+                                    status: "repaired",
+                                    details: "Recovered from temporary file",
+                                });
+                            } else {
+                                skippedCount++;
+                                operations.push({
+                                    file,
+                                    status: "skipped",
+                                    details: "Use --force to apply repair",
+                                });
                             }
                         } else {
-                            console.log(
-                                `  ⚠️  No temporary file available for recovery`,
-                            );
+                            if (config.displayFormat !== "json") {
+                                console.log(
+                                    `  ${chalk.yellow("[WARN]")} No temporary file available for recovery`,
+                                );
+                            }
+                            operations.push({
+                                file,
+                                status: "corrupted",
+                                details: "No temporary file available",
+                            });
                         }
                     } else {
                         // Try to parse JSON
                         try {
                             JSON.parse(content);
-                            console.log(`  ✅ File is valid`);
+                            if (config.displayFormat !== "json") {
+                                console.log(
+                                    `  ${chalk.green("[OK]")} File is valid`,
+                                );
+                            }
+                            operations.push({
+                                file,
+                                status: "valid",
+                            });
 
                             // Clean up tmp file if main file is valid
                             if (hasTmp) {
                                 try {
                                     await fs.unlink(tmpPath);
-                                    console.log(
-                                        `  🗑️  Removed unnecessary temporary file`,
-                                    );
+                                    if (config.displayFormat !== "json") {
+                                        console.log(
+                                            `  [INFO] Removed unnecessary temporary file`,
+                                        );
+                                    }
                                 } catch {
-                                    console.log(
-                                        `  ⚠️  Could not remove temporary file`,
-                                    );
+                                    if (config.displayFormat !== "json") {
+                                        console.log(
+                                            `  ${chalk.yellow("[WARN]")} Could not remove temporary file`,
+                                        );
+                                    }
                                 }
                             }
                         } catch {
-                            console.log(`  ❌ File contains invalid JSON`);
+                            if (config.displayFormat !== "json") {
+                                console.log(
+                                    `  ${chalk.red("[ERROR]")} File contains invalid JSON`,
+                                );
+                            }
                             corruptedCount++;
 
                             if (hasTmp) {
-                                console.log(`  📄 Found temporary file`);
-                                if (
-                                    await this.repairFile(
-                                        filePath,
-                                        tmpPath,
-                                        forceRepair,
-                                    )
-                                ) {
+                                if (config.displayFormat !== "json") {
+                                    console.log(
+                                        `  [INFO] Found temporary file`,
+                                    );
+                                }
+                                const repaired = await this.repairFile(
+                                    filePath,
+                                    tmpPath,
+                                    forceRepair,
+                                    config.displayFormat !== "json",
+                                );
+                                if (repaired) {
                                     repairedCount++;
+                                    operations.push({
+                                        file,
+                                        status: "repaired",
+                                        details:
+                                            "Recovered from temporary file",
+                                    });
+                                } else {
+                                    skippedCount++;
+                                    operations.push({
+                                        file,
+                                        status: "skipped",
+                                        details: "Use --force to apply repair",
+                                    });
                                 }
                             } else {
-                                console.log(
-                                    `  ⚠️  No temporary file available for recovery`,
-                                );
+                                if (config.displayFormat !== "json") {
+                                    console.log(
+                                        `  ${chalk.yellow("[WARN]")} No temporary file available for recovery`,
+                                    );
+                                }
+                                operations.push({
+                                    file,
+                                    status: "corrupted",
+                                    details: "No temporary file available",
+                                });
                             }
                         }
                     }
                 } catch (error) {
-                    console.log(`  ❌ Could not read file: ${error}`);
+                    if (config.displayFormat !== "json") {
+                        console.log(
+                            `  ${chalk.red("[ERROR]")} Could not read file: ${error}`,
+                        );
+                    }
                     corruptedCount++;
 
                     if (hasTmp) {
-                        console.log(`  📄 Found temporary file`);
-                        if (
-                            await this.repairFile(
-                                filePath,
-                                tmpPath,
-                                forceRepair,
-                            )
-                        ) {
-                            repairedCount++;
+                        if (config.displayFormat !== "json") {
+                            console.log(`  [INFO] Found temporary file`);
                         }
+                        const repaired = await this.repairFile(
+                            filePath,
+                            tmpPath,
+                            forceRepair,
+                            config.displayFormat !== "json",
+                        );
+                        if (repaired) {
+                            repairedCount++;
+                            operations.push({
+                                file,
+                                status: "repaired",
+                                details: "Recovered from temporary file",
+                            });
+                        } else {
+                            skippedCount++;
+                            operations.push({
+                                file,
+                                status: "skipped",
+                                details: "Use --force to apply repair",
+                            });
+                        }
+                    } else {
+                        operations.push({
+                            file,
+                            status: "corrupted",
+                            details: `Read error: ${error}`,
+                        });
                     }
                 }
 
-                console.log();
+                if (config.displayFormat !== "json") {
+                    console.log();
+                }
             }
 
             // Check for orphaned tmp files
             for (const tmpFile of tmpFiles) {
                 const baseName = tmpFile.replace(".tmp", "");
                 if (!jsonFiles.includes(baseName)) {
-                    console.log(`Found orphaned temporary file: ${tmpFile}`);
+                    if (config.displayFormat !== "json") {
+                        console.log(
+                            `Found orphaned temporary file: ${tmpFile}`,
+                        );
+                    }
 
                     if (forceRepair) {
                         const tmpPath = path.join(dbPath, tmpFile);
@@ -179,10 +391,18 @@ export class DbRepairCommand extends BaseCommand {
                             JSON.parse(content); // Validate JSON
 
                             await fs.writeFile(targetPath, content, "utf-8");
-                            console.log(
-                                `  ✅ Restored from orphaned temporary file`,
-                            );
+                            if (config.displayFormat !== "json") {
+                                console.log(
+                                    `  ${chalk.green("[OK]")} Restored from orphaned temporary file`,
+                                );
+                            }
                             repairedCount++;
+                            operations.push({
+                                file: baseName,
+                                status: "repaired",
+                                details:
+                                    "Restored from orphaned temporary file",
+                            });
 
                             try {
                                 await fs.unlink(tmpPath);
@@ -190,61 +410,153 @@ export class DbRepairCommand extends BaseCommand {
                                 // Ignore cleanup errors
                             }
                         } catch {
-                            console.log(
-                                `  ⚠️  Orphaned file contains invalid data`,
-                            );
+                            if (config.displayFormat !== "json") {
+                                console.log(
+                                    `  ${chalk.yellow("[WARN]")} Orphaned file contains invalid data`,
+                                );
+                            }
+                            operations.push({
+                                file: baseName,
+                                status: "corrupted",
+                                details: "Orphaned file contains invalid data",
+                            });
                         }
                     } else {
-                        console.log(
-                            `  ℹ️  Use --force to restore from orphaned files`,
-                        );
+                        if (config.displayFormat !== "json") {
+                            console.log(
+                                `  [INFO] Use --force to restore from orphaned files`,
+                            );
+                        }
                         skippedCount++;
+                        operations.push({
+                            file: baseName,
+                            status: "skipped",
+                            details:
+                                "Use --force to restore from orphaned file",
+                        });
                     }
-                    console.log();
+
+                    if (config.displayFormat !== "json") {
+                        console.log();
+                    }
                 }
             }
 
-            // Summary
-            console.log("📊 Repair Summary:");
-            console.log(`  Total files checked: ${jsonFiles.length}`);
-            console.log(`  Corrupted files found: ${corruptedCount}`);
-            console.log(`  Files repaired: ${repairedCount}`);
-            console.log(`  Files skipped: ${skippedCount}`);
+            // Try to initialize database to verify it works
+            let verification: RepairResult["verification"] = {
+                success: false,
+            };
 
-            if (corruptedCount > repairedCount) {
-                console.log(
-                    `\n⚠️  Some files could not be repaired. You may need to run 'db-sync' to refresh data.`,
-                );
-            } else if (repairedCount > 0) {
-                console.log(`\n✅ Database repair completed successfully!`);
-            } else {
-                console.log(`\n✅ No repairs needed. Database is healthy.`);
+            if (config.displayFormat !== "json") {
+                console.log("Verifying database integrity...");
             }
 
-            // Try to initialize database to verify it works
-            console.log("\n🔍 Verifying database integrity...");
             try {
                 const db = await getDatabase();
                 const stats = await db.getStats();
-                console.log(
-                    `✅ Database is functional. Found ${stats.totalEntities} entities across ${stats.collections.length} collections.`,
-                );
+                verification = {
+                    success: true,
+                    totalEntities: stats.totalEntities,
+                    totalCollections: stats.collections.length,
+                };
+
+                if (config.displayFormat !== "json") {
+                    console.log(
+                        `${chalk.green("[OK]")} Database is functional. Found ${stats.totalEntities} entities across ${stats.collections.length} collections.`,
+                    );
+                }
             } catch (error) {
-                console.error(`⚠️  Database verification failed: ${error}`);
-                console.log(
-                    `You may need to run 'db-sync' to rebuild the database.`,
-                );
+                verification = {
+                    success: false,
+                    error:
+                        error instanceof Error ? error.message : String(error),
+                };
+
+                if (config.displayFormat !== "json") {
+                    console.error(
+                        `${chalk.yellow("[WARN]")} Database verification failed: ${error}`,
+                    );
+                    console.log(
+                        `You may need to run 'db-sync' to rebuild the database.`,
+                    );
+                }
             }
+
+            // Build result
+            const result: RepairResult = {
+                databasePath: dbPath,
+                filesChecked: jsonFiles.length,
+                corruptedFound: corruptedCount,
+                repaired: repairedCount,
+                skipped: skippedCount,
+                operations,
+                verification,
+            };
+
+            // Output result
+            await this.output(
+                { success: true, data: result },
+                () => this.displaySummary(result),
+                "db-repair",
+            );
         } catch (error) {
-            console.error(`Failed to repair database: ${error}`);
-            throw error;
+            this.outputErrorResult(
+                {
+                    message:
+                        error instanceof Error
+                            ? error.message
+                            : "Failed to repair database",
+                },
+                () => {
+                    console.error(
+                        TerminalFormatter.error("Failed to repair database."),
+                    );
+                    if (error instanceof Error) {
+                        console.error("Error details:", error.message);
+                    }
+                },
+            );
         }
     }
 
+    /**
+     * Display repair summary in table format
+     */
+    private displaySummary(result: RepairResult): void {
+        console.log("\nRepair Summary:");
+
+        const summaryData = [
+            { Metric: "Total files checked", Value: result.filesChecked },
+            { Metric: "Corrupted files found", Value: result.corruptedFound },
+            { Metric: "Files repaired", Value: result.repaired },
+            { Metric: "Files skipped", Value: result.skipped },
+        ];
+
+        console.log(TerminalFormatter.table(summaryData));
+
+        if (result.corruptedFound > result.repaired) {
+            console.log(
+                `\n${chalk.yellow("[WARN]")} Some files could not be repaired. You may need to run 'db-sync' to refresh data.`,
+            );
+        } else if (result.repaired > 0) {
+            console.log(
+                `\n${chalk.green("[OK]")} Database repair completed successfully!`,
+            );
+        } else {
+            console.log(
+                `\n${chalk.green("[OK]")} No repairs needed. Database is healthy.`,
+            );
+        }
+    }
+
+    /**
+     * Repair a single file by copying from temporary file
+     */
     private async repairFile(
         filePath: string,
         tmpPath: string,
         force: boolean,
+        showMessages: boolean,
     ): Promise<boolean> {
         try {
             const tmpContent = await fs.readFile(tmpPath, "utf-8");
@@ -252,16 +564,24 @@ export class DbRepairCommand extends BaseCommand {
             // Validate JSON
             try {
                 const data = JSON.parse(tmpContent);
-                console.log(
-                    `  📋 Temporary file contains valid JSON (${Object.keys(data).length} keys)`,
-                );
+                if (showMessages) {
+                    console.log(
+                        `  [INFO] Temporary file contains valid JSON (${Object.keys(data).length} keys)`,
+                    );
+                }
             } catch {
-                console.log(`  ❌ Temporary file contains invalid JSON`);
+                if (showMessages) {
+                    console.log(
+                        `  ${chalk.red("[ERROR]")} Temporary file contains invalid JSON`,
+                    );
+                }
                 return false;
             }
 
             if (!force) {
-                console.log(`  ℹ️  Use --force to apply repair`);
+                if (showMessages) {
+                    console.log(`  [INFO] Use --force to apply repair`);
+                }
                 return false;
             }
 
@@ -276,7 +596,11 @@ export class DbRepairCommand extends BaseCommand {
                 await fs.writeFile(filePath, tmpContent, "utf-8");
             }
 
-            console.log(`  ✅ Successfully repaired file`);
+            if (showMessages) {
+                console.log(
+                    `  ${chalk.green("[OK]")} Successfully repaired file`,
+                );
+            }
 
             // Try to remove tmp file
             try {
@@ -285,15 +609,50 @@ export class DbRepairCommand extends BaseCommand {
                 } else {
                     await fs.unlink(tmpPath);
                 }
-                console.log(`  🗑️  Removed temporary file`);
+                if (showMessages) {
+                    console.log(`  [INFO] Removed temporary file`);
+                }
             } catch {
-                console.log(`  ⚠️  Could not remove temporary file`);
+                if (showMessages) {
+                    console.log(
+                        `  ${chalk.yellow("[WARN]")} Could not remove temporary file`,
+                    );
+                }
             }
 
             return true;
         } catch (error) {
-            console.log(`  ❌ Failed to repair: ${error}`);
+            if (showMessages) {
+                console.log(
+                    `  ${chalk.red("[ERROR]")} Failed to repair: ${error}`,
+                );
+            }
             return false;
         }
+    }
+
+    /**
+     * Autocomplete support for command flags
+     */
+    public autocomplete(partial: string): string[] {
+        const flags = [
+            "--force",
+            // Unified output flags
+            "--format=json",
+            "--export",
+            "--export=json",
+            "--export=md",
+            "--export=both",
+            "--export-path",
+            "--output",
+            "--quiet",
+            // Legacy flags (still supported)
+            "--save",
+            "--save-json",
+            "--save-md",
+            "--save-both",
+            "--path",
+        ];
+        return flags.filter(flag => flag.startsWith(partial));
     }
 }
