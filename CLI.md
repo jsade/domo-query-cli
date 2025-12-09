@@ -783,7 +783,7 @@ domo-query-cli get-group 1324037627 --sync
 
 ### Audit Operations
 
-**Authentication Required**: OAuth with `audit` scope
+**Authentication Required**: API Token (`DOMO_API_TOKEN` and `DOMO_API_HOST`)
 
 > **Note:** All audit commands support standard output options (`--format=json`, `--export`, `--export=md`, `--export=both`, `--export-path=<dir>`, `--output=<path>`, `--quiet`). See [Output Options](#output-options) for details.
 
@@ -941,7 +941,7 @@ domo-query-cli list-audit-object-types --export
 
 ### Role Management
 
-**Authentication Required**: OAuth with `user` scope (write operations require Admin privileges)
+**Authentication Required**: API Token (`DOMO_API_TOKEN` and `DOMO_API_HOST`). Write operations require Admin privileges.
 
 > **Note:** All role commands support standard output options (`--format=json`, `--export`, `--export=md`, `--export=both`, `--export-path=<dir>`, `--output=<path>`, `--quiet`). See [Output Options](#output-options) for details.
 
