@@ -1,69 +1,93 @@
----
-created: 2025-08-20 18:04:14
-updated: 2025-08-24 21:23:00
-title: Domo Query CLI - Non-Interactive Command Guide
----
-
 # Domo Query CLI - Non-Interactive Command Guide
 
 - [Overview](#overview)
 - [Basic Usage](#basic-usage)
 - [Command Syntax Options](#command-syntax-options)
-    - [Direct Command Syntax (Recommended)](#direct-command-syntax-recommended)
-    - [Flag-Based Syntax](#flag-based-syntax)
-    - [Multi-Word Commands](#multi-word-commands)
+  - [Direct Command Syntax (Recommended)](#direct-command-syntax-recommended)
+  - [Flag-Based Syntax](#flag-based-syntax)
+  - [Multi-Word Commands](#multi-word-commands)
 - [Automatic Non-Interactive Detection](#automatic-non-interactive-detection)
-    - [Help and Documentation](#help-and-documentation)
+  - [Help and Documentation](#help-and-documentation)
 - [Authentication](#authentication)
-    - [Environment Variables](#environment-variables)
-    - [Command Line Options](#command-line-options)
+  - [Environment Variables](#environment-variables)
+  - [Command Line Options](#command-line-options)
 - [Common Commands](#common-commands)
-    - [Dataset Operations](#dataset-operations)
-    - [Dataflow Operations](#dataflow-operations)
-    - [Card Operations](#card-operations)
-    - [User Management](#user-management)
-    - [Group Management](#group-management)
-    - [Lineage and Reporting](#lineage-and-reporting)
-    - [Database Operations](#database-operations)
+  - [Dataset Operations](#dataset-operations)
+    - [execute-datasource](#execute-datasource)
+    - [get-dataset-v3](#get-dataset-v3)
+  - [Dataflow Operations](#dataflow-operations)
+  - [Card Operations](#card-operations)
+  - [User Management](#user-management)
+    - [list-users](#list-users)
+    - [get-user](#get-user)
+  - [Group Management](#group-management)
+    - [list-groups](#list-groups)
+    - [get-group](#get-group)
+  - [Audit Operations](#audit-operations)
+    - [list-audit-logs](#list-audit-logs)
+    - [list-audit-object-types](#list-audit-object-types)
+  - [Role Management](#role-management)
+    - [list-roles](#list-roles)
+    - [get-role](#get-role)
+    - [list-role-members](#list-role-members)
+    - [list-authorities](#list-authorities)
+    - [create-role](#create-role)
+    - [update-role-permissions](#update-role-permissions)
+    - [add-user-to-role](#add-user-to-role)
+  - [Lineage and Reporting](#lineage-and-reporting)
+  - [Get Dataset Children](#get-dataset-children)
 - [Output Options](#output-options)
-    - [Quick Reference](#quick-reference)
-    - [Output Modes (Mutually Exclusive Display Formats)](#output-modes-mutually-exclusive-display-formats)
-    - [Export Flags (File Output Options)](#export-flags-file-output-options)
-    - [File Output (Custom Path)](#file-output-custom-path)
-    - [Modifiers](#modifiers)
-    - [Legacy Aliases (Deprecated)](#legacy-aliases-deprecated)
-    - [Combining Flags Examples](#combining-flags-examples)
-    - [Bug Fix: Format and Export Compatibility](#bug-fix-format-and-export-compatibility)
-    - [Output Examples by Command Type](#output-examples-by-command-type)
-    - [File-Based Output (Detailed)](#file-based-output-detailed)
+  - [Quick Reference](#quick-reference)
+  - [Output Modes (Mutually Exclusive Display Formats)](#output-modes-mutually-exclusive-display-formats)
+  - [Export Flags (File Output Options)](#export-flags-file-output-options)
+  - [File Output (Custom Path)](#file-output-custom-path)
+  - [Modifiers](#modifiers)
+  - [Legacy Aliases (Deprecated)](#legacy-aliases-deprecated)
+  - [Combining Flags Examples](#combining-flags-examples)
+  - [Bug Fix: Format and Export Compatibility](#bug-fix-format-and-export-compatibility)
+  - [Output Examples by Command Type](#output-examples-by-command-type)
+  - [File-Based Output (Detailed)](#file-based-output-detailed)
 - [Filtering and Pagination](#filtering-and-pagination)
 - [Persistent Database](#persistent-database)
-    - [Overview](#database-overview)
-    - [Database Commands](#database-commands)
-    - [Offline Mode](#offline-mode)
-    - [Database Storage](#database-storage)
+  - [Database Overview](#database-overview)
+  - [Database Commands](#database-commands)
+    - [db-status](#db-status)
+    - [db-sync](#db-sync)
+    - [db-clear](#db-clear)
+    - [db-export](#db-export)
+    - [db-import](#db-import)
+  - [Offline Mode](#offline-mode)
+  - [Database Storage](#database-storage)
+  - [Integration with Existing Commands](#integration-with-existing-commands)
+  - [Best Practices](#best-practices)
 - [Advanced Usage](#advanced-usage)
-    - [Piping and Redirection](#piping-and-redirection)
-    - [Scripting Examples](#scripting-examples)
-    - [Batch Operations](#batch-operations)
+  - [Piping and Redirection](#piping-and-redirection)
+  - [Scripting Examples](#scripting-examples)
+  - [Batch Operations](#batch-operations)
 - [Error Handling](#error-handling)
 - [Read-Only Mode](#read-only-mode)
-    - [Enabling Read-Only Mode](#enabling-read-only-mode)
-    - [Operations Blocked in Read-Only Mode](#operations-blocked-in-read-only-mode)
+  - [Enabling Read-Only Mode](#enabling-read-only-mode)
+  - [Operations Blocked in Read-Only Mode](#operations-blocked-in-read-only-mode)
 - [Configuration File](#configuration-file)
 - [Tips and Best Practices](#tips-and-best-practices)
 - [Examples](#examples)
-    - [Dataflow Monitoring](#dataflow-monitoring)
-    - [Execute Dataflow](#execute-dataflow)
-    - [Execute Datasource](#execute-datasource-example)
-    - [Get Dataflow Lineage](#get-dataflow-lineage)
-    - [List Datasets with Pattern](#list-datasets-with-pattern)
-    - [Get Card Details](#get-card-details)
-    - [Update Dataset Properties](#update-dataset-properties)
+  - [Dataflow Monitoring](#dataflow-monitoring)
+  - [Execute Dataflow](#execute-dataflow)
+  - [Execute Datasource {#execute-datasource-example}](#execute-datasource-execute-datasource-example)
+  - [Get Dataflow Lineage](#get-dataflow-lineage)
+  - [List Datasets with Pattern](#list-datasets-with-pattern)
+  - [Get Dataset Lineage](#get-dataset-lineage)
+  - [Get Card Details](#get-card-details)
+  - [Update Dataset Properties](#update-dataset-properties)
+  - [Database Management](#database-management)
+  - [Offline Analysis](#offline-analysis)
+  - [Database Maintenance Script](#database-maintenance-script)
+  - [Batch Dataset Analysis with File Output](#batch-dataset-analysis-with-file-output)
+  - [Lineage Export for Multiple Datasets](#lineage-export-for-multiple-datasets)
 - [Troubleshooting](#troubleshooting)
-    - [Authentication Issues](#authentication-issues)
-    - [Connection Issues](#connection-issues)
-    - [Performance](#performance)
+  - [Authentication Issues](#authentication-issues)
+  - [Connection Issues](#connection-issues)
+  - [Performance](#performance)
 
 ## Overview
 
@@ -756,6 +780,614 @@ domo-query-cli get-group 1324037627 --sync
 **See Also:**
 - [list-groups](#list-groups) - Search and list all groups
 - [get-user](#get-user) - View user details including group memberships
+
+### Audit Operations
+
+**Authentication Required**: OAuth with `audit` scope
+
+> **Note:** All audit commands support standard output options (`--format=json`, `--export`, `--export=md`, `--export=both`, `--export-path=<dir>`, `--output=<path>`, `--quiet`). See [Output Options](#output-options) for details.
+
+#### list-audit-logs
+
+List audit log entries from Domo with time range filtering.
+
+**Interactive Usage:**
+```bash
+# Start the CLI shell
+domo-query-cli
+
+# Inside the shell:
+> list-audit-logs --start "24h ago" --end "now"
+> list-audit-logs --start "yesterday" --end "today"
+> list-audit-logs --start "7d ago" --end "now" --type DATASET
+> list-audit-logs --start "24h ago" --end "now" --user john
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Last 24 hours of activity
+domo-query-cli list-audit-logs --start "24h ago" --end "now"
+
+# Yesterday's activity
+domo-query-cli list-audit-logs --start "yesterday" --end "today"
+
+# Filter by object type
+domo-query-cli list-audit-logs --start "7d ago" --end "now" --type DATASET
+
+# Filter by user
+domo-query-cli list-audit-logs --start "24h ago" --end "now" --user john
+
+# Combine filters
+domo-query-cli list-audit-logs --start "2024-01-01" --end "2024-01-31" --type CARD --user jane
+
+# Pagination
+domo-query-cli list-audit-logs --start "24h ago" --end "now" --limit 500 --offset 0
+
+# JSON output for automation
+domo-query-cli list-audit-logs --start "24h ago" --end "now" --format=json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-audit-logs",
+  "data": {
+    "auditLogs": [
+      {
+        "userName": "John Euler",
+        "userId": 871428330,
+        "userType": "USER",
+        "actionType": "VIEWED",
+        "objectType": "CARD",
+        "time": 1704067200000,
+        "eventText": "Viewed card: Sales Dashboard",
+        "additionalComment": null
+      }
+    ]
+  },
+  "metadata": {
+    "count": 1,
+    "timeRange": {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2024-01-02T00:00:00.000Z"
+    },
+    "pagination": {
+      "offset": 0,
+      "limit": 100,
+      "hasMore": false
+    }
+  }
+}
+```
+
+**Required Options:**
+| Option | Description |
+|--------|-------------|
+| `--start <time>` | Start time (e.g., "24h ago", "yesterday", "2024-01-15") |
+| `--end <time>` | End time (e.g., "now", "today", "2024-01-16T23:59:59") |
+
+**Optional Filters:**
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Filter by object type (e.g., DATASET, CARD, DATAFLOW) |
+| `--user <name>` | Filter by username |
+| `--limit N` | Max results (max 1000, default: 100) |
+| `--offset N` | Pagination offset (default: 0) |
+
+**Time Expression Formats:**
+| Format | Example |
+|--------|---------|
+| Relative | "24h ago", "7d ago", "30m ago", "2w ago" |
+| Keywords | "now", "today", "yesterday" |
+| ISO Date | "2024-01-15", "2024-01-15T10:30:00" |
+| Timestamp | "1704067200000" (milliseconds) |
+
+**Common Use Cases:**
+- Audit user activity for compliance reporting
+- Track changes to datasets, cards, or dataflows
+- Monitor specific users' actions
+- Generate activity reports for a time period
+
+**See Also:**
+- [list-audit-object-types](#list-audit-object-types) - Get available object types for filtering
+
+#### list-audit-object-types
+
+List available audit log object types for filtering.
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> list-audit-object-types
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# List all object types
+domo-query-cli list-audit-object-types
+
+# JSON output
+domo-query-cli list-audit-object-types --format=json
+
+# Export to file
+domo-query-cli list-audit-object-types --export
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-audit-object-types",
+  "data": {
+    "objectTypes": [
+      "CARD",
+      "DATASET",
+      "DATAFLOW",
+      "PAGE",
+      "USER",
+      "GROUP"
+    ]
+  },
+  "metadata": {
+    "count": 6
+  }
+}
+```
+
+**Common Use Cases:**
+- Discover available object types for audit log filtering
+- Build dynamic audit reporting tools
+- Validate object type names before querying logs
+
+**See Also:**
+- [list-audit-logs](#list-audit-logs) - Query audit logs using these object types
+
+### Role Management
+
+**Authentication Required**: OAuth with `user` scope (write operations require Admin privileges)
+
+> **Note:** All role commands support standard output options (`--format=json`, `--export`, `--export=md`, `--export=both`, `--export-path=<dir>`, `--output=<path>`, `--quiet`). See [Output Options](#output-options) for details.
+
+#### list-roles
+
+List all Domo roles with optional search.
+
+**Interactive Usage:**
+```bash
+# Start the CLI shell
+domo-query-cli
+
+# Inside the shell:
+> list-roles                  # List all roles
+> list-roles admin            # Search for roles matching 'admin'
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# List all roles
+domo-query-cli list-roles
+
+# Search for roles by name or description
+domo-query-cli list-roles "admin"
+domo-query-cli list-roles "analyst"
+
+# JSON output for automation
+domo-query-cli list-roles --format=json
+
+# Export to file
+domo-query-cli list-roles --export
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-roles",
+  "data": {
+    "roles": [
+      {
+        "id": 1,
+        "name": "Admin",
+        "description": "Full administrative access",
+        "isDefault": false,
+        "memberCount": 5
+      },
+      {
+        "id": 2,
+        "name": "Privileged",
+        "description": "Extended user privileges",
+        "isDefault": true,
+        "memberCount": 25
+      }
+    ]
+  },
+  "metadata": {
+    "count": 2
+  }
+}
+```
+
+**Common Use Cases:**
+- Audit role structure in your Domo instance
+- Find roles for permission management
+- Export role list for documentation
+
+**See Also:**
+- [get-role](#get-role) - Get detailed information about a specific role
+- [list-role-members](#list-role-members) - List users in a role
+
+#### get-role
+
+Get detailed information about a specific role including its authorities/permissions.
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> get-role 123
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Get role details
+domo-query-cli get-role 123
+
+# JSON output for processing
+domo-query-cli get-role 123 --format=json
+
+# Export to file
+domo-query-cli get-role 123 --export
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "get-role",
+  "data": {
+    "role": {
+      "id": 123,
+      "name": "Data Analyst",
+      "description": "Access to view and analyze data",
+      "isDefault": false,
+      "memberCount": 15,
+      "authorities": [
+        {
+          "name": "VIEW_DATA",
+          "displayName": "View Data",
+          "description": "Can view dataset data",
+          "category": "data"
+        },
+        {
+          "name": "EXPORT_DATA",
+          "displayName": "Export Data",
+          "description": "Can export data to files",
+          "category": "data"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "roleId": "123"
+  }
+}
+```
+
+**Common Use Cases:**
+- Review permissions assigned to a role
+- Audit role configurations
+- Document role permissions
+
+**See Also:**
+- [list-roles](#list-roles) - List all roles
+- [list-authorities](#list-authorities) - List available permissions
+
+#### list-role-members
+
+List users who have a specific role.
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> list-role-members 123
+> list-role-members 123 john     # Search members by name
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# List all members of a role
+domo-query-cli list-role-members 123
+
+# Search for specific members
+domo-query-cli list-role-members 123 "john"
+
+# JSON output for automation
+domo-query-cli list-role-members 123 --format=json
+
+# Export to file
+domo-query-cli list-role-members 123 --export
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-role-members",
+  "data": {
+    "roleMembers": [
+      {
+        "id": 871428330,
+        "name": "John Euler",
+        "email": "john.euler@company.com"
+      },
+      {
+        "id": 123456789,
+        "name": "Jane Smith",
+        "email": "jane.smith@company.com"
+      }
+    ]
+  },
+  "metadata": {
+    "count": 2,
+    "roleId": "123"
+  }
+}
+```
+
+**Common Use Cases:**
+- Audit who has a specific role
+- Find users with admin or elevated privileges
+- Export role membership for compliance
+
+**See Also:**
+- [get-role](#get-role) - Get role details and permissions
+- [add-user-to-role](#add-user-to-role) - Add a user to a role
+
+#### list-authorities
+
+List all available Domo authorities/permissions that can be assigned to roles.
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> list-authorities
+> list-authorities manage              # Search by name
+> list-authorities --category admin    # Filter by category
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# List all authorities
+domo-query-cli list-authorities
+
+# Search for authorities by name/description
+domo-query-cli list-authorities "manage"
+
+# Filter by category
+domo-query-cli list-authorities --category admin
+
+# Combine search and category filter
+domo-query-cli list-authorities card --category content
+
+# JSON output for automation
+domo-query-cli list-authorities --format=json
+
+# Export to file
+domo-query-cli list-authorities --export=md
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "list-authorities",
+  "data": {
+    "authorities": [
+      {
+        "name": "MANAGE_ALL_CARDS",
+        "displayName": "Manage All Cards",
+        "description": "Create, edit, and delete any card",
+        "category": "content"
+      },
+      {
+        "name": "MANAGE_ALL_DATASETS",
+        "displayName": "Manage All Datasets",
+        "description": "Full control over all datasets",
+        "category": "data"
+      }
+    ]
+  },
+  "metadata": {
+    "count": 2
+  }
+}
+```
+
+**Common Use Cases:**
+- Discover available permissions for role configuration
+- Plan role permission assignments
+- Document available authorities
+
+**See Also:**
+- [get-role](#get-role) - View permissions assigned to a role
+- [update-role-permissions](#update-role-permissions) - Modify role permissions
+
+#### create-role
+
+Create a new Domo role. **Requires Admin privileges.**
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> create-role "Data Analyst"
+> create-role "Data Analyst" --description "Access to view and analyze data"
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Create a role (will prompt for confirmation)
+domo-query-cli create-role "Data Analyst"
+
+# Create with description
+domo-query-cli create-role "Data Analyst" --description "Access to view and analyze data"
+
+# Skip confirmation prompt
+domo-query-cli create-role "Data Analyst" --yes
+
+# JSON output for automation
+domo-query-cli create-role "Data Analyst" --format=json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "create-role",
+  "data": {
+    "role": {
+      "id": 456,
+      "name": "Data Analyst",
+      "description": "Access to view and analyze data",
+      "isDefault": false,
+      "memberCount": 0
+    }
+  },
+  "metadata": {
+    "roleId": 456,
+    "roleName": "Data Analyst"
+  }
+}
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--description <text>` | Optional description for the role |
+| `--yes` | Skip confirmation prompt |
+
+**Important Notes:**
+- Requires Admin privileges
+- Blocked in read-only mode (`DOMO_READ_ONLY=true`)
+- New roles are created with no permissions - use `update-role-permissions` to add them
+
+**See Also:**
+- [update-role-permissions](#update-role-permissions) - Add permissions to the role
+- [add-user-to-role](#add-user-to-role) - Assign users to the role
+
+#### update-role-permissions
+
+Update the authorities/permissions for a role. **Requires Admin privileges.**
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> update-role-permissions 123 --set VIEW_DATA,EDIT_DATA
+> update-role-permissions 123 --add EXPORT_DATA
+> update-role-permissions 123 --remove ADMIN_DATA
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Replace all permissions with a new set
+domo-query-cli update-role-permissions 123 --set VIEW_DATA,EDIT_DATA,EXPORT_DATA
+
+# Add permissions to existing ones
+domo-query-cli update-role-permissions 123 --add MANAGE_CARDS,MANAGE_PAGES
+
+# Remove specific permissions
+domo-query-cli update-role-permissions 123 --remove ADMIN_DATA,DELETE_ALL
+
+# Skip confirmation prompt
+domo-query-cli update-role-permissions 123 --set VIEW_DATA --yes
+
+# JSON output for automation
+domo-query-cli update-role-permissions 123 --add EXPORT_DATA --format=json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "update-role-permissions",
+  "data": {
+    "roleId": "123",
+    "roleName": "Data Analyst",
+    "authorities": ["VIEW_DATA", "EDIT_DATA", "EXPORT_DATA"],
+    "authoritiesCount": 3
+  },
+  "metadata": {
+    "entityType": "role",
+    "operation": "add"
+  }
+}
+```
+
+**Operation Options (choose one):**
+| Option | Description |
+|--------|-------------|
+| `--set=<auth1,auth2,...>` | Replace all permissions with these authorities |
+| `--add=<auth1,auth2,...>` | Add these authorities to current permissions |
+| `--remove=<auth1,auth2,...>` | Remove these authorities from current permissions |
+
+**Control Options:**
+| Option | Description |
+|--------|-------------|
+| `--yes` | Skip confirmation prompt |
+
+**Important Notes:**
+- Requires Admin privileges
+- Blocked in read-only mode (`DOMO_READ_ONLY=true`)
+- Use `list-authorities` to discover valid authority names
+- `--set` replaces ALL existing permissions; use `--add`/`--remove` to modify incrementally
+
+**See Also:**
+- [list-authorities](#list-authorities) - List available permissions
+- [get-role](#get-role) - View current role permissions
+
+#### add-user-to-role
+
+Add a user to a role. **Requires Admin privileges.**
+
+**Interactive Usage:**
+```bash
+# In the shell:
+> add-user-to-role 123 456          # Add user 456 to role 123
+> add-user-to-role 123 456 --yes    # Skip confirmation
+```
+
+**Non-Interactive Usage (Scripts/Automation):**
+```bash
+# Add user to role (will prompt for confirmation)
+domo-query-cli add-user-to-role 123 456
+
+# Skip confirmation prompt
+domo-query-cli add-user-to-role 123 456 --yes
+
+# JSON output for automation
+domo-query-cli add-user-to-role 123 456 --format=json
+
+# Example JSON output structure
+{
+  "success": true,
+  "command": "add-user-to-role",
+  "data": {
+    "roleId": "123",
+    "roleName": "Data Analyst",
+    "userId": "456",
+    "userName": "John Euler",
+    "userEmail": "john.euler@company.com"
+  },
+  "metadata": {
+    "entityType": "role",
+    "operation": "add-user"
+  }
+}
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `role_id` | The ID of the role |
+| `user_id` | The ID of the user to add |
+
+**Control Options:**
+| Option | Description |
+|--------|-------------|
+| `--yes` | Skip confirmation prompt |
+
+**Important Notes:**
+- Requires Admin privileges
+- Blocked in read-only mode (`DOMO_READ_ONLY=true`)
+- Use `list-users` to find user IDs
+- Use `list-roles` to find role IDs
+
+**See Also:**
+- [list-role-members](#list-role-members) - View users in a role
+- [list-users](#list-users) - Find user IDs
 
 ### Lineage and Reporting
 
@@ -1539,6 +2171,9 @@ The following operations are disabled when read-only mode is active:
 - `patchDataflow` - Patching dataflow configurations
 - `deleteDataflow` - Deleting dataflows
 - `update-dataset-properties` - Updating dataset properties (name, description, tags)
+- `create-role` - Creating new roles
+- `update-role-permissions` - Updating role permissions
+- `add-user-to-role` - Adding users to roles
 
 All read operations (list, get, show, etc.) remain available.
 
