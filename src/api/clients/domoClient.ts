@@ -775,19 +775,42 @@ export interface DomoRole {
     name: string;
     description?: string;
     isDefault?: boolean;
-    memberCount?: number;
+    userCount?: number;
+    authorityCount?: number;
+    created?: number;
+    modified?: number;
     authorities?: DomoAuthority[];
 }
 
 /**
  * Domo authority (permission) definition
  * Based on /api/authorization/v1/authorities
+ *
+ * Note: The API returns different property names than what might be expected:
+ * - `authority` is the unique identifier/name of the permission
+ * - `title` is the human-readable display name
+ * - `description` is the permission description
+ * - `authorityUIGroup` is the category/group the permission belongs to
  */
 export interface DomoAuthority {
-    name: string;
-    displayName?: string;
+    /** The unique identifier/name of the authority (e.g., "MANAGE_ALL_CARDS") */
+    authority: string;
+    /** Human-readable display name (e.g., "Manage All Cards") */
+    title?: string;
+    /** Description of what this authority allows */
     description?: string;
+    /** Category/group this authority belongs to (e.g., "COMPANY", "DATA") */
+    authorityUIGroup?: string;
+
+    // Legacy property names for backward compatibility with existing code
+    /** @deprecated Use `authority` instead */
+    name?: string;
+    /** @deprecated Use `title` instead */
+    displayName?: string;
+    /** @deprecated Use `authorityUIGroup` instead */
     category?: string;
+    /** @deprecated Use `authorityUIGroup` instead */
+    authorityGroup?: string;
 }
 
 /**

@@ -109,7 +109,7 @@ export class ListRolesCommand extends BaseCommand {
                 role.description && role.description.length > 50
                     ? role.description.substring(0, 47) + "..."
                     : role.description || "-",
-            "Member Count": role.memberCount ?? 0,
+            "Member Count": role.userCount ?? 0,
         }));
 
         console.log(TerminalFormatter.table(tableData));

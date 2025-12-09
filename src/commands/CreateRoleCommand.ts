@@ -136,8 +136,8 @@ export class CreateRoleCommand extends BaseCommand {
         if (role.isDefault !== undefined) {
             console.log(`Default: ${role.isDefault ? "Yes" : "No"}`);
         }
-        if (role.memberCount !== undefined) {
-            console.log(`Member Count: ${role.memberCount}`);
+        if (role.userCount !== undefined) {
+            console.log(`Member Count: ${role.userCount}`);
         }
     }
 

@@ -20,30 +20,31 @@ describe("GetRoleCommand", () => {
     let consoleLogSpy: MockInstance;
     let consoleErrorSpy: MockInstance;
 
+    // Note: API returns `authority`, `title`, and `authorityUIGroup` as field names
     const mockRole: DomoRole = {
         id: 1,
         name: "Admin",
         description: "Administrator role with full permissions",
         isDefault: false,
-        memberCount: 5,
+        userCount: 5,
         authorities: [
             {
-                name: "manage_all_cards",
-                displayName: "Manage All Cards",
+                authority: "manage_all_cards",
+                title: "Manage All Cards",
                 description: "Can create, edit, and delete any card",
-                category: "content",
+                authorityUIGroup: "content",
             },
             {
-                name: "manage_all_dataflows",
-                displayName: "Manage All Dataflows",
+                authority: "manage_all_dataflows",
+                title: "Manage All Dataflows",
                 description: "Can create, edit, and delete any dataflow",
-                category: "data",
+                authorityUIGroup: "data",
             },
             {
-                name: "manage_all_users",
-                displayName: "Manage All Users",
+                authority: "manage_all_users",
+                title: "Manage All Users",
                 description: "Can create, edit, and delete any user",
-                category: "admin",
+                authorityUIGroup: "admin",
             },
         ],
     };
@@ -53,7 +54,7 @@ describe("GetRoleCommand", () => {
         name: "Basic User",
         description: "Basic user with limited permissions",
         isDefault: true,
-        memberCount: 100,
+        userCount: 100,
     };
 
     beforeEach(() => {

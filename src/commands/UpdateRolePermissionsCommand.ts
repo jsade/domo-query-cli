@@ -85,8 +85,11 @@ export class UpdateRolePermissionsCommand extends BaseCommand {
                     return;
                 }
 
+                // Note: API returns `authority` as the field name, fallback to `name` for compatibility
                 const currentAuthorities =
-                    currentRole.authorities?.map(a => a.name) || [];
+                    currentRole.authorities?.map(
+                        a => a.authority || a.name || "",
+                    ) || [];
 
                 if (addMode) {
                     // Add permissions to current list

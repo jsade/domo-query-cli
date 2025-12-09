@@ -25,21 +25,21 @@ describe("ListRolesCommand", () => {
             name: "Admin",
             description: "Administrator role with full permissions",
             isDefault: false,
-            memberCount: 5,
+            userCount: 5,
         },
         {
             id: 2,
             name: "Privileged",
             description: "Privileged user role",
             isDefault: false,
-            memberCount: 25,
+            userCount: 25,
         },
         {
             id: 3,
             name: "Participant",
             description: "Standard participant role",
             isDefault: true,
-            memberCount: 100,
+            userCount: 100,
         },
     ];
 
@@ -161,7 +161,7 @@ describe("ListRolesCommand", () => {
             {
                 id: 1,
                 name: "Test Role",
-                memberCount: 5,
+                userCount: 5,
             },
         ];
         vi.mocked(domoClient.listRoles).mockResolvedValue(rolesWithoutDesc);

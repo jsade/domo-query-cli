@@ -19,36 +19,37 @@ describe("ListAuthoritiesCommand", () => {
     let command: ListAuthoritiesCommand;
     let consoleLogSpy: MockInstance;
 
+    // Note: API returns `authority`, `title`, and `authorityUIGroup` as field names
     const mockAuthorities: DomoAuthority[] = [
         {
-            name: "manage_all_cards",
-            displayName: "Manage All Cards",
+            authority: "manage_all_cards",
+            title: "Manage All Cards",
             description: "Can create, edit, and delete any card",
-            category: "content",
+            authorityUIGroup: "content",
         },
         {
-            name: "manage_all_dataflows",
-            displayName: "Manage All Dataflows",
+            authority: "manage_all_dataflows",
+            title: "Manage All Dataflows",
             description: "Can create, edit, and delete any dataflow",
-            category: "data",
+            authorityUIGroup: "data",
         },
         {
-            name: "manage_all_users",
-            displayName: "Manage All Users",
+            authority: "manage_all_users",
+            title: "Manage All Users",
             description: "Can create, edit, and delete any user",
-            category: "admin",
+            authorityUIGroup: "admin",
         },
         {
-            name: "view_dashboards",
-            displayName: "View Dashboards",
+            authority: "view_dashboards",
+            title: "View Dashboards",
             description: "Can view dashboards",
-            category: "content",
+            authorityUIGroup: "content",
         },
         {
-            name: "manage_datasets",
-            displayName: "Manage Datasets",
+            authority: "manage_datasets",
+            title: "Manage Datasets",
             description: "Can manage datasets",
-            category: "data",
+            authorityUIGroup: "data",
         },
     ];
 
@@ -105,7 +106,7 @@ describe("ListAuthoritiesCommand", () => {
 
         const authorities = command.getAuthorities();
         expect(authorities).toHaveLength(3);
-        expect(authorities.every(a => a.name.includes("manage_all"))).toBe(
+        expect(authorities.every(a => a.authority.includes("manage_all"))).toBe(
             true,
         );
     });
@@ -115,13 +116,11 @@ describe("ListAuthoritiesCommand", () => {
 
         expect(domoClient.listAuthorities).toHaveBeenCalled();
 
-        // Should match authorities with "manage" in display name
+        // Should match authorities with "manage" in display name (title)
         const authorities = command.getAuthorities();
         expect(authorities.length).toBeGreaterThan(0);
         expect(
-            authorities.some(a =>
-                a.displayName?.toLowerCase().includes("manage"),
-            ),
+            authorities.some(a => a.title?.toLowerCase().includes("manage")),
         ).toBe(true);
     });
 
@@ -152,7 +151,9 @@ describe("ListAuthoritiesCommand", () => {
 
         const authorities = command.getAuthorities();
         expect(authorities).toHaveLength(2);
-        expect(authorities.every(a => a.category === "content")).toBe(true);
+        expect(authorities.every(a => a.authorityUIGroup === "content")).toBe(
+            true,
+        );
     });
 
     it("should filter by category case-insensitively", async () => {
@@ -160,7 +161,9 @@ describe("ListAuthoritiesCommand", () => {
 
         const authorities = command.getAuthorities();
         expect(authorities).toHaveLength(2);
-        expect(authorities.every(a => a.category === "content")).toBe(true);
+        expect(authorities.every(a => a.authorityUIGroup === "content")).toBe(
+            true,
+        );
     });
 
     it("should handle search with category filter", async () => {
@@ -171,7 +174,9 @@ describe("ListAuthoritiesCommand", () => {
         // Should find authorities with "manage" in data category
         const authorities = command.getAuthorities();
         expect(authorities.length).toBeGreaterThan(0);
-        expect(authorities.every(a => a.category === "data")).toBe(true);
+        expect(authorities.every(a => a.authorityUIGroup === "data")).toBe(
+            true,
+        );
     });
 
     it("should be case-insensitive when filtering by search", async () => {
@@ -219,7 +224,7 @@ describe("ListAuthoritiesCommand", () => {
     it("should handle authorities without optional fields", async () => {
         const minimalAuthorities: DomoAuthority[] = [
             {
-                name: "basic_permission",
+                authority: "basic_permission",
             },
         ];
         vi.mocked(domoClient.listAuthorities).mockResolvedValue(

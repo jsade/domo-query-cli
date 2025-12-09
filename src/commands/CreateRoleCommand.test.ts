@@ -29,7 +29,7 @@ describe("CreateRoleCommand", () => {
         name: "Test Role",
         description: "A test role",
         isDefault: false,
-        memberCount: 0,
+        userCount: 0,
     };
 
     beforeEach(() => {

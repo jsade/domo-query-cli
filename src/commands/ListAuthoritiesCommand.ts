@@ -46,21 +46,23 @@ export class ListAuthoritiesCommand extends BaseCommand {
             this.authorities = await listAuthorities();
 
             // Client-side filtering by search query
+            // Note: API returns `authority`, `title`, and `authorityUIGroup` as field names
             if (searchQuery) {
                 const lowerQuery = searchQuery.toLowerCase();
                 this.authorities = this.authorities.filter(
                     a =>
-                        a.name.toLowerCase().includes(lowerQuery) ||
-                        a.displayName?.toLowerCase().includes(lowerQuery) ||
+                        a.authority?.toLowerCase().includes(lowerQuery) ||
+                        a.title?.toLowerCase().includes(lowerQuery) ||
                         a.description?.toLowerCase().includes(lowerQuery),
                 );
             }
 
             // Client-side filtering by category
+            // Note: API returns `authorityUIGroup` as the field name
             if (categoryFilter) {
                 const lowerCategory = categoryFilter.toLowerCase();
                 this.authorities = this.authorities.filter(
-                    a => a.category?.toLowerCase() === lowerCategory,
+                    a => a.authorityUIGroup?.toLowerCase() === lowerCategory,
                 );
             }
 
@@ -122,21 +124,25 @@ export class ListAuthoritiesCommand extends BaseCommand {
         );
 
         // Prepare data for table
-        const tableData = this.authorities.map(auth => ({
-            Name:
-                auth.name.length > 35
-                    ? auth.name.substring(0, 32) + "..."
-                    : auth.name,
-            "Display Name":
-                auth.displayName && auth.displayName.length > 30
-                    ? auth.displayName.substring(0, 27) + "..."
-                    : auth.displayName || "-",
-            Description:
-                auth.description && auth.description.length > 50
-                    ? auth.description.substring(0, 47) + "..."
-                    : auth.description || "-",
-            Category: auth.category || "-",
-        }));
+        // Note: API returns `authority`, `title`, and `authorityUIGroup` as field names
+        const tableData = this.authorities.map(auth => {
+            const authorityName = auth.authority || "";
+            return {
+                Name:
+                    authorityName.length > 35
+                        ? authorityName.substring(0, 32) + "..."
+                        : authorityName || "-",
+                "Display Name":
+                    auth.title && auth.title.length > 30
+                        ? auth.title.substring(0, 27) + "..."
+                        : auth.title || "-",
+                Description:
+                    auth.description && auth.description.length > 50
+                        ? auth.description.substring(0, 47) + "..."
+                        : auth.description || "-",
+                Category: auth.authorityUIGroup || "-",
+            };
+        });
 
         console.log(TerminalFormatter.table(tableData));
         console.log(

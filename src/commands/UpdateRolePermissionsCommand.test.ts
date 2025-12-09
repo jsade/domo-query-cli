@@ -63,7 +63,7 @@ describe("UpdateRolePermissionsCommand", () => {
             const mockRole: DomoRole = {
                 id: 123,
                 name: "Test Role",
-                authorities: [{ name: "VIEW_DATA" }],
+                authorities: [{ authority: "VIEW_DATA", name: "VIEW_DATA" }],
             };
 
             vi.mocked(domoClient.updateRolePermissions).mockResolvedValue();
@@ -116,9 +116,9 @@ describe("UpdateRolePermissionsCommand", () => {
                 id: 123,
                 name: "Test Role",
                 authorities: [
-                    { name: "VIEW_DATA" },
-                    { name: "EDIT_DATA" },
-                    { name: "ADMIN_DATA" },
+                    { authority: "VIEW_DATA", name: "VIEW_DATA" },
+                    { authority: "EDIT_DATA", name: "EDIT_DATA" },
+                    { authority: "ADMIN_DATA", name: "ADMIN_DATA" },
                 ],
             };
 
@@ -160,7 +160,10 @@ describe("UpdateRolePermissionsCommand", () => {
             const mockRole: DomoRole = {
                 id: 123,
                 name: "Test Role",
-                authorities: [{ name: "VIEW_DATA" }, { name: "EDIT_DATA" }],
+                authorities: [
+                    { authority: "VIEW_DATA", name: "VIEW_DATA" },
+                    { authority: "EDIT_DATA", name: "EDIT_DATA" },
+                ],
             };
 
             vi.mocked(domoClient.updateRolePermissions).mockResolvedValue();
@@ -185,7 +188,10 @@ describe("UpdateRolePermissionsCommand", () => {
             const mockRole: DomoRole = {
                 id: 123,
                 name: "Test Role",
-                authorities: [{ name: "VIEW_DATA" }, { name: "EDIT_DATA" }],
+                authorities: [
+                    { authority: "VIEW_DATA", name: "VIEW_DATA" },
+                    { authority: "EDIT_DATA", name: "EDIT_DATA" },
+                ],
             };
 
             vi.mocked(domoClient.getRole).mockResolvedValue(mockRole);
@@ -214,7 +220,7 @@ describe("UpdateRolePermissionsCommand", () => {
             const mockRole: DomoRole = {
                 id: 123,
                 name: "Test Role",
-                authorities: [{ name: "VIEW_DATA" }],
+                authorities: [{ authority: "VIEW_DATA", name: "VIEW_DATA" }],
             };
 
             vi.mocked(domoClient.getRole).mockResolvedValue(mockRole);
@@ -256,9 +262,9 @@ describe("UpdateRolePermissionsCommand", () => {
                 id: 123,
                 name: "Test Role",
                 authorities: [
-                    { name: "VIEW_DATA" },
-                    { name: "EDIT_DATA" },
-                    { name: "ADMIN_DATA" },
+                    { authority: "VIEW_DATA", name: "VIEW_DATA" },
+                    { authority: "EDIT_DATA", name: "EDIT_DATA" },
+                    { authority: "ADMIN_DATA", name: "ADMIN_DATA" },
                 ],
             };
 
@@ -278,7 +284,7 @@ describe("UpdateRolePermissionsCommand", () => {
             const mockRole: DomoRole = {
                 id: 123,
                 name: "Test Role",
-                authorities: [{ name: "VIEW_DATA" }],
+                authorities: [{ authority: "VIEW_DATA", name: "VIEW_DATA" }],
             };
 
             vi.mocked(domoClient.getRole).mockResolvedValue(mockRole);
@@ -328,7 +334,7 @@ describe("UpdateRolePermissionsCommand", () => {
             const mockRole: DomoRole = {
                 id: 123,
                 name: "Test Role",
-                authorities: [{ name: "VIEW_DATA" }],
+                authorities: [{ authority: "VIEW_DATA", name: "VIEW_DATA" }],
             };
 
             vi.mocked(domoClient.updateRolePermissions).mockResolvedValue();

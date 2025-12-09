@@ -98,7 +98,7 @@ export class GetRoleCommand extends BaseCommand {
             },
             {
                 Field: "Member Count",
-                Value: this.role.memberCount ?? 0,
+                Value: this.role.userCount ?? 0,
             },
         ];
         console.log(TerminalFormatter.table(basicInfo));
@@ -110,14 +110,19 @@ export class GetRoleCommand extends BaseCommand {
                 `This role has ${this.role.authorities.length} permission${this.role.authorities.length !== 1 ? "s" : ""}:\n`,
             );
 
+            // Note: API returns `authority`, `title`, and `authorityUIGroup` as field names
             const authoritiesData = this.role.authorities.map(auth => ({
-                Name: auth.name,
-                "Display Name": auth.displayName || "-",
+                Name: auth.authority || auth.name || "-",
+                "Display Name": auth.title || auth.displayName || "-",
                 Description:
                     auth.description && auth.description.length > 60
                         ? auth.description.substring(0, 57) + "..."
                         : auth.description || "-",
-                Category: auth.category || "-",
+                Category:
+                    auth.authorityUIGroup ||
+                    auth.authorityGroup ||
+                    auth.category ||
+                    "-",
             }));
 
             console.log(TerminalFormatter.table(authoritiesData));
