@@ -1338,6 +1338,353 @@ export async function getGroup(groupId: number | string): Promise<DomoGroup> {
     return group;
 }
 
+// ============================================================
+// Audit Log API Functions
+// ============================================================
+
+/**
+ * List audit log entries from the Domo Activity Log
+ * Requires OAuth authentication with 'audit' scope
+ * @param params - Query parameters including required start and end timestamps
+ * @returns Array of audit log entries
+ */
+export async function listAuditLogs(
+    params: AuditListParams,
+): Promise<AuditEntry[]> {
+    const cacheManager = getCacheManager();
+
+    // Create cache key based on parameters
+    const cacheKey = `audit_logs_${params.start}_${params.end}_${params.limit ?? 50}_${params.offset ?? 0}_${params.objectType ?? ""}_${params.user ?? ""}`;
+
+    // Check cache first (short TTL for audit logs - 5 minutes)
+    const cached = await cacheManager.get<AuditEntry[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} audit entries from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    // Build query parameters
+    const apiParams: Record<string, string | number> = {
+        start: params.start,
+        end: params.end,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+    };
+
+    if (params.objectType) {
+        apiParams.objectType = params.objectType;
+    }
+    if (params.user) {
+        apiParams.user = params.user;
+    }
+
+    log.debug(`Fetching audit logs with params:`, apiParams);
+
+    const response = await client.get<AuditEntry[]>(
+        "/api/audit/v1/user-audits",
+        apiParams,
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 5 minutes (audit logs may change frequently)
+        await cacheManager.set(cacheKey, response, 300);
+        log.debug(`Fetched and cached ${response.length} audit entries`);
+        return response;
+    }
+
+    return [];
+}
+
+/**
+ * List available audit log object types for filtering
+ * Requires OAuth authentication with 'audit' scope
+ * @returns Array of object type strings
+ */
+export async function listAuditObjectTypes(): Promise<string[]> {
+    const cacheManager = getCacheManager();
+    const cacheKey = "audit_object_types";
+
+    // Check cache first (long TTL - 24 hours, rarely changes)
+    const cached = await cacheManager.get<string[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} audit object types from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug("Fetching audit object types");
+
+    const response = await client.get<string[]>(
+        "/api/audit/v1/user-audits/objectTypes",
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 24 hours (rarely changes)
+        await cacheManager.set(cacheKey, response, 86400);
+        log.debug(`Fetched and cached ${response.length} audit object types`);
+        return response;
+    }
+
+    return [];
+}
+
+// ============================================================
+// Roles API Functions (Read)
+// ============================================================
+
+/**
+ * List all roles in the Domo instance
+ * Requires OAuth authentication with 'user' scope
+ * @param params - Optional pagination parameters
+ * @returns Array of role objects
+ */
+export async function listRoles(
+    params: RoleListParams = {},
+): Promise<DomoRole[]> {
+    const cacheManager = getCacheManager();
+
+    // Create cache key based on parameters
+    const limit = params.limit ?? 50;
+    const offset = params.offset ?? 0;
+    const cacheKey = `roles_list_${limit}_${offset}`;
+
+    // Check cache first (1 hour TTL)
+    const cached = await cacheManager.get<DomoRole[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} roles from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug("Fetching roles from API");
+
+    const response = await client.get<{ roles: DomoRole[] } | DomoRole[]>(
+        "/api/authorization/v1/roles",
+    );
+
+    let roles: DomoRole[] = [];
+
+    // Handle both response formats (wrapped or unwrapped)
+    if (response && typeof response === "object" && "roles" in response) {
+        roles = response.roles;
+    } else if (Array.isArray(response)) {
+        roles = response;
+    }
+
+    if (roles.length > 0) {
+        // Cache for 1 hour
+        await cacheManager.set(cacheKey, roles, 3600);
+        log.debug(`Fetched and cached ${roles.length} roles`);
+    }
+
+    return roles;
+}
+
+/**
+ * Get a specific role by ID with full details including authorities
+ * Requires OAuth authentication with 'user' scope
+ * @param roleId - The role ID
+ * @returns The role object with authorities
+ */
+export async function getRole(roleId: number | string): Promise<DomoRole> {
+    const cacheManager = getCacheManager();
+    const cacheKey = `role_${roleId}`;
+
+    // Check cache first (1 hour TTL)
+    const cached = await cacheManager.get<DomoRole>(cacheKey);
+    if (cached) {
+        log.debug(`Returning role ${roleId} from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug(`Fetching role ${roleId} from API`);
+
+    const role = await client.get<DomoRole>(
+        `/api/authorization/v1/roles/${roleId}`,
+    );
+
+    // Cache for 1 hour
+    await cacheManager.set(cacheKey, role, 3600);
+    log.debug(`Fetched and cached role ${roleId}`);
+
+    return role;
+}
+
+/**
+ * List users assigned to a specific role
+ * Requires OAuth authentication with 'user' scope
+ * @param roleId - The role ID
+ * @param params - Optional pagination parameters
+ * @returns Array of role members
+ */
+export async function listRoleMembers(
+    roleId: number | string,
+    params: RoleMemberListParams = {},
+): Promise<DomoRoleMember[]> {
+    const cacheManager = getCacheManager();
+
+    // Create cache key based on parameters
+    const limit = params.limit ?? 50;
+    const offset = params.offset ?? 0;
+    const cacheKey = `role_members_${roleId}_${limit}_${offset}`;
+
+    // Check cache first (30 minute TTL - user assignments change)
+    const cached = await cacheManager.get<DomoRoleMember[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} role members from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug(`Fetching members for role ${roleId}`);
+
+    const response = await client.get<DomoRoleMember[]>(
+        `/api/authorization/v1/roles/${roleId}/users`,
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 30 minutes
+        await cacheManager.set(cacheKey, response, 1800);
+        log.debug(`Fetched and cached ${response.length} role members`);
+        return response;
+    }
+
+    return [];
+}
+
+/**
+ * List all available authorities (permissions) in the Domo instance
+ * Requires OAuth authentication with 'user' scope
+ * @returns Array of authority objects
+ */
+export async function listAuthorities(): Promise<DomoAuthority[]> {
+    const cacheManager = getCacheManager();
+    const cacheKey = "authorities_list";
+
+    // Check cache first (24 hour TTL - rarely changes)
+    const cached = await cacheManager.get<DomoAuthority[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} authorities from cache`);
+        return cached;
+    }
+
+    const client = getDomoClient();
+
+    log.debug("Fetching authorities from API");
+
+    const response = await client.get<DomoAuthority[]>(
+        "/api/authorization/v1/authorities",
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 24 hours (rarely changes)
+        await cacheManager.set(cacheKey, response, 86400);
+        log.debug(`Fetched and cached ${response.length} authorities`);
+        return response;
+    }
+
+    return [];
+}
+
+// ============================================================
+// Roles API Functions (Write - Admin Required)
+// ============================================================
+
+/**
+ * Create a new role
+ * Requires OAuth authentication with 'user' scope and Admin privileges
+ * @param name - The name of the new role
+ * @param description - Optional description for the role
+ * @returns The created role object
+ */
+export async function createRole(
+    name: string,
+    description?: string,
+): Promise<DomoRole> {
+    const client = getDomoClient();
+
+    const body: Record<string, unknown> = { name };
+    if (description) {
+        body.description = description;
+    }
+
+    log.debug(`Creating role: ${name}`);
+
+    const role = await client.post<DomoRole>(
+        "/api/authorization/v1/roles",
+        body,
+    );
+
+    // Invalidate roles list cache after creating a new role
+    const cacheManager = getCacheManager();
+    await cacheManager.invalidatePattern(/^roles_list_/);
+
+    log.debug(`Created role: ${role.id} - ${role.name}`);
+
+    return role;
+}
+
+/**
+ * Update permissions for a role (replaces all existing permissions)
+ * Requires OAuth authentication with 'user' scope and Admin privileges
+ * @param roleId - The role ID to update
+ * @param authorities - Array of authority names to assign to the role
+ */
+export async function updateRolePermissions(
+    roleId: number | string,
+    authorities: string[],
+): Promise<void> {
+    const client = getDomoClient();
+
+    log.debug(
+        `Updating permissions for role ${roleId}: ${authorities.length} authorities`,
+    );
+
+    await client.put(`/api/authorization/v1/roles/${roleId}/authorities`, {
+        authorities,
+    });
+
+    // Invalidate role cache after updating permissions
+    const cacheManager = getCacheManager();
+    await cacheManager.invalidate(`role_${roleId}`);
+
+    log.debug(`Updated permissions for role ${roleId}`);
+}
+
+/**
+ * Add a user to a role
+ * Requires OAuth authentication with 'user' scope and Admin privileges
+ * @param roleId - The role ID
+ * @param userId - The user ID to add to the role
+ */
+export async function addUserToRole(
+    roleId: number | string,
+    userId: number | string,
+): Promise<void> {
+    const client = getDomoClient();
+
+    log.debug(`Adding user ${userId} to role ${roleId}`);
+
+    await client.put(`/api/authorization/v1/roles/${roleId}/users`, {
+        userId: Number(userId),
+    });
+
+    // Invalidate role members cache after adding a user
+    const cacheManager = getCacheManager();
+    await cacheManager.invalidatePattern(
+        new RegExp(`^role_members_${roleId}_`),
+    );
+
+    log.debug(`Added user ${userId} to role ${roleId}`);
+}
+
 /**
  * Function to list Domo datasets
  * Uses the v1/datasets endpoint from the Domo API Schema
