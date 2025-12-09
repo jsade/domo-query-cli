@@ -740,6 +740,90 @@ export interface DomoGroupMember {
 }
 
 /**
+ * Audit log entry from Domo Activity Log API
+ * Based on /api/audit/v1/user-audits
+ */
+export interface AuditEntry {
+    userName: string;
+    userId: number;
+    userType: string;
+    actionType: "VIEWED" | "CREATED" | "UPDATED" | "DELETED" | string;
+    objectType: string;
+    time: number; // Milliseconds since epoch
+    eventText: string;
+    additionalComment?: string;
+}
+
+/**
+ * Parameters for listing audit log entries
+ */
+export interface AuditListParams {
+    start: number; // Required: ms since epoch
+    end: number; // Required: ms since epoch
+    limit?: number;
+    offset?: number;
+    objectType?: string; // Comma-separated object types filter
+    user?: string; // Filter by user ID
+}
+
+/**
+ * Domo role definition
+ * Based on /api/authorization/v1/roles
+ */
+export interface DomoRole {
+    id: number;
+    name: string;
+    description?: string;
+    isDefault?: boolean;
+    userCount?: number;
+    authorityCount?: number;
+    created?: number;
+    modified?: number;
+    authorities?: DomoAuthority[];
+}
+
+/**
+ * Domo authority (permission) definition
+ * Based on /api/authorization/v1/authorities
+ *
+ * Note: The API returns different property names than what might be expected:
+ * - `authority` is the unique identifier/name of the permission
+ * - `title` is the human-readable display name
+ * - `description` is the permission description
+ * - `authorityUIGroup` is the category/group the permission belongs to
+ */
+export interface DomoAuthority {
+    /** The unique identifier/name of the authority (e.g., "MANAGE_ALL_CARDS") */
+    authority: string;
+    /** Human-readable display name (e.g., "Manage All Cards") */
+    title?: string;
+    /** Description of what this authority allows */
+    description?: string;
+    /** Category/group this authority belongs to (e.g., "COMPANY", "DATA") */
+    authorityUIGroup?: string;
+
+    // Legacy property names for backward compatibility with existing code
+    /** @deprecated Use `authority` instead */
+    name?: string;
+    /** @deprecated Use `title` instead */
+    displayName?: string;
+    /** @deprecated Use `authorityUIGroup` instead */
+    category?: string;
+    /** @deprecated Use `authorityUIGroup` instead */
+    authorityGroup?: string;
+}
+
+/**
+ * Domo role member (user assigned to a role)
+ * Based on Roles Governance API roles users endpoint
+ */
+export interface DomoRoleMember {
+    id: number;
+    name: string;
+    email?: string;
+}
+
+/**
  * Parameters for listing users
  */
 export interface UserListParams {
@@ -1259,6 +1343,428 @@ export async function getGroup(groupId: number | string): Promise<DomoGroup> {
     log.debug(`Fetched and cached group ${groupId}`);
 
     return group;
+}
+
+// ============================================================
+// Audit Log API Functions
+// ============================================================
+
+/**
+ * List audit log entries from the Domo Activity Log
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST)
+ * @param params - Query parameters including required start and end timestamps
+ * @returns Array of audit log entries
+ */
+export async function listAuditLogs(
+    params: AuditListParams,
+): Promise<AuditEntry[]> {
+    // Audit API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Audit log API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const cacheManager = getCacheManager();
+
+    // Create cache key based on parameters
+    const cacheKey = `audit_logs_${params.start}_${params.end}_${params.limit ?? 50}_${params.offset ?? 0}_${params.objectType ?? ""}_${params.user ?? ""}`;
+
+    // Check cache first (short TTL for audit logs - 5 minutes)
+    const cached = await cacheManager.get<AuditEntry[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} audit entries from cache`);
+        return cached;
+    }
+
+    // Build query parameters
+    const apiParams: Record<string, string | number> = {
+        start: params.start,
+        end: params.end,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+    };
+
+    if (params.objectType) {
+        apiParams.objectType = params.objectType;
+    }
+    if (params.user) {
+        apiParams.user = params.user;
+    }
+
+    log.debug(`Fetching audit logs with params:`, apiParams);
+
+    const response = await client.get<AuditEntry[]>(
+        "/api/audit/v1/user-audits",
+        apiParams,
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 5 minutes (audit logs may change frequently)
+        await cacheManager.set(cacheKey, response, 300);
+        log.debug(`Fetched and cached ${response.length} audit entries`);
+        return response;
+    }
+
+    return [];
+}
+
+/**
+ * List available audit log object types for filtering
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST)
+ * @returns Array of object type strings
+ */
+export async function listAuditObjectTypes(): Promise<string[]> {
+    // Audit API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Audit object types API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const cacheManager = getCacheManager();
+    const cacheKey = "audit_object_types";
+
+    // Check cache first (long TTL - 24 hours, rarely changes)
+    const cached = await cacheManager.get<string[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} audit object types from cache`);
+        return cached;
+    }
+
+    log.debug("Fetching audit object types");
+
+    const response = await client.get<string[]>(
+        "/api/audit/v1/user-audits/objectTypes",
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 24 hours (rarely changes)
+        await cacheManager.set(cacheKey, response, 86400);
+        log.debug(`Fetched and cached ${response.length} audit object types`);
+        return response;
+    }
+
+    return [];
+}
+
+// ============================================================
+// Roles API Functions (Read)
+// ============================================================
+
+/**
+ * List all roles in the Domo instance
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST)
+ * Note: This endpoint does not support pagination - it returns all roles
+ * @returns Array of role objects
+ */
+export async function listRoles(): Promise<DomoRole[]> {
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Roles API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const cacheManager = getCacheManager();
+    const cacheKey = "roles_list";
+
+    // Check cache first (1 hour TTL)
+    const cached = await cacheManager.get<DomoRole[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} roles from cache`);
+        return cached;
+    }
+
+    log.debug("Fetching roles from API");
+
+    const response = await client.get<{ roles: DomoRole[] } | DomoRole[]>(
+        "/api/authorization/v1/roles",
+    );
+
+    let roles: DomoRole[] = [];
+
+    // Handle both response formats (wrapped or unwrapped)
+    if (response && typeof response === "object" && "roles" in response) {
+        roles = response.roles;
+    } else if (Array.isArray(response)) {
+        roles = response;
+    }
+
+    if (roles.length > 0) {
+        // Cache for 1 hour
+        await cacheManager.set(cacheKey, roles, 3600);
+        log.debug(`Fetched and cached ${roles.length} roles`);
+    }
+
+    return roles;
+}
+
+/**
+ * Get a specific role by ID with full details including authorities
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST)
+ * @param roleId - The role ID
+ * @returns The role object with authorities
+ */
+export async function getRole(roleId: number | string): Promise<DomoRole> {
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Roles API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const cacheManager = getCacheManager();
+    const cacheKey = `role_${roleId}`;
+
+    // Check cache first (1 hour TTL)
+    const cached = await cacheManager.get<DomoRole>(cacheKey);
+    if (cached) {
+        log.debug(`Returning role ${roleId} from cache`);
+        return cached;
+    }
+
+    log.debug(`Fetching role ${roleId} from API`);
+
+    const role = await client.get<DomoRole>(
+        `/api/authorization/v1/roles/${roleId}`,
+    );
+
+    // Cache for 1 hour
+    await cacheManager.set(cacheKey, role, 3600);
+    log.debug(`Fetched and cached role ${roleId}`);
+
+    return role;
+}
+
+/**
+ * List users assigned to a specific role
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST)
+ * Note: This endpoint does not support pagination - it returns all role members
+ * @param roleId - The role ID
+ * @returns Array of role members
+ */
+export async function listRoleMembers(
+    roleId: number | string,
+): Promise<DomoRoleMember[]> {
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Role members API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const cacheManager = getCacheManager();
+    const cacheKey = `role_members_${roleId}`;
+
+    // Check cache first (30 minute TTL - user assignments change)
+    const cached = await cacheManager.get<DomoRoleMember[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} role members from cache`);
+        return cached;
+    }
+
+    log.debug(`Fetching members for role ${roleId}`);
+
+    const response = await client.get<DomoRoleMember[]>(
+        `/api/authorization/v1/roles/${roleId}/users`,
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 30 minutes
+        await cacheManager.set(cacheKey, response, 1800);
+        log.debug(`Fetched and cached ${response.length} role members`);
+        return response;
+    }
+
+    return [];
+}
+
+/**
+ * List all available authorities (permissions) in the Domo instance
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST)
+ * @returns Array of authority objects
+ */
+export async function listAuthorities(): Promise<DomoAuthority[]> {
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Authorities API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const cacheManager = getCacheManager();
+    const cacheKey = "authorities_list";
+
+    // Check cache first (24 hour TTL - rarely changes)
+    const cached = await cacheManager.get<DomoAuthority[]>(cacheKey);
+    if (cached) {
+        log.debug(`Returning ${cached.length} authorities from cache`);
+        return cached;
+    }
+
+    log.debug("Fetching authorities from API");
+
+    const response = await client.get<DomoAuthority[]>(
+        "/api/authorization/v1/authorities",
+    );
+
+    if (Array.isArray(response)) {
+        // Cache for 24 hours (rarely changes)
+        await cacheManager.set(cacheKey, response, 86400);
+        log.debug(`Fetched and cached ${response.length} authorities`);
+        return response;
+    }
+
+    return [];
+}
+
+// ============================================================
+// Roles API Functions (Write - Admin Required)
+// ============================================================
+
+/**
+ * Create a new role
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST) with Admin privileges
+ * @param name - The name of the new role
+ * @param description - Optional description for the role
+ * @returns The created role object
+ */
+export async function createRole(
+    name: string,
+    description?: string,
+): Promise<DomoRole> {
+    if (!name || name.trim() === "") {
+        throw new Error("Role name is required and cannot be empty");
+    }
+
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Create role API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    const body: Record<string, unknown> = { name };
+    if (description) {
+        body.description = description;
+    }
+
+    log.debug(`Creating role: ${name}`);
+
+    const role = await client.post<DomoRole>(
+        "/api/authorization/v1/roles",
+        body,
+    );
+
+    // Invalidate roles list cache after creating a new role
+    const cacheManager = getCacheManager();
+    await cacheManager.invalidatePattern(/^roles_list_/);
+
+    log.debug(`Created role: ${role.id} - ${role.name}`);
+
+    return role;
+}
+
+/**
+ * Update permissions for a role (replaces all existing permissions)
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST) with Admin privileges
+ * @param roleId - The role ID to update
+ * @param authorities - Array of authority names to assign to the role
+ */
+export async function updateRolePermissions(
+    roleId: number | string,
+    authorities: string[],
+): Promise<void> {
+    if (roleId === "" || roleId === null || roleId === undefined) {
+        throw new Error("roleId is required");
+    }
+    if (!Array.isArray(authorities)) {
+        throw new Error("authorities must be an array");
+    }
+    if (authorities.length === 0) {
+        log.warn(
+            `updateRolePermissions called with empty authorities array for role ${roleId} - this will remove all permissions`,
+        );
+    }
+
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Update role permissions API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    log.debug(
+        `Updating permissions for role ${roleId}: ${authorities.length} authorities`,
+    );
+
+    await client.put(`/api/authorization/v1/roles/${roleId}/authorities`, {
+        authorities,
+    });
+
+    // Invalidate role cache after updating permissions
+    const cacheManager = getCacheManager();
+    await cacheManager.invalidate(`role_${roleId}`);
+
+    log.debug(`Updated permissions for role ${roleId}`);
+}
+
+/**
+ * Add a user to a role
+ * Requires API token authentication (DOMO_API_TOKEN and DOMO_API_HOST) with Admin privileges
+ * @param roleId - The role ID
+ * @param userId - The user ID to add to the role
+ */
+export async function addUserToRole(
+    roleId: number | string,
+    userId: number | string,
+): Promise<void> {
+    if (roleId === "" || roleId === null || roleId === undefined) {
+        throw new Error("roleId is required");
+    }
+    if (userId === "" || userId === null || userId === undefined) {
+        throw new Error("userId is required");
+    }
+
+    // Roles API requires API token and customer domain
+    const client = getV3Client();
+    if (!client) {
+        throw new Error(
+            "Add user to role API requires API token and DOMO_API_HOST configuration. " +
+                "Set DOMO_API_TOKEN and DOMO_API_HOST environment variables.",
+        );
+    }
+
+    log.debug(`Adding user ${userId} to role ${roleId}`);
+
+    await client.put(`/api/authorization/v1/roles/${roleId}/users`, {
+        userId: Number(userId),
+    });
+
+    // Invalidate role members cache after adding a user
+    const cacheManager = getCacheManager();
+    await cacheManager.invalidatePattern(
+        new RegExp(`^role_members_${roleId}_`),
+    );
+
+    log.debug(`Added user ${userId} to role ${roleId}`);
 }
 
 /**

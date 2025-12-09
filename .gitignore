@@ -70,6 +70,7 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
+.envrc
 
 # IDEs
 .vscode/
@@ -80,6 +81,8 @@ web_modules/
 # build output
 dist
 dist/**
+exports
+exports/**
 
 # yarn v2
 .yarn/cache
@@ -103,6 +106,3 @@ local
 # Code signing files (local only)
 entitlements.plist
 sign-local.sh
-
-exports/group_1324037627_2025_12_03_20_13_06_845.json
-exports/user_871428330_2025_12_03_20_13_06_842.json

@@ -33,6 +33,15 @@ import { ListUsersCommand } from "./ListUsersCommand";
 import { GetUserCommand } from "./GetUserCommand";
 import { ListGroupsCommand } from "./ListGroupsCommand";
 import { GetGroupCommand } from "./GetGroupCommand";
+import { ListAuditLogsCommand } from "./ListAuditLogsCommand";
+import { ListAuditObjectTypesCommand } from "./ListAuditObjectTypesCommand";
+import { ListRoleMembersCommand } from "./ListRoleMembersCommand";
+import { CreateRoleCommand } from "./CreateRoleCommand";
+import { ListRolesCommand } from "./ListRolesCommand";
+import { GetRoleCommand } from "./GetRoleCommand";
+import { ListAuthoritiesCommand } from "./ListAuthoritiesCommand";
+import { UpdateRolePermissionsCommand } from "./UpdateRolePermissionsCommand";
+import { AddUserToRoleCommand } from "./AddUserToRoleCommand";
 
 /**
  * Factory class for creating and managing command instances
@@ -191,6 +200,41 @@ export class CommandFactory {
 
         const getGroupCommand = new GetGroupCommand();
         this.commands.set(getGroupCommand.name, getGroupCommand);
+
+        // Register audit log commands
+        const listAuditLogsCommand = new ListAuditLogsCommand();
+        this.commands.set(listAuditLogsCommand.name, listAuditLogsCommand);
+
+        const listAuditObjectTypesCommand = new ListAuditObjectTypesCommand();
+        this.commands.set(
+            listAuditObjectTypesCommand.name,
+            listAuditObjectTypesCommand,
+        );
+
+        // Register role commands
+        const listRolesCommand = new ListRolesCommand();
+        this.commands.set(listRolesCommand.name, listRolesCommand);
+
+        const getRoleCommand = new GetRoleCommand();
+        this.commands.set(getRoleCommand.name, getRoleCommand);
+
+        const listAuthoritiesCommand = new ListAuthoritiesCommand();
+        this.commands.set(listAuthoritiesCommand.name, listAuthoritiesCommand);
+
+        const listRoleMembersCommand = new ListRoleMembersCommand();
+        this.commands.set(listRoleMembersCommand.name, listRoleMembersCommand);
+
+        const createRoleCommand = new CreateRoleCommand();
+        this.commands.set(createRoleCommand.name, createRoleCommand);
+
+        const updateRolePermissionsCommand = new UpdateRolePermissionsCommand();
+        this.commands.set(
+            updateRolePermissionsCommand.name,
+            updateRolePermissionsCommand,
+        );
+
+        const addUserToRoleCommand = new AddUserToRoleCommand();
+        this.commands.set(addUserToRoleCommand.name, addUserToRoleCommand);
 
         // Help command needs access to all commands and must be registered last
         const helpCommand = new HelpCommand(this.commands);

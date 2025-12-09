@@ -34,7 +34,7 @@ export class TerminalFormatter {
         const colWidths: number[] = headers.map((header, index) => {
             const headerWidth = showHeaders ? header.length : 0;
             const maxDataWidth = Math.max(
-                ...data.map(row => String(row[header] || "").length),
+                ...data.map(row => String(row[header] ?? "").length),
             );
             return (
                 options?.colWidths?.[index] ||
@@ -100,7 +100,7 @@ export class TerminalFormatter {
         data.forEach(row => {
             const rowLine = headers
                 .map((header, i) => {
-                    let value = String(row[header] || "");
+                    let value = String(row[header] ?? "");
                     const isLastColumn = i === headers.length - 1;
 
                     // Truncate if exceeds column width
