@@ -740,6 +740,83 @@ export interface DomoGroupMember {
 }
 
 /**
+ * Audit log entry from Domo Activity Log API
+ * Based on /api/audit/v1/user-audits
+ */
+export interface AuditEntry {
+    userName: string;
+    userId: number;
+    userType: string;
+    actionType: "VIEWED" | "CREATED" | "UPDATED" | "DELETED" | string;
+    objectType: string;
+    time: number; // Milliseconds since epoch
+    eventText: string;
+    additionalComment?: string;
+}
+
+/**
+ * Parameters for listing audit log entries
+ */
+export interface AuditListParams {
+    start: number; // Required: ms since epoch
+    end: number; // Required: ms since epoch
+    limit?: number;
+    offset?: number;
+    objectType?: string; // Comma-separated object types filter
+    user?: string; // Filter by user ID
+}
+
+/**
+ * Domo role definition
+ * Based on /api/authorization/v1/roles
+ */
+export interface DomoRole {
+    id: number;
+    name: string;
+    description?: string;
+    isDefault?: boolean;
+    memberCount?: number;
+    authorities?: DomoAuthority[];
+}
+
+/**
+ * Domo authority (permission) definition
+ * Based on /api/authorization/v1/authorities
+ */
+export interface DomoAuthority {
+    name: string;
+    displayName?: string;
+    description?: string;
+    category?: string;
+}
+
+/**
+ * Domo role member (user assigned to a role)
+ * Based on Roles Governance API roles users endpoint
+ */
+export interface DomoRoleMember {
+    id: number;
+    name: string;
+    email?: string;
+}
+
+/**
+ * Parameters for listing roles
+ */
+export interface RoleListParams {
+    limit?: number;
+    offset?: number;
+}
+
+/**
+ * Parameters for listing role members
+ */
+export interface RoleMemberListParams {
+    limit?: number;
+    offset?: number;
+}
+
+/**
  * Parameters for listing users
  */
 export interface UserListParams {
