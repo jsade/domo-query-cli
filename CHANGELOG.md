@@ -1,3 +1,18 @@
+# [1.7.0](https://github.com/jsade/domo-query-cli/compare/v1.6.0...v1.7.0) (2025-12-09)
+
+
+### Bug Fixes
+
+* **deps:** downgrade inquirer to 9.3.7 for autocomplete compatibility ([d3b10cb](https://github.com/jsade/domo-query-cli/commit/d3b10cb1beba91767abb01c94442ade56028ac99))
+* update Domo role and authority interfaces ([c99b94b](https://github.com/jsade/domo-query-cli/commit/c99b94bcea23a28e183803ce3bb378234d4bb0bb))
+
+
+### Features
+
+* **api:** add API functions for audit logs and roles management ([9e6ce29](https://github.com/jsade/domo-query-cli/commit/9e6ce2901853eb0dd2518337e55bcbdc433c539a))
+* **api:** add type definitions and date utilities for audit logs and roles ([139d7e5](https://github.com/jsade/domo-query-cli/commit/139d7e5a8e35ef23edd107cf296377b62f79f486))
+* **commands:** add 9 audit log and role management commands ([616f350](https://github.com/jsade/domo-query-cli/commit/616f350ce4c8f43373fe42a4fe9f7bcf25f35c52))
+
 # [1.6.0](https://github.com/jsade/domo-query-cli/compare/v1.5.0...v1.6.0) (2025-12-08)
 
 ### Features
