@@ -801,22 +801,6 @@ export interface DomoRoleMember {
 }
 
 /**
- * Parameters for listing roles
- */
-export interface RoleListParams {
-    limit?: number;
-    offset?: number;
-}
-
-/**
- * Parameters for listing role members
- */
-export interface RoleMemberListParams {
-    limit?: number;
-    offset?: number;
-}
-
-/**
  * Parameters for listing users
  */
 export interface UserListParams {
@@ -1438,18 +1422,12 @@ export async function listAuditObjectTypes(): Promise<string[]> {
 /**
  * List all roles in the Domo instance
  * Requires OAuth authentication with 'user' scope
- * @param params - Optional pagination parameters
+ * Note: This endpoint does not support pagination - it returns all roles
  * @returns Array of role objects
  */
-export async function listRoles(
-    params: RoleListParams = {},
-): Promise<DomoRole[]> {
+export async function listRoles(): Promise<DomoRole[]> {
     const cacheManager = getCacheManager();
-
-    // Create cache key based on parameters
-    const limit = params.limit ?? 50;
-    const offset = params.offset ?? 0;
-    const cacheKey = `roles_list_${limit}_${offset}`;
+    const cacheKey = "roles_list";
 
     // Check cache first (1 hour TTL)
     const cached = await cacheManager.get<DomoRole[]>(cacheKey);
@@ -1519,20 +1497,15 @@ export async function getRole(roleId: number | string): Promise<DomoRole> {
 /**
  * List users assigned to a specific role
  * Requires OAuth authentication with 'user' scope
+ * Note: This endpoint does not support pagination - it returns all role members
  * @param roleId - The role ID
- * @param params - Optional pagination parameters
  * @returns Array of role members
  */
 export async function listRoleMembers(
     roleId: number | string,
-    params: RoleMemberListParams = {},
 ): Promise<DomoRoleMember[]> {
     const cacheManager = getCacheManager();
-
-    // Create cache key based on parameters
-    const limit = params.limit ?? 50;
-    const offset = params.offset ?? 0;
-    const cacheKey = `role_members_${roleId}_${limit}_${offset}`;
+    const cacheKey = `role_members_${roleId}`;
 
     // Check cache first (30 minute TTL - user assignments change)
     const cached = await cacheManager.get<DomoRoleMember[]>(cacheKey);
@@ -1608,6 +1581,10 @@ export async function createRole(
     name: string,
     description?: string,
 ): Promise<DomoRole> {
+    if (!name || name.trim() === "") {
+        throw new Error("Role name is required and cannot be empty");
+    }
+
     const client = getDomoClient();
 
     const body: Record<string, unknown> = { name };
@@ -1641,6 +1618,18 @@ export async function updateRolePermissions(
     roleId: number | string,
     authorities: string[],
 ): Promise<void> {
+    if (roleId === "" || roleId === null || roleId === undefined) {
+        throw new Error("roleId is required");
+    }
+    if (!Array.isArray(authorities)) {
+        throw new Error("authorities must be an array");
+    }
+    if (authorities.length === 0) {
+        log.warn(
+            `updateRolePermissions called with empty authorities array for role ${roleId} - this will remove all permissions`,
+        );
+    }
+
     const client = getDomoClient();
 
     log.debug(
@@ -1668,6 +1657,13 @@ export async function addUserToRole(
     roleId: number | string,
     userId: number | string,
 ): Promise<void> {
+    if (roleId === "" || roleId === null || roleId === undefined) {
+        throw new Error("roleId is required");
+    }
+    if (userId === "" || userId === null || userId === undefined) {
+        throw new Error("userId is required");
+    }
+
     const client = getDomoClient();
 
     log.debug(`Adding user ${userId} to role ${roleId}`);

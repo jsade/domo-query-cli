@@ -159,6 +159,8 @@ function formatRelativeTime(timestamp: number): string {
 
 /**
  * Get the start of the current day in milliseconds
+ * @param date - The date to get start of day for (defaults to current date)
+ * @returns Timestamp in milliseconds representing 00:00:00.000 of the given day
  */
 export function getStartOfDay(date: Date = new Date()): number {
     const start = new Date(date);
@@ -168,6 +170,8 @@ export function getStartOfDay(date: Date = new Date()): number {
 
 /**
  * Get the end of the current day in milliseconds
+ * @param date - The date to get end of day for (defaults to current date)
+ * @returns Timestamp in milliseconds representing 23:59:59.999 of the given day
  */
 export function getEndOfDay(date: Date = new Date()): number {
     const end = new Date(date);
