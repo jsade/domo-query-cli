@@ -80,8 +80,8 @@ export function initializeConfig(): void {
         return;
     }
 
-    // Load environment variables from .env file
-    dotenv.config();
+    // Load environment variables from .env file (quiet mode to suppress dotenv@17 verbose output)
+    dotenv.config({ quiet: true });
 
     // Helper function to expand tilde in paths
     const expandTilde = (filepath: string): string => {
@@ -91,16 +91,16 @@ export function initializeConfig(): void {
         return filepath;
     };
 
-    // Set export path with environment variable validation
+    // Set export path with environment variable handling
     if (process.env.DOMO_EXPORT_PATH) {
         // Expand tilde if present
-        const expandedPath = expandTilde(process.env.DOMO_EXPORT_PATH);
+        let expandedPath = expandTilde(process.env.DOMO_EXPORT_PATH);
 
+        // Convert relative paths to absolute (relative to cwd)
         if (!path.isAbsolute(expandedPath)) {
-            throw new Error(
-                `DOMO_EXPORT_PATH must be an absolute path. Got: "${process.env.DOMO_EXPORT_PATH}" (expanded: "${expandedPath}")`,
-            );
+            expandedPath = path.resolve(process.cwd(), expandedPath);
         }
+
         domoConfig.exportPath = expandedPath;
         log.debug(`DOMO_EXPORT_PATH set to: ${domoConfig.exportPath}`);
     } else {
@@ -114,13 +114,13 @@ export function initializeConfig(): void {
     // Set output path for file-based command output (admin control for MCP)
     if (process.env.DOMO_OUTPUT_PATH) {
         // Expand tilde if present
-        const expandedPath = expandTilde(process.env.DOMO_OUTPUT_PATH);
+        let expandedPath = expandTilde(process.env.DOMO_OUTPUT_PATH);
 
+        // Convert relative paths to absolute (relative to cwd)
         if (!path.isAbsolute(expandedPath)) {
-            throw new Error(
-                `DOMO_OUTPUT_PATH must be an absolute path. Got: "${process.env.DOMO_OUTPUT_PATH}" (expanded: "${expandedPath}")`,
-            );
+            expandedPath = path.resolve(process.cwd(), expandedPath);
         }
+
         domoConfig.outputPath = expandedPath;
         log.debug(`DOMO_OUTPUT_PATH set to: ${domoConfig.outputPath}`);
     }
