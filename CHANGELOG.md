@@ -1,3 +1,10 @@
+## [1.7.1](https://github.com/jsade/domo-query-cli/compare/v1.7.0...v1.7.1) (2025-12-16)
+
+
+### Bug Fixes
+
+* suppress dotenv verbose output and allow relative paths for export config ([ce5174c](https://github.com/jsade/domo-query-cli/commit/ce5174c10684b1334fa0bd5347f4ffa9cfabc149))
+
 # [1.7.0](https://github.com/jsade/domo-query-cli/compare/v1.6.0...v1.7.0) (2025-12-09)
 
 
