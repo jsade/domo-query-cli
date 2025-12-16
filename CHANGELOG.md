@@ -1,3 +1,10 @@
+## [1.7.2](https://github.com/jsade/domo-query-cli/compare/v1.7.1...v1.7.2) (2025-12-16)
+
+
+### Bug Fixes
+
+* resolve pkg binary runtime error ([836d0fd](https://github.com/jsade/domo-query-cli/commit/836d0fdbcadd74977616f86a31eda8d42e118c29))
+
 ## [1.7.1](https://github.com/jsade/domo-query-cli/compare/v1.7.0...v1.7.1) (2025-12-16)
 
 
