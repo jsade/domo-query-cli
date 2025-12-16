@@ -319,14 +319,14 @@ export class HelpCommand extends BaseCommand {
                 "generate-lineage-report",
             ],
             "Dataflow Operations": [
-                // Dataflow management commands
                 "list-dataflow-executions",
                 "get-dataflow-execution",
                 "execute-dataflow",
             ],
             Visualization: ["render-card"],
             "Cache Management": ["cache-status"],
-            System: ["help", "clear", "exit"],
+            System: ["help"],
+            Shell: ["clear", "exit"], // Interactive shell only
         };
 
         // Categorize commands

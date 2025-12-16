@@ -183,8 +183,29 @@ export class NonInteractiveExecutor {
         );
         console.log("\nAvailable Commands:");
 
+        // Filter out interactive-only commands
+        const interactiveOnly = new Set(["exit", "clear"]);
+
         this.commandFactory.getAllCommands().forEach((cmd, name) => {
-            console.log(`  ${chalk.cyan(name.padEnd(25))} ${cmd.description}`);
+            if (!interactiveOnly.has(name)) {
+                console.log(
+                    `  ${chalk.cyan(name.padEnd(25))} ${cmd.description}`,
+                );
+            }
+        });
+
+        // Show interactive-only commands with note
+        console.log(
+            chalk.dim(
+                "\nInteractive Shell Commands (not available in non-interactive mode):",
+            ),
+        );
+        this.commandFactory.getAllCommands().forEach((cmd, name) => {
+            if (interactiveOnly.has(name)) {
+                console.log(
+                    `  ${chalk.dim(name.padEnd(25))} ${cmd.description}`,
+                );
+            }
         });
 
         console.log("\nFor interactive mode, run without any arguments.");
