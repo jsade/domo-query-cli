@@ -8,11 +8,11 @@ fi
 
 echo "✅ Tests passed!"
 
-echo "🎨 Running linter and formatter..."
-yarn lint:fix && yarn format && yarn typecheck
+echo "🎨 Running linter, typecheck, and formatter..."
+yarn lint:fix && yarn typecheck && yarn format
 
 if [ $? -ne 0 ]; then
-  echo "❌ Linting/formatting failed! Please fix the issues."
+  echo "❌ Fail in lint or typecheck! Please fix them before committing."
   exit 1
 fi
 
