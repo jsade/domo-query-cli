@@ -87,7 +87,7 @@ console.log(
 
 try {
     execSync(
-        `npx pkg dist/main.js -t ${currentPlatform.target} -o release/${currentPlatform.output} --compress GZip`,
+        `npx pkg dist/main.cjs -t ${currentPlatform.target} -o release/${currentPlatform.output} --compress GZip`,
         {
             stdio: "inherit",
         },

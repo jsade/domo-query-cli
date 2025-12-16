@@ -11,7 +11,7 @@ await esbuild.build({
     platform: "node",
     target: "node18",
     format: "cjs",
-    outfile: "dist/main.js",
+    outfile: "dist/main.cjs",
     // Don't mark dependencies as external - bundle them
     external: [],
     sourcemap: true,
