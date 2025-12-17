@@ -1,3 +1,10 @@
+## [1.7.3](https://github.com/jsade/domo-query-cli/compare/v1.7.2...v1.7.3) (2025-12-17)
+
+
+### Bug Fixes
+
+* **deps:** resolve js-yaml prototype pollution vulnerability (CVE-2025-64718) ([0ddad3e](https://github.com/jsade/domo-query-cli/commit/0ddad3e00b1e5273a2b1de6b745cb9707f6c08fe))
+
 ## [1.7.2](https://github.com/jsade/domo-query-cli/compare/v1.7.1...v1.7.2) (2025-12-16)
 
 
