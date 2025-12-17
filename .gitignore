@@ -16,6 +16,7 @@ CLAUDE.md
 .claude
 .specify
 CLI_LLM.md
+AUTH.md
 
 # Runtime data
 pids
@@ -106,3 +107,4 @@ local
 # Code signing files (local only)
 entitlements.plist
 sign-local.sh
+

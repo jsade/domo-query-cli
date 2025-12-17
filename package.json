@@ -1,10 +1,8 @@
 {
     "author": "jsade",
     "homepage": "https://github.com/jsade/domo-query-cli",
-    "config": {
-        "commitizen": {
-            "path": "cz-conventional-changelog"
-        }
+    "resolutions": {
+        "glob": "^10.5.0"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.24.3",
@@ -23,6 +21,8 @@
     },
     "description": "Domo Query CLI - Interactive command-line tool for querying Domo data sources and dataflows",
     "devDependencies": {
+        "@commitlint/cli": "^20.2.0",
+        "@commitlint/config-conventional": "^20.2.0",
         "@eslint/js": "^9.39.1",
         "@eslint/json": "^0.14.0",
         "@eslint/markdown": "^7.5.1",
@@ -41,8 +41,6 @@
         "@vitest/coverage-v8": "4.0.15",
         "@vitest/utils": "^4.0.15",
         "@yarnpkg/sdks": "^3.2.3",
-        "commitizen": "^4.3.0",
-        "cz-conventional-changelog": "^3.3.0",
         "depcheck": "^1.4.7",
         "esbuild": "^0.27.1",
         "eslint": "^9.39.1",
@@ -73,7 +71,6 @@
         "build:mcp": "yarn mcp:build",
         "build:all": "yarn build:dist && yarn build:mcp",
         "check": "yarn format && yarn lint:fix && yarn tsc --noEmit",
-        "commit": "cz",
         "dev": "tsc --watch --noEmit",
         "format": "prettier --write .",
         "format:posttooluse": "prettier --write ",
