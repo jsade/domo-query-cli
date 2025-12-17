@@ -2,7 +2,8 @@
     "author": "jsade",
     "homepage": "https://github.com/jsade/domo-query-cli",
     "resolutions": {
-        "glob": "^10.5.0"
+        "glob": "^10.5.0",
+        "js-yaml": "^4.1.1"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.24.3",
