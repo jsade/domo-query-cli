@@ -6,19 +6,19 @@
         "js-yaml": "^4.1.1"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.24.3",
+        "@modelcontextprotocol/sdk": "^1.25.1",
         "@types/validator": "^13.15.10",
         "chalk": "^5.6.2",
         "dotenv": "^17.2.3",
         "https-proxy-agent": "^7.0.6",
-        "inquirer": "9.3.7",
+        "inquirer": "13.1.0",
         "inquirer-autocomplete-prompt": "3.0.1",
         "is-interactive": "^2.0.0",
         "node-fetch": "^3.3.2",
         "ora": "^9.0.0",
         "supports-color": "10.2.2",
         "tslog": "^4.10.2",
-        "validator": "^13.15.23"
+        "validator": "^13.15.26"
     },
     "description": "Domo Query CLI - Interactive command-line tool for querying Domo data sources and dataflows",
     "devDependencies": {
