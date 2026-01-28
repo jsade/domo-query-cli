@@ -1,3 +1,10 @@
+## [1.7.4](https://github.com/jsade/domo-query-cli/compare/v1.7.3...v1.7.4) (2026-01-28)
+
+
+### Bug Fixes
+
+* **mcp:** centralize env loading to suppress dotenv stdout pollution ([8cb33e1](https://github.com/jsade/domo-query-cli/commit/8cb33e1e30ec40df0278df6506d7a0ab8f573f5e))
+
 ## [1.7.3](https://github.com/jsade/domo-query-cli/compare/v1.7.2...v1.7.3) (2025-12-17)
 
 
