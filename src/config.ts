@@ -1,7 +1,7 @@
-import * as dotenv from "dotenv";
 import { homedir } from "node:os";
 import * as path from "node:path";
 import * as process from "node:process";
+import { loadEnvFiles } from "./utils/envLoader.ts";
 import { log } from "./utils/logger.ts";
 
 /**
@@ -80,8 +80,8 @@ export function initializeConfig(): void {
         return;
     }
 
-    // Load environment variables from .env file (quiet mode to suppress dotenv@17 verbose output)
-    dotenv.config({ quiet: true });
+    // Load environment variables from .env file
+    loadEnvFiles([path.join(process.cwd(), ".env")]);
 
     // Helper function to expand tilde in paths
     const expandTilde = (filepath: string): string => {

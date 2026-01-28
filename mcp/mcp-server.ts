@@ -8,24 +8,15 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { NonInteractiveExecutor } from "../src/NonInteractiveExecutor.js";
 import { SmartResponseBuilder } from "../src/utils/SmartResponseBuilder.js";
-import { config } from "dotenv";
+import { loadEnvFiles } from "../src/utils/envLoader.js";
 import { resolve } from "path";
 import { homedir } from "os";
-import { existsSync } from "fs";
 
 // Load environment variables from multiple possible locations
 function loadEnvConfig() {
-    // First try local .env
     const localEnv = resolve(process.cwd(), ".env");
-    if (existsSync(localEnv)) {
-        config({ path: localEnv });
-    }
-
-    // Then try global .domo-cli/.env
     const globalEnv = resolve(homedir(), ".domo-cli", ".env");
-    if (existsSync(globalEnv)) {
-        config({ path: globalEnv });
-    }
+    loadEnvFiles([localEnv, globalEnv]);
 
     // Validate required environment variables
     const required = ["DOMO_API_HOST", "DOMO_API_TOKEN"];
