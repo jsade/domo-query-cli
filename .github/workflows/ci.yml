@@ -1,0 +1,66 @@
+name: CI
+
+on:
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    ci:
+        name: CI
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: "22"
+
+            - name: Enable Corepack
+              run: corepack enable
+
+            - name: Install dependencies
+              run: yarn install --immutable
+
+            - name: Lint
+              run: yarn lint
+
+            - name: Run tests
+              run: yarn test
+
+            - name: Build project
+              run: yarn build
+
+    dependabot-auto-merge:
+        name: Dependabot auto-merge
+        needs: ci
+        runs-on: ubuntu-latest
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        permissions:
+            contents: write
+            pull-requests: write
+        steps:
+            - name: Fetch Dependabot metadata
+              id: metadata
+              uses: dependabot/fetch-metadata@v2
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # Major version bumps are left for manual review
+            - name: Merge patch and minor updates
+              if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+              # Only merge the exact commit CI tested; fails if the PR was updated since
+              run: gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
+              env:
+                  PR_URL: ${{ github.event.pull_request.html_url }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
