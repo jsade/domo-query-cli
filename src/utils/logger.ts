@@ -139,10 +139,16 @@ const logToFile = (logObject: ILogObj) => {
 // Create a logger with hidden output
 export const log = new Logger<ILogObj>({
     name: "domo-app",
-    prettyLogTemplate:
-        "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}}:{{ms}} [{{logLevelName}}] {{name}} {{logMessage}}",
-    prettyErrorTemplate: "\n{{errorName}} {{errorMessage}}\n{{errorStack}}",
-    prettyLogTimeZone: "local",
+    pretty: {
+        template:
+            "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}}:{{ms}} [{{logLevelName}}] {{name}} ",
+        errorTemplate: "\n{{errorName}} {{errorMessage}}\n{{errorStack}}",
+        timeZone: "local",
+    },
+    // logToFile reads metadata from _meta (tslog 5 defaults to _logMeta)
+    meta: { property: "_meta" },
+    // tslog 5 no longer masks "password" by default
+    mask: { keys: ["password"] },
     // Set logging level and type
     minLevel: 0, // debug level
     type: "hidden", // Hide all output (no console logging)
