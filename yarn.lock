@@ -2475,25 +2475,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/inquirer-autocomplete-prompt@npm:^3":
-  version: 3.0.3
-  resolution: "@types/inquirer-autocomplete-prompt@npm:3.0.3"
-  dependencies:
-    "@types/inquirer": "npm:*"
-  checksum: 10c0/3faf849c5eea1a2cc5a4e18de646b24868bd2b6479b8ee5ed1472800543bd682d5b7f3421d5bfcd7e4765afcc5aee7d4bdd35e693877042ee6b2f0830ceafbfb
-  languageName: node
-  linkType: hard
-
-"@types/inquirer@npm:*":
-  version: 9.0.9
-  resolution: "@types/inquirer@npm:9.0.9"
-  dependencies:
-    "@types/through": "npm:*"
-    rxjs: "npm:^7.2.0"
-  checksum: 10c0/235a02a3afa5b238ca9093ef7064e17d763ba134b1afd5a263ffc363ccdb6d1f7d64aa3866ca93e7ad52be4ff21324368a983d20d35caf21c16475cfb32db8c8
-  languageName: node
-  linkType: hard
-
 "@types/inquirer@npm:^9.0.8":
   version: 9.0.8
   resolution: "@types/inquirer@npm:9.0.8"
@@ -3281,13 +3262,6 @@ __metadata:
   version: 4.1.3
   resolution: "ansi-colors@npm:4.1.3"
   checksum: 10c0/ec87a2f59902f74e61eada7f6e6fe20094a628dab765cfdbd03c3477599368768cffccdb5d3bb19a1b6c99126783a143b1fee31aab729b31ffe5836c7e5e28b9
-  languageName: node
-  linkType: hard
-
-"ansi-escapes@npm:^6.0.0":
-  version: 6.2.1
-  resolution: "ansi-escapes@npm:6.2.1"
-  checksum: 10c0/a2c6f58b044be5f69662ee17073229b492daa2425a7fd99a665db6c22eab6e4ab42752807def7281c1c7acfed48f87f2362dda892f08c2c437f1b39c6b033103
   languageName: node
   linkType: hard
 
@@ -4403,7 +4377,6 @@ __metadata:
     "@semantic-release/npm": "npm:^13.1.3"
     "@semantic-release/release-notes-generator": "npm:^14.1.0"
     "@types/inquirer": "npm:^9.0.8"
-    "@types/inquirer-autocomplete-prompt": "npm:^3"
     "@types/node": "npm:^25.0.3"
     "@types/node-fetch": "npm:2"
     "@types/validator": "npm:^13.15.10"
@@ -4424,7 +4397,6 @@ __metadata:
     https-proxy-agent: "npm:^9.1.0"
     husky: "npm:^9.1.7"
     inquirer: "npm:14.2.2"
-    inquirer-autocomplete-prompt: "npm:3.0.1"
     is-interactive: "npm:^2.0.0"
     json-schema-to-typescript: "npm:^15.0.4"
     node-fetch: "npm:^3.3.2"
@@ -5359,16 +5331,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"figures@npm:^5.0.0":
-  version: 5.0.0
-  resolution: "figures@npm:5.0.0"
-  dependencies:
-    escape-string-regexp: "npm:^5.0.0"
-    is-unicode-supported: "npm:^1.2.0"
-  checksum: 10c0/ce0f17d4ea8b0fc429c5207c343534a2f5284ecfb22aa08607da7dc84ed9e1cf754f5b97760e8dcb98d3c9d1a1e4d3d578fe3b5b99c426f05d0f06c7ba618e16
-  languageName: node
-  linkType: hard
-
 "figures@npm:^6.0.0, figures@npm:^6.1.0":
   version: 6.1.0
   resolution: "figures@npm:6.1.0"
@@ -6256,21 +6218,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"inquirer-autocomplete-prompt@npm:3.0.1":
-  version: 3.0.1
-  resolution: "inquirer-autocomplete-prompt@npm:3.0.1"
-  dependencies:
-    ansi-escapes: "npm:^6.0.0"
-    figures: "npm:^5.0.0"
-    picocolors: "npm:^1.0.0"
-    run-async: "npm:^2.4.1"
-    rxjs: "npm:^7.5.6"
-  peerDependencies:
-    inquirer: ^9.1.0
-  checksum: 10c0/08b3359665a82f3e7fed6bd463cd2b1ac70814f4702d4bd3bce760b5070a44f81ddca5f7727ee71f530cad29bfb8e0936b03653481734683af12c5fb3ae9f012
-  languageName: node
-  linkType: hard
-
 "inquirer@npm:14.2.2":
   version: 14.2.2
   resolution: "inquirer@npm:14.2.2"
@@ -6441,13 +6388,6 @@ __metadata:
   dependencies:
     text-extensions: "npm:^2.0.0"
   checksum: 10c0/e3c470e1262a3a54aa0fca1c0300b2659a7aed155714be6b643f88822c03bcfa6659b491f7a05c5acd3c1a3d6d42bab47e1bdd35bcc3a25973c4f26b2928bc1a
-  languageName: node
-  linkType: hard
-
-"is-unicode-supported@npm:^1.2.0":
-  version: 1.3.0
-  resolution: "is-unicode-supported@npm:1.3.0"
-  checksum: 10c0/b8674ea95d869f6faabddc6a484767207058b91aea0250803cbf1221345cb0c56f466d4ecea375dc77f6633d248d33c47bd296fb8f4cdba0b4edba8917e83d8a
   languageName: node
   linkType: hard
 
@@ -8891,7 +8831,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"picocolors@npm:^1.0.0, picocolors@npm:^1.1.1":
+"picocolors@npm:^1.1.1":
   version: 1.1.1
   resolution: "picocolors@npm:1.1.1"
   checksum: 10c0/e2e3e8170ab9d7c7421969adaa7e1b31434f789afb9b3f115f6b96d91945041ac3ceb02e9ec6fe6510ff036bcc0bf91e69a1772edc0b707e12b19c0f2d6bcf58
@@ -9536,13 +9476,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"run-async@npm:^2.4.1":
-  version: 2.4.1
-  resolution: "run-async@npm:2.4.1"
-  checksum: 10c0/35a68c8f1d9664f6c7c2e153877ca1d6e4f886e5ca067c25cdd895a6891ff3a1466ee07c63d6a9be306e9619ff7d509494e6d9c129516a36b9fd82263d579ee1
-  languageName: node
-  linkType: hard
-
 "run-async@npm:^4.0.6":
   version: 4.0.6
   resolution: "run-async@npm:4.0.6"
@@ -9559,7 +9492,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rxjs@npm:^7.2.0, rxjs@npm:^7.5.6":
+"rxjs@npm:^7.2.0":
   version: 7.8.2
   resolution: "rxjs@npm:7.8.2"
   dependencies:
