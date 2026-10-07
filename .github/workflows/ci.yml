@@ -58,8 +58,22 @@ jobs:
             # Major version bumps are left for manual review
             - name: Merge patch and minor updates
               if: steps.metadata.outputs.update-type != 'version-update:semver-major'
-              # Only merge the exact commit CI tested; fails if the PR was updated since
-              run: gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
+              # Only merge the exact commit CI tested; fails if the PR was updated since.
+              # Retry when another merge lands on main at the same moment.
+              run: |
+                  for attempt in 1 2 3 4 5; do
+                      if output=$(gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL" 2>&1); then
+                          echo "$output"
+                          exit 0
+                      fi
+                      echo "$output"
+                      if ! grep -q "Base branch was modified" <<< "$output"; then
+                          exit 1
+                      fi
+                      echo "Base branch changed, retrying (attempt $attempt)"
+                      sleep $((attempt * 10))
+                  done
+                  exit 1
               env:
                   PR_URL: ${{ github.event.pull_request.html_url }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
