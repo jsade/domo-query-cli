@@ -117,18 +117,15 @@ export class ResponseSizeAnalyzer {
             name: dataflow.name as string | undefined,
             description: dataflow.description as string | undefined,
             status: (dataflow.status || dataflow.runState) as
-                | string
-                | undefined,
+                string | undefined,
             runState: dataflow.runState as string | undefined,
             enabled: dataflow.enabled as boolean | undefined,
             createdAt: dataflow.createdAt as string | undefined,
             modified: (dataflow.modified || dataflow.lastModified) as
-                | string
-                | undefined,
+                string | undefined,
             lastModified: dataflow.lastModified as string | undefined,
             owner: (dataflow.owner || dataflow.responsibleUserId) as
-                | string
-                | undefined,
+                string | undefined,
             responsibleUserId: dataflow.responsibleUserId as string | undefined,
             inputCount:
                 (dataflow.inputCount as number | undefined) ||

@@ -402,11 +402,7 @@ export interface DataflowListParams {
  * Available sort options for dataflows
  */
 export type DataflowSort =
-    | "name"
-    | "nameDescending"
-    | "status"
-    | "lastRun"
-    | "owner";
+    "name" | "nameDescending" | "status" | "lastRun" | "owner";
 
 /**
  * Parameters for listing dataflow executions
@@ -852,12 +848,7 @@ export interface CardListParams {
  * Defines parts of a KPI card that can be rendered
  */
 export type KpiCardPart =
-    | "image"
-    | "summary"
-    | "title"
-    | "imagePNG"
-    | "imagePDF"
-    | "all";
+    "image" | "summary" | "title" | "imagePNG" | "imagePDF" | "all";
 
 /**
  * Status values returned by the KPI card render API

@@ -1224,8 +1224,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
                             // Handle get_dataflow_section
                             const section = args.section as string;
                             const chunkIndex = args.chunkIndex as
-                                | number
-                                | undefined;
+                                number | undefined;
                             const smartResponse =
                                 SmartResponseBuilder.buildDataflowResponse(
                                     dataflow,

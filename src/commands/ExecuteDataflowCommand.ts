@@ -46,9 +46,7 @@ export class ExecuteDataflowCommand extends BaseCommand {
                 const modeValue = String(parsed.params.mode).toUpperCase();
                 if (["NORMAL", "DEBUG", "PROFILE"].includes(modeValue)) {
                     execParams.mode = modeValue as
-                        | "NORMAL"
-                        | "DEBUG"
-                        | "PROFILE";
+                        "NORMAL" | "DEBUG" | "PROFILE";
                 } else {
                     this.outputErrorResult({
                         message: `Invalid mode value: ${modeValue}. Must be NORMAL, DEBUG, or PROFILE.`,

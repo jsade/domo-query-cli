@@ -20,10 +20,7 @@ import { BaseClient } from "./baseClient.ts";
  * Authentication method to use for dataflow operations
  */
 export type DataflowAuthMethod =
-    | "apiToken"
-    | "oauth"
-    | "oauthRefresh"
-    | "usernamePassword";
+    "apiToken" | "oauth" | "oauthRefresh" | "usernamePassword";
 
 /**
  * Client specifically for making authenticated requests to the Domo Dataflow API

@@ -242,14 +242,12 @@ export namespace Card_API {
             };
             CardDefinition: {
                 calculatedFields?:
-                    | components["schemas"]["CalculatedField"][]
-                    | null;
+                    components["schemas"]["CalculatedField"][] | null;
                 chartBody?: components["schemas"]["Component_Nullable"];
                 chartType?: string | null;
                 chartVersion?: string | null;
                 conditionalFormats?:
-                    | components["schemas"]["ConditionalFormat"][]
-                    | null;
+                    components["schemas"]["ConditionalFormat"][] | null;
                 dataSetId?: string | null;
                 description?: string | null;
                 /** Format: double */
