@@ -834,7 +834,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@inquirer/ansi@npm:^2.0.8, @inquirer/ansi@npm:^2.0.9":
+"@inquirer/ansi@npm:^2.0.9":
   version: 2.0.9
   resolution: "@inquirer/ansi@npm:2.0.9"
   checksum: 10c0/2d909c11853468a76e1b3e4d695c09365787ed828276a93af7286d9c3d0e626db50766455119c9cb35e73e1917265fd9008a379c992ab497170893d1a222cb29
@@ -873,7 +873,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@inquirer/core@npm:^12.0.3, @inquirer/core@npm:^12.0.4":
+"@inquirer/core@npm:^12.0.4":
   version: 12.0.4
   resolution: "@inquirer/core@npm:12.0.4"
   dependencies:
@@ -992,7 +992,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@inquirer/prompts@npm:^8.7.2":
+"@inquirer/prompts@npm:^8.7.3":
   version: 8.7.3
   resolution: "@inquirer/prompts@npm:8.7.3"
   dependencies:
@@ -1060,18 +1060,6 @@ __metadata:
     "@types/node":
       optional: true
   checksum: 10c0/e968035c0934eddd6b28e70377eb281f836f74ec9ad0487978de5048813c0cc555ceb1281d23e112b12d3400cc061b017b4269f331a6cd1233ab1062765a3d3e
-  languageName: node
-  linkType: hard
-
-"@inquirer/type@npm:4.1.1":
-  version: 4.1.1
-  resolution: "@inquirer/type@npm:4.1.1"
-  peerDependencies:
-    "@types/node": ">=18"
-  peerDependenciesMeta:
-    "@types/node":
-      optional: true
-  checksum: 10c0/77e7e21deaa8188d7d0ce34ed2623302d630529c28605d3ec931bc1420f8c35b9126790fc9deeeb6661326409ae4cec632d4bee3da74659512de1dddfe611dd9
   languageName: node
   linkType: hard
 
@@ -4253,7 +4241,7 @@ __metadata:
     "@yarnpkg/sdks": "npm:^3.2.3"
     chalk: "npm:^6.0.1"
     depcheck: "npm:^1.4.7"
-    dotenv: "npm:^18.0.5"
+    dotenv: "npm:^18.0.7"
     esbuild: "npm:^0.28.2"
     eslint: "npm:^10.12.0"
     eslint-config-prettier: "npm:^10.1.8"
@@ -4262,7 +4250,7 @@ __metadata:
     globals: "npm:^17.13.0"
     https-proxy-agent: "npm:^9.1.0"
     husky: "npm:^9.1.7"
-    inquirer: "npm:14.2.2"
+    inquirer: "npm:14.2.3"
     is-interactive: "npm:^2.0.0"
     json-schema-to-typescript: "npm:^16.0.0"
     node-fetch: "npm:^3.3.2"
@@ -4300,12 +4288,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dotenv@npm:^18.0.5":
-  version: 18.0.6
-  resolution: "dotenv@npm:18.0.6"
+"dotenv@npm:^18.0.7":
+  version: 18.0.7
+  resolution: "dotenv@npm:18.0.7"
   bin:
     dotenv: dist/index.cjs
-  checksum: 10c0/fe26487d82e6e1dcedc890bb7176fdb71d5540ebaf8b2adca5996a4891e133d0108699235e81c943ba6f02f00a4775843b96841bf24595b1fa67d9fb2c242efb
+  checksum: 10c0/bda2efbfa3194eec5ae592308db16285a3e163b505282a052ec9e10538be1c6a526f0437b431e78183e9bd367db0ad7c446d0180ab62310bc0a384787bec8894
   languageName: node
   linkType: hard
 
@@ -5992,14 +5980,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"inquirer@npm:14.2.2":
-  version: 14.2.2
-  resolution: "inquirer@npm:14.2.2"
+"inquirer@npm:14.2.3":
+  version: 14.2.3
+  resolution: "inquirer@npm:14.2.3"
   dependencies:
-    "@inquirer/ansi": "npm:^2.0.8"
-    "@inquirer/core": "npm:^12.0.3"
-    "@inquirer/prompts": "npm:^8.7.2"
-    "@inquirer/type": "npm:4.1.1"
+    "@inquirer/ansi": "npm:^2.0.9"
+    "@inquirer/core": "npm:^12.0.4"
+    "@inquirer/prompts": "npm:^8.7.3"
+    "@inquirer/type": "npm:4.2.0"
     mute-stream: "npm:^3.0.0"
     run-async: "npm:^4.0.6"
   peerDependencies:
@@ -6007,7 +5995,7 @@ __metadata:
   peerDependenciesMeta:
     "@types/node":
       optional: true
-  checksum: 10c0/f5bdf32687eff178de13c31155258950600a4aacace4e9d79f01488e02f22c6a3aa4b221b22efc59c17dc141df264e56e8a6b410e3e83d4cb0a6687cadadcf50
+  checksum: 10c0/82255f18a7cca1970d5e7366f097a5b6f7d96c78472f14d5208674bf3e81e3b26e11f71cebda7a03dd1904268a8b6db60d5442ac960c3c534f16a3f8eb8ea757
   languageName: node
   linkType: hard
 
